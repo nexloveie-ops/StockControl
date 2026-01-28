@@ -2,7 +2,6 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
@@ -23,24 +22,6 @@ app.use(helmet({
   },
 }));
 app.use(cors());
-
-// 在AWS环境中禁用限流以避免代理问题
-const isProduction = process.env.NODE_ENV === 'production';
-const isAWS = process.env.AWS_REGION || process.env.AWS_EXECUTION_ENV;
-
-if (!isProduction && !isAWS) {
-  // 仅在开发环境中启用限流
-  const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15分钟
-    max: 100, // 限制每个IP 15分钟内最多100个请求
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
-  app.use(limiter);
-  console.log('Rate limiting enabled for development environment');
-} else {
-  console.log('Rate limiting disabled for production/AWS environment');
-}
 
 // 解析JSON
 app.use(express.json({ limit: '10mb' }));
