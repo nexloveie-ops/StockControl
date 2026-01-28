@@ -27,6 +27,15 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// 请求日志中间件
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  if (req.method === 'POST') {
+    console.log('POST请求体:', req.body);
+  }
+  next();
+});
+
 // 静态文件服务
 app.use(express.static('public'));
 
