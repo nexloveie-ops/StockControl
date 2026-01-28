@@ -114,6 +114,49 @@ app.post('/api/test', (req, res) => {
   });
 });
 
+// GET方式的登录测试（仅用于调试）
+app.get('/api/auth/test-login', async (req, res) => {
+  try {
+    const { username, password } = req.query;
+    console.log('GET测试登录:', username);
+    
+    if (!username || !password) {
+      return res.status(400).json({ error: '缺少用户名或密码' });
+    }
+    
+    const User = require('./models/User');
+    const user = await User.findOne({ 
+      $or: [{ username }, { email: username }],
+      isActive: true 
+    });
+    
+    if (!user || !(await user.comparePassword(password))) {
+      return res.status(401).json({ error: '用户名或密码错误' });
+    }
+
+    const jwt = require('jsonwebtoken');
+    const token = jwt.sign(
+      { userId: user._id }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: process.env.JWT_EXPIRE }
+    );
+
+    res.json({
+      message: '登录成功（GET测试）',
+      token,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('GET测试登录错误:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 根路径
 app.get('/', (req, res) => {
   // 检查是否在AWS环境中
