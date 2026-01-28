@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTTP POST测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #ffc107;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #28a745;
+        }
+        .form-group {
+            margin: 15px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px 10px 0;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .test-btn {
+            background: #28a745;
+        }
+        .test-btn:hover {
+            background: #218838;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .protocol-info {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 HTTP POST测试页面</h1>
+        
+        <div class="protocol-info">
+            <strong>当前协议:</strong> <span id="protocol"></span><br>
+            <strong>当前URL:</strong> <span id="currentUrl"></span>
+        </div>
+
+        <div class="warning">
+            <strong>⚠️ 重要提示:</strong><br>
+            AWS Load Balancer目前只配置了HTTP (端口80)，没有配置HTTPS (端口443)。<br>
+            <strong>必须使用HTTP协议访问此页面才能正常工作！</strong>
+        </div>
+
+        <div class="success" id="httpCheck" style="display:none;">
+            ✅ 正确！您正在使用HTTP协议访问
+        </div>
+
+        <div class="warning" id="httpsWarning" style="display:none;">
+            ❌ 错误！您正在使用HTTPS协议，POST请求会失败<br>
+            <strong>请改用HTTP访问:</strong><br>
+            <a href="" id="httpLink" style="color: #856404; font-weight: bold;"></a>
+        </div>
+
+        <h2>方法1: 表单提交（推荐）</h2>
+        <form action="/api/auth/login" method="POST" target="_blank">
+            <div class="form-group">
+                <label>用户名:</label>
+                <input type="text" name="username" value="testuser" required>
+            </div>
+            <div class="form-group">
+                <label>密码:</label>
+                <input type="password" name="password" value="123456" required>
+            </div>
+            <button type="submit">登录（新窗口）</button>
+        </form>
+
+        <h2>方法2: Fetch API测试</h2>
+        <button class="test-btn" onclick="testFetch()">测试Fetch POST</button>
+        <pre id="fetchResult">点击按钮测试...</pre>
+
+        <h2>方法3: 简单POST测试</h2>
+        <button class="test-btn" onclick="testSimplePost()">测试简单POST</button>
+        <pre id="simpleResult">点击按钮测试...</pre>
+    </div>
+
+    <script>
+        // 显示当前协议和URL
+        const protocol = window.location.protocol;
+        const currentUrl = window.location.href;
+        document.getElementById('protocol').textContent = protocol;
+        document.getElementById('currentUrl').textContent = currentUrl;
+
+        // 检查协议
+        if (protocol === 'http:') {
+            document.getElementById('httpCheck').style.display = 'block';
+        } else {
+            document.getElementById('httpsWarning').style.display = 'block';
+            const httpUrl = currentUrl.replace('https://', 'http://');
+            const link = document.getElementById('httpLink');
+            link.href = httpUrl;
+            link.textContent = httpUrl;
+        }
+
+        // Fetch测试
+        async function testFetch() {
+            const resultEl = document.getElementById('fetchResult');
+            resultEl.textContent = '发送请求中...\n协议: ' + protocol;
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'testuser',
+                        password: '123456'
+                    })
+                });
+                
+                const data = await response.json();
+                resultEl.textContent = '✅ 成功!\n\n' + JSON.stringify(data, null, 2);
+            } catch (error) {
+                resultEl.textContent = '❌ 失败!\n\n错误: ' + error.message + '\n\n这可能是因为使用了HTTPS协议';
+            }
+        }
+
+        // 简单POST测试
+        async function testSimplePost() {
+            const resultEl = document.getElementById('simpleResult');
+            resultEl.textContent = '发送请求中...\n协议: ' + protocol;
+            
+            try {
+                const response = await fetch('/api/test', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        test: 'data',
+                        timestamp: new Date().toISOString()
+                    })
+                });
+                
+                const data = await response.json();
+                resultEl.textContent = '✅ 成功!\n\n' + JSON.stringify(data, null, 2);
+            } catch (error) {
+                resultEl.textContent = '❌ 失败!\n\n错误: ' + error.message + '\n\n这可能是因为使用了HTTPS协议';
+            }
+        }
+
+        console.log('HTTP测试页面加载完成');
+        console.log('当前协议:', protocol);
+        console.log('当前URL:', currentUrl);
+    </script>
+</body>
+</html>
