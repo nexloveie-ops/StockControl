@@ -21,7 +21,15 @@ app.use(helmet({
     },
   },
 }));
-app.use(cors());
+
+// CORS配置 - 允许null origin（用于表单提交）
+app.use(cors({
+  origin: function (origin, callback) {
+    // 允许没有origin的请求（如表单提交）或任何origin
+    callback(null, true);
+  },
+  credentials: true
+}));
 
 // 解析JSON
 app.use(express.json({ limit: '10mb' }));
