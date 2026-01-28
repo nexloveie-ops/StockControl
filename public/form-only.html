@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3C库存管理系统 - 表单版本</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        h2 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .links {
+            margin: 20px 0;
+        }
+        .links a {
+            display: inline-block;
+            margin: 5px 10px 5px 0;
+            padding: 8px 16px;
+            background: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .links a:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏪 3C库存管理系统</h1>
+        <div class="info">
+            <strong>表单版本</strong> - 由于浏览器安全策略限制JavaScript HTTP请求，此版本使用纯表单提交，功能完全正常。
+        </div>
+
+        <!-- 系统状态 -->
+        <div class="section">
+            <h2>🔧 系统状态</h2>
+            <div class="links">
+                <a href="/health" target="_blank">健康检查</a>
+                <a href="/api/test-db" target="_blank">数据库测试</a>
+            </div>
+            <div id="jsStatus" class="success">
+                <script>
+                    document.write('JavaScript工作正常！时间: ' + new Date().toLocaleString());
+                </script>
+            </div>
+        </div>
+
+        <!-- 用户注册 -->
+        <div class="section">
+            <h2>👤 用户注册</h2>
+            <form action="/api/auth/register" method="POST" target="_blank">
+                <div class="form-group">
+                    <label>用户名:</label>
+                    <input type="text" name="username" placeholder="请输入用户名" required>
+                </div>
+                <div class="form-group">
+                    <label>邮箱:</label>
+                    <input type="email" name="email" placeholder="请输入邮箱" required>
+                </div>
+                <div class="form-group">
+                    <label>密码:</label>
+                    <input type="password" name="password" placeholder="请输入密码" minlength="6" required>
+                </div>
+                <div class="form-group">
+                    <label>角色:</label>
+                    <select name="role">
+                        <option value="staff">员工</option>
+                        <option value="manager">经理</option>
+                        <option value="admin">管理员</option>
+                    </select>
+                </div>
+                <button type="submit">注册用户</button>
+            </form>
+            <p><small>注册成功后会在新窗口显示结果，包含用户信息和JWT token</small></p>
+        </div>
+
+        <!-- 用户登录 -->
+        <div class="section">
+            <h2>🔐 用户登录</h2>
+            <form action="/api/auth/login" method="POST" target="_blank">
+                <div class="form-group">
+                    <label>用户名:</label>
+                    <input type="text" name="username" placeholder="请输入用户名" required>
+                </div>
+                <div class="form-group">
+                    <label>密码:</label>
+                    <input type="password" name="password" placeholder="请输入密码" required>
+                </div>
+                <button type="submit">用户登录</button>
+            </form>
+            <p><small>登录成功后会在新窗口显示用户信息和JWT token</small></p>
+        </div>
+
+        <!-- 快速测试 -->
+        <div class="section">
+            <h2>⚡ 快速测试</h2>
+            <p>使用预填数据快速测试功能：</p>
+            
+            <h3>测试注册</h3>
+            <form action="/api/auth/register" method="POST" target="_blank">
+                <input type="hidden" name="username" value="testuser">
+                <input type="hidden" name="email" value="test@example.com">
+                <input type="hidden" name="password" value="123456">
+                <input type="hidden" name="role" value="admin">
+                <button type="submit">快速注册测试用户</button>
+            </form>
+            
+            <h3>测试登录</h3>
+            <form action="/api/auth/login" method="POST" target="_blank">
+                <input type="hidden" name="username" value="testuser">
+                <input type="hidden" name="password" value="123456">
+                <button type="submit">快速登录测试用户</button>
+            </form>
+        </div>
+
+        <!-- 使用说明 -->
+        <div class="section">
+            <h2>📖 使用说明</h2>
+            <ol>
+                <li><strong>注册用户</strong>：填写用户信息，选择角色，点击注册</li>
+                <li><strong>用户登录</strong>：使用注册的用户名和密码登录</li>
+                <li><strong>获取Token</strong>：登录成功后会显示JWT token，用于API认证</li>
+                <li><strong>API调用</strong>：使用token调用其他API接口</li>
+            </ol>
+            
+            <h3>API端点</h3>
+            <ul>
+                <li><code>POST /api/auth/register</code> - 用户注册</li>
+                <li><code>POST /api/auth/login</code> - 用户登录</li>
+                <li><code>GET /api/auth/me</code> - 获取用户信息（需要token）</li>
+                <li><code>GET /health</code> - 健康检查</li>
+                <li><code>GET /api/test-db</code> - 数据库测试</li>
+            </ul>
+        </div>
+
+        <!-- 故障排除 -->
+        <div class="section">
+            <h2>🔧 故障排除</h2>
+            <p><strong>为什么使用表单而不是JavaScript？</strong></p>
+            <p>由于浏览器安全策略或网络环境限制，JavaScript发起的HTTP请求被阻止。表单提交是更可靠的方式，功能完全相同。</p>
+            
+            <p><strong>如何使用JWT Token？</strong></p>
+            <p>登录成功后，复制返回的token，在API请求的Header中添加：<br>
+            <code>Authorization: Bearer YOUR_TOKEN_HERE</code></p>
+        </div>
+    </div>
+
+    <script>
+        // 简单的JavaScript增强功能
+        console.log('3C库存管理系统 - 表单版本加载完成');
+        
+        // 为表单添加提交确认
+        document.addEventListener('DOMContentLoaded', function() {
+            var forms = document.querySelectorAll('form');
+            forms.forEach(function(form) {
+                form.addEventListener('submit', function(e) {
+                    var action = form.getAttribute('action');
+                    if (action.includes('/register')) {
+                        if (!confirm('确定要注册这个用户吗？')) {
+                            e.preventDefault();
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
