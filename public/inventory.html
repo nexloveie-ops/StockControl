@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>库存管理 - 3C产品管理系统</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+      background: #f5f5f5;
+      color: #333;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .header h1 {
+      font-size: 24px;
+      margin-bottom: 5px;
+    }
+    
+    .header .nav {
+      margin-top: 10px;
+    }
+    
+    .header .nav a {
+      color: white;
+      text-decoration: none;
+      margin-right: 20px;
+      opacity: 0.9;
+    }
+    
+    .header .nav a:hover {
+      opacity: 1;
+      text-decoration: underline;
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .view-toggle {
+      margin-bottom: 20px;
+      display: flex;
+      gap: 10px;
+    }
+    
+    .view-toggle button {
+      padding: 10px 20px;
+      border: 2px solid #667eea;
+      background: white;
+      color: #667eea;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+    
+    .view-toggle button.active {
+      background: #667eea;
+      color: white;
+    }
+    
+    /* 分组视图 */
+    .group-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 20px;
+    }
+    
+    .group-card {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .group-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+    }
+    
+    .group-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 15px;
+    }
+    
+    .group-card-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 5px;
+    }
+    
+    .group-card-category {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    
+    .category-accessory {
+      background: #d1ecf1;
+      color: #0c5460;
+    }
+    
+    .category-new {
+      background: #d4edda;
+      color: #155724;
+    }
+    
+    .category-used {
+      background: #fff3cd;
+      color: #856404;
+    }
+    
+    .group-stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 15px;
+      margin-top: 15px;
+    }
+    
+    .stat-item {
+      background: #f8f9fa;
+      padding: 12px;
+      border-radius: 8px;
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 5px;
+    }
+    
+    .stat-value {
+      font-size: 20px;
+      font-weight: bold;
+      color: #667eea;
+    }
+    
+    .stat-value.small {
+      font-size: 16px;
+    }
+    
+    /* 详情视图 */
+    .detail-view {
+      display: none;
+    }
+    
+    .detail-view.active {
+      display: block;
+    }
+    
+    .detail-header {
+      background: white;
+      border-radius: 10px;
+      padding: 25px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .detail-title {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+    
+    .back-btn {
+      padding: 8px 16px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    .back-btn:hover {
+      background: #5568d3;
+    }
+    
+    .detail-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+    }
+    
+    .detail-stat-card {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    
+    .detail-stat-label {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+    
+    .detail-stat-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #667eea;
+    }
+    
+    .products-table {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .products-table h3 {
+      margin-bottom: 15px;
+      font-size: 18px;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    th {
+      background: #f8f9fa;
+      font-weight: 600;
+      color: #666;
+      font-size: 14px;
+    }
+    
+    td {
+      font-size: 14px;
+    }
+    
+    tr:hover {
+      background: #f8f9fa;
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    
+    .badge-success { background: #d4edda; color: #155724; }
+    .badge-warning { background: #fff3cd; color: #856404; }
+    .badge-danger { background: #f8d7da; color: #721c24; }
+    .badge-info { background: #d1ecf1; color: #0c5460; }
+    .badge-primary { background: #cfe2ff; color: #084298; }
+    
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+    
+    .empty {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>📦 库存管理</h1>
+    <div class="nav">
+      <a href="/prototype.html">← 返回主页</a>
+      <a href="/inventory.html">库存管理</a>
+      <a href="/sales.html">销售</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- 分组视图 -->
+    <div id="groupView" class="group-view">
+      <div class="view-toggle">
+        <button class="active">分组视图</button>
+      </div>
+      
+      <div class="group-grid" id="groupGrid">
+        <div class="loading">加载中...</div>
+      </div>
+    </div>
+
+    <!-- 详情视图 -->
+    <div id="detailView" class="detail-view">
+      <div class="detail-header">
+        <div class="detail-title">
+          <button class="back-btn" onclick="backToGroups()">← 返回</button>
+          <span id="detailTitle"></span>
+          <span id="detailCategory"></span>
+        </div>
+        
+        <div class="detail-stats-grid" id="detailStats"></div>
+      </div>
+      
+      <div class="products-table">
+        <h3>产品明细</h3>
+        <div id="productsTable"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+    let groups = [];
+    let currentGroup = null;
+
+    // 加载产品分组
+    async function loadGroups() {
+      try {
+        const response = await fetch(`${API_BASE}/products/groups`);
+        const result = await response.json();
+        
+        if (result.success) {
+          groups = result.data;
+          renderGroups();
+        }
+      } catch (error) {
+        console.error('加载分组失败:', error);
+        document.getElementById('groupGrid').innerHTML = 
+          '<div class="empty">加载失败: ' + error.message + '</div>';
+      }
+    }
+
+    // 渲染分组列表
+    function renderGroups() {
+      const grid = document.getElementById('groupGrid');
+      
+      if (groups.length === 0) {
+        grid.innerHTML = '<div class="empty">暂无产品数据</div>';
+        return;
+      }
+      
+      grid.innerHTML = groups.map(group => {
+        const categoryClass = group.category === 'ACCESSORY' ? 'accessory' : 
+                             group.category === 'NEW_DEVICE' ? 'new' : 'used';
+        const categoryText = group.category === 'ACCESSORY' ? '配件' : 
+                            group.category === 'NEW_DEVICE' ? '全新设备' : '二手设备';
+        
+        return `
+          <div class="group-card" onclick="showGroupDetail('${group.productType}', '${group.category}')">
+            <div class="group-card-header">
+              <div>
+                <div class="group-card-title">${group.productType}</div>
+                <span class="group-card-category category-${categoryClass}">${categoryText}</span>
+              </div>
+            </div>
+            
+            <div class="group-stats">
+              <div class="stat-item">
+                <div class="stat-label">总库存</div>
+                <div class="stat-value">${group.totalStock}</div>
+              </div>
+              
+              <div class="stat-item">
+                <div class="stat-label">可销售</div>
+                <div class="stat-value">${group.availableStock}</div>
+              </div>
+              
+              <div class="stat-item">
+                <div class="stat-label">30天销量</div>
+                <div class="stat-value">${group.last30DaysSales || 0}</div>
+              </div>
+              
+              <div class="stat-item">
+                <div class="stat-label">预计可售</div>
+                <div class="stat-value small">${group.estimatedMonths}月</div>
+              </div>
+            </div>
+            
+            ${group.latestProcurement ? `
+              <div style="margin-top: 15px; font-size: 12px; color: #666;">
+                最近进货: ${new Date(group.latestProcurement).toLocaleDateString('zh-CN')}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 显示分组详情
+    async function showGroupDetail(productType, category) {
+      try {
+        const response = await fetch(
+          `${API_BASE}/products/group-details?productType=${encodeURIComponent(productType)}&category=${category}`
+        );
+        const result = await response.json();
+        
+        if (result.success) {
+          currentGroup = result.data;
+          renderGroupDetail();
+          
+          // 切换视图
+          document.getElementById('groupView').style.display = 'none';
+          document.getElementById('detailView').classList.add('active');
+        }
+      } catch (error) {
+        console.error('加载详情失败:', error);
+        alert('加载详情失败: ' + error.message);
+      }
+    }
+
+    // 渲染分组详情
+    function renderGroupDetail() {
+      if (!currentGroup) return;
+      
+      const { productType, category, products, statistics } = currentGroup;
+      
+      // 标题
+      const categoryText = category === 'ACCESSORY' ? '配件' : 
+                          category === 'NEW_DEVICE' ? '全新设备' : '二手设备';
+      const categoryClass = category === 'ACCESSORY' ? 'accessory' : 
+                           category === 'NEW_DEVICE' ? 'new' : 'used';
+      
+      document.getElementById('detailTitle').textContent = productType;
+      document.getElementById('detailCategory').innerHTML = 
+        `<span class="group-card-category category-${categoryClass}">${categoryText}</span>`;
+      
+      // 统计信息
+      document.getElementById('detailStats').innerHTML = `
+        <div class="detail-stat-card">
+          <div class="detail-stat-label">总库存</div>
+          <div class="detail-stat-value">${statistics.totalStock}</div>
+        </div>
+        
+        <div class="detail-stat-card">
+          <div class="detail-stat-label">可销售</div>
+          <div class="detail-stat-value">${statistics.availableStock}</div>
+        </div>
+        
+        <div class="detail-stat-card">
+          <div class="detail-stat-label">当月销量</div>
+          <div class="detail-stat-value">${statistics.monthlySales}</div>
+        </div>
+        
+        <div class="detail-stat-card">
+          <div class="detail-stat-label">近30天销量</div>
+          <div class="detail-stat-value">${statistics.last30DaysSales}</div>
+        </div>
+        
+        <div class="detail-stat-card">
+          <div class="detail-stat-label">预计可售(月)</div>
+          <div class="detail-stat-value">${statistics.estimatedMonths}</div>
+        </div>
+        
+        <div class="detail-stat-card">
+          <div class="detail-stat-label">库存价值</div>
+          <div class="detail-stat-value">€${statistics.totalValue.toFixed(2)}</div>
+        </div>
+        
+        <div class="detail-stat-card">
+          <div class="detail-stat-label">最近进货</div>
+          <div class="detail-stat-value" style="font-size: 16px;">
+            ${statistics.latestProcurement ? new Date(statistics.latestProcurement).toLocaleDateString('zh-CN') : 'N/A'}
+          </div>
+        </div>
+        
+        <div class="detail-stat-card">
+          <div class="detail-stat-label">产品数量</div>
+          <div class="detail-stat-value">${statistics.productCount}</div>
+        </div>
+      `;
+      
+      // 产品表格
+      renderProductsTable(products, category);
+    }
+
+    // 渲染产品表格
+    function renderProductsTable(products, category) {
+      const container = document.getElementById('productsTable');
+      
+      if (category === 'ACCESSORY') {
+        // 配件类产品表格 - 调整列顺序
+        container.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>产品名称</th>
+                <th>条码</th>
+                <th>数量</th>
+                <th>进货价(含税)</th>
+                <th>批发价</th>
+                <th>零售价</th>
+                <th>税务分类</th>
+                <th>税额</th>
+                <th>位置</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${products.map(p => `
+                <tr>
+                  <td><strong>${p.name}</strong></td>
+                  <td>${p.barcode}</td>
+                  <td>${p.quantity}</td>
+                  <td>€${(p.purchasePrice + p.purchaseTax).toFixed(2)}</td>
+                  <td>€${p.wholesalePrice.toFixed(2)}</td>
+                  <td>€${p.suggestedRetailPrice.toFixed(2)}</td>
+                  <td>${getTaxBadge(p.taxClassification)}</td>
+                  <td>€${p.purchaseTax.toFixed(2)}</td>
+                  <td>${p.warehouseLocation}</td>
+                  <td>${getStatusBadge(p.status)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      } else {
+        // 设备类产品表格 - 调整列顺序
+        container.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>产品名称</th>
+                <th>序列号</th>
+                <th>成色</th>
+                <th>进货价(含税)</th>
+                <th>批发价</th>
+                <th>零售价</th>
+                <th>税务分类</th>
+                <th>税额</th>
+                <th>位置</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${products.map(p => `
+                <tr>
+                  <td><strong>${p.name}</strong></td>
+                  <td style="font-family: monospace; font-size: 12px;">${p.serialNumber}</td>
+                  <td>${p.conditionGrade ? getGradeBadge(p.conditionGrade) : '-'}</td>
+                  <td>€${(p.purchasePrice + p.purchaseTax).toFixed(2)}</td>
+                  <td>€${p.wholesalePrice.toFixed(2)}</td>
+                  <td>€${p.suggestedRetailPrice.toFixed(2)}</td>
+                  <td>${getTaxBadge(p.taxClassification)}</td>
+                  <td>€${p.purchaseTax.toFixed(2)}</td>
+                  <td>${p.warehouseLocation}</td>
+                  <td>${getStatusBadge(p.status)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      }
+    }
+
+    // 返回分组视图
+    function backToGroups() {
+      document.getElementById('groupView').style.display = 'block';
+      document.getElementById('detailView').classList.remove('active');
+      currentGroup = null;
+    }
+
+    // 辅助函数
+    function getTaxBadge(tax) {
+      const badges = {
+        'VAT_23': '<span class="badge badge-primary">VAT 23%</span>',
+        'MARGIN_VAT_0': '<span class="badge badge-info">Margin 0%</span>',
+        'SERVICE_VAT_13_5': '<span class="badge badge-warning">Service 13.5%</span>'
+      };
+      return badges[tax] || tax;
+    }
+
+    function getStatusBadge(status) {
+      const badges = {
+        'AVAILABLE': '<span class="badge badge-success">可销售</span>',
+        'DAMAGED': '<span class="badge badge-warning">坏损</span>',
+        'SCRAPPED': '<span class="badge badge-danger">报废</span>',
+        'SOLD': '<span class="badge badge-info">已售</span>'
+      };
+      return badges[status] || status;
+    }
+
+    function getGradeBadge(grade) {
+      const badges = {
+        'A_PLUS': '<span class="badge badge-success">A+</span>',
+        'A': '<span class="badge badge-success">A</span>',
+        'B': '<span class="badge badge-warning">B</span>',
+        'C': '<span class="badge badge-danger">C</span>'
+      };
+      return badges[grade] || grade;
+    }
+
+    // 初始化
+    loadGroups();
+  </script>
+</body>
+</html>
