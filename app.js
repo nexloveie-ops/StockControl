@@ -24,10 +24,13 @@ app.use(helmet({
 }));
 app.use(cors());
 
-// 限流
+// 限流配置（AWS优化）
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15分钟
-  max: 100 // 限制每个IP 15分钟内最多100个请求
+  max: 100, // 限制每个IP 15分钟内最多100个请求
+  trustProxy: true, // 信任代理
+  standardHeaders: true, // 返回标准的 `RateLimit` 头
+  legacyHeaders: false, // 禁用 `X-RateLimit-*` 头
 });
 app.use(limiter);
 
