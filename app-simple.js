@@ -5,6 +5,9 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 8080; // AWS EB通常使用8080
 
+// 信任代理（AWS Load Balancer）
+app.set('trust proxy', true);
+
 // 基础中间件
 app.use(express.json());
 app.use(express.static('public'));

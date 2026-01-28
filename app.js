@@ -8,6 +8,9 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// 信任代理（AWS Load Balancer）
+app.set('trust proxy', true);
+
 // 安全中间件
 app.use(helmet({
   contentSecurityPolicy: {
