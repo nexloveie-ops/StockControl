@@ -10,12 +10,13 @@ const PORT = process.env.PORT || 8080;
 // 信任代理（AWS Load Balancer）
 app.set('trust proxy', true);
 
-// 安全中间件
+// 安全中间件 - 放宽CSP以支持内联事件处理器
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"], // 允许内联脚本
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // 允许内联脚本和事件处理器
+      scriptSrcAttr: ["'unsafe-inline'"], // 允许HTML属性中的事件处理器（onclick等）
       styleSrc: ["'self'", "'unsafe-inline'"],  // 允许内联样式
       imgSrc: ["'self'", "data:", "https:"],
     },
