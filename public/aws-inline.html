@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3C库存管理系统 - AWS内联版本</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        h2 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .links {
+            margin: 20px 0;
+        }
+        .links a {
+            display: inline-block;
+            margin: 5px 10px 5px 0;
+            padding: 8px 16px;
+            background: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .links a:hover {
+            background: #218838;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        iframe {
+            width: 100%;
+            height: 300px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏪 3C库存管理系统 - AWS内联版本</h1>
+        <div class="info">
+            <strong>AWS优化版本</strong> - 表单提交结果显示在页面内的iframe中，无需弹出窗口
+        </div>
+
+        <!-- 系统状态检查 -->
+        <div class="section">
+            <h2>🔧 系统状态检查</h2>
+            <div class="links">
+                <a href="/health" target="result_frame">健康检查</a>
+                <a href="/api/test" target="result_frame">API测试</a>
+                <a href="/api/test-db" target="result_frame">数据库连接测试</a>
+            </div>
+        </div>
+
+        <!-- 用户注册 -->
+        <div class="section">
+            <h2>👤 用户注册</h2>
+            <form action="/api/auth/register" method="POST" target="result_frame">
+                <div class="form-group">
+                    <label>用户名:</label>
+                    <input type="text" name="username" placeholder="请输入用户名" required>
+                </div>
+                <div class="form-group">
+                    <label>邮箱:</label>
+                    <input type="email" name="email" placeholder="请输入邮箱" required>
+                </div>
+                <div class="form-group">
+                    <label>密码:</label>
+                    <input type="password" name="password" placeholder="请输入密码" minlength="6" required>
+                </div>
+                <div class="form-group">
+                    <label>角色:</label>
+                    <select name="role">
+                        <option value="staff">员工</option>
+                        <option value="manager">经理</option>
+                        <option value="admin">管理员</option>
+                    </select>
+                </div>
+                <button type="submit">注册用户</button>
+            </form>
+        </div>
+
+        <!-- 用户登录 -->
+        <div class="section">
+            <h2>🔐 用户登录</h2>
+            <form action="/api/auth/login" method="POST" target="result_frame">
+                <div class="form-group">
+                    <label>用户名:</label>
+                    <input type="text" name="username" placeholder="请输入用户名" required>
+                </div>
+                <div class="form-group">
+                    <label>密码:</label>
+                    <input type="password" name="password" placeholder="请输入密码" required>
+                </div>
+                <button type="submit">用户登录</button>
+            </form>
+        </div>
+
+        <!-- 快速测试 -->
+        <div class="section">
+            <h2>⚡ 快速测试</h2>
+            <p>使用预设数据快速测试功能：</p>
+            
+            <form action="/api/auth/register" method="POST" target="result_frame" style="display: inline-block; margin-right: 10px;">
+                <input type="hidden" name="username" value="awstest">
+                <input type="hidden" name="email" value="aws@test.com">
+                <input type="hidden" name="password" value="123456">
+                <input type="hidden" name="role" value="admin">
+                <button type="submit">快速注册AWS测试用户</button>
+            </form>
+            
+            <form action="/api/auth/login" method="POST" target="result_frame" style="display: inline-block;">
+                <input type="hidden" name="username" value="awstest">
+                <input type="hidden" name="password" value="123456">
+                <button type="submit">快速登录AWS测试用户</button>
+            </form>
+        </div>
+
+        <!-- 结果显示区域 -->
+        <div class="section">
+            <h2>📊 操作结果</h2>
+            <p>API响应将显示在下方：</p>
+            <iframe name="result_frame" id="result_frame"></iframe>
+        </div>
+
+        <!-- 使用说明 -->
+        <div class="section">
+            <h2>📖 使用说明</h2>
+            <ol>
+                <li>点击上方任何按钮或链接，结果会显示在"操作结果"区域的iframe中</li>
+                <li>注册成功后会返回用户信息和JWT token</li>
+                <li>登录成功后会返回JWT token，复制token用于后续API调用</li>
+                <li>使用token时，在HTTP请求头中添加：<code>Authorization: Bearer YOUR_TOKEN</code></li>
+            </ol>
+        </div>
+    </div>
+</body>
+</html>
