@@ -23,6 +23,9 @@ app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// 静态文件服务
+app.use(express.static('public'));
+
 // 数据库连接
 const connectDB = async () => {
   try {
