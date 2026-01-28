@@ -23,9 +23,6 @@ app.use(helmet({
 }));
 app.use(cors());
 
-// 处理OPTIONS预检请求
-app.options('*', cors());
-
 // 解析JSON
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
