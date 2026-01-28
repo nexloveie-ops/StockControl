@@ -3,7 +3,7 @@
 ## 🚨 当前问题
 ```
 ERR_CONNECTION_TIMED_OUT
-toys123-stock-env-1.eba-ndrhpv46.eu-central-1.elasticbeanstalk.com took too long to respond
+celestiatpl.eu-central-1.elasticbeanstalk.com took too long to respond
 ```
 
 ## 🔍 排查步骤
