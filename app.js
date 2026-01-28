@@ -24,12 +24,23 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // 数据库连接
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/3c-inventory', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('MongoDB连接成功'))
-.catch(err => console.error('MongoDB连接失败:', err));
+const connectDB = async () => {
+  try {
+    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/3c-inventory', {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log(`MongoDB连接成功: ${conn.connection.host}`);
+  } catch (error) {
+    console.error('MongoDB连接失败:', error.message);
+    console.log('提示: 请确保MongoDB正在运行，或者使用MongoDB Atlas云服务');
+    console.log('如果使用本地MongoDB，请启动MongoDB服务');
+    console.log('如果使用Atlas，请检查.env文件中的MONGODB_URI配置');
+    // 不退出进程，让应用继续运行以便调试
+  }
+};
+
+connectDB();
 
 // 路由
 app.use('/api/auth', require('./routes/auth'));
@@ -56,7 +67,7 @@ app.use((err, req, res, next) => {
 });
 
 // 404处理
-app.use('*', (req, res) => {
+app.use((req, res) => {
   res.status(404).json({ error: '接口不存在' });
 });
 
