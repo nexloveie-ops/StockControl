@@ -26,11 +26,9 @@ app.use(express.urlencoded({ extended: true }));
 // 数据库连接
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/3c-inventory', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/3c-inventory');
     console.log(`MongoDB连接成功: ${conn.connection.host}`);
+    console.log(`数据库名称: ${conn.connection.name}`);
   } catch (error) {
     console.error('MongoDB连接失败:', error.message);
     console.log('提示: 请确保MongoDB正在运行，或者使用MongoDB Atlas云服务');
@@ -41,6 +39,21 @@ const connectDB = async () => {
 };
 
 connectDB();
+
+// 测试路由
+app.get('/api/test-db', async (req, res) => {
+  try {
+    const User = require('./models/User');
+    const userCount = await User.countDocuments();
+    res.json({ 
+      message: '数据库连接测试成功',
+      userCount,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // 路由
 app.use('/api/auth', require('./routes/auth'));
