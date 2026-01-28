@@ -29,9 +29,11 @@ app.use(express.urlencoded({ extended: true }));
 
 // 请求日志中间件
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  const timestamp = new Date().toISOString();
+  console.log(`${timestamp} - ${req.method} ${req.path}`);
+  console.log(`  Headers:`, JSON.stringify(req.headers, null, 2));
   if (req.method === 'POST') {
-    console.log('POST请求体:', req.body);
+    console.log(`  Body:`, req.body);
   }
   next();
 });
