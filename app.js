@@ -23,6 +23,9 @@ app.use(helmet({
 }));
 app.use(cors());
 
+// 处理OPTIONS预检请求
+app.options('*', cors());
+
 // 解析JSON
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -100,6 +103,17 @@ app.get('/api/test', (req, res) => {
       userAgent: req.get('user-agent'),
       xForwardedFor: req.get('x-forwarded-for')
     }
+  });
+});
+
+// POST测试端点
+app.post('/api/test', (req, res) => {
+  console.log('收到POST /api/test请求');
+  console.log('请求体:', req.body);
+  res.json({
+    message: 'POST请求成功',
+    timestamp: new Date().toISOString(),
+    receivedData: req.body
   });
 });
 
