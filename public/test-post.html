@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>POST测试</title>
+</head>
+<body>
+    <h1>POST请求测试</h1>
+    
+    <h2>方法1: 表单提交到新窗口</h2>
+    <form action="/api/auth/login" method="POST" target="_blank">
+        <input type="text" name="username" value="testuser" placeholder="用户名"><br><br>
+        <input type="password" name="password" value="123456" placeholder="密码"><br><br>
+        <button type="submit">登录（新窗口）</button>
+    </form>
+    
+    <hr>
+    
+    <h2>方法2: 表单提交到当前页面</h2>
+    <form action="/api/auth/login" method="POST">
+        <input type="text" name="username" value="testuser" placeholder="用户名"><br><br>
+        <input type="password" name="password" value="123456" placeholder="密码"><br><br>
+        <button type="submit">登录（当前页）</button>
+    </form>
+    
+    <hr>
+    
+    <h2>方法3: 使用fetch（JavaScript）</h2>
+    <button onclick="testFetch()">测试Fetch POST</button>
+    <pre id="result"></pre>
+    
+    <script>
+        async function testFetch() {
+            const resultEl = document.getElementById('result');
+            resultEl.textContent = '发送请求中...';
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'testuser',
+                        password: '123456'
+                    })
+                });
+                
+                const data = await response.json();
+                resultEl.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                resultEl.textContent = '错误: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
