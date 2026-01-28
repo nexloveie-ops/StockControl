@@ -6,7 +6,7 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 // 信任代理（AWS Load Balancer）
 app.set('trust proxy', true);
@@ -24,15 +24,23 @@ app.use(helmet({
 }));
 app.use(cors());
 
-// 限流配置（AWS优化）
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15分钟
-  max: 100, // 限制每个IP 15分钟内最多100个请求
-  trustProxy: true, // 信任代理
-  standardHeaders: true, // 返回标准的 `RateLimit` 头
-  legacyHeaders: false, // 禁用 `X-RateLimit-*` 头
-});
-app.use(limiter);
+// 在AWS环境中禁用限流以避免代理问题
+const isProduction = process.env.NODE_ENV === 'production';
+const isAWS = process.env.AWS_REGION || process.env.AWS_EXECUTION_ENV;
+
+if (!isProduction && !isAWS) {
+  // 仅在开发环境中启用限流
+  const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15分钟
+    max: 100, // 限制每个IP 15分钟内最多100个请求
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use(limiter);
+  console.log('Rate limiting enabled for development environment');
+} else {
+  console.log('Rate limiting disabled for production/AWS environment');
+}
 
 // 解析JSON
 app.use(express.json({ limit: '10mb' }));
@@ -83,7 +91,26 @@ app.use('/api/categories', require('./routes/categories'));
 
 // 健康检查端点
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.status(200).json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    port: PORT,
+    environment: process.env.NODE_ENV || 'development',
+    aws: !!process.env.AWS_REGION
+  });
+});
+
+// 简单API测试端点（不需要数据库）
+app.get('/api/test', (req, res) => {
+  res.json({
+    message: 'API工作正常',
+    timestamp: new Date().toISOString(),
+    headers: {
+      host: req.get('host'),
+      userAgent: req.get('user-agent'),
+      xForwardedFor: req.get('x-forwarded-for')
+    }
+  });
 });
 
 // 根路径
@@ -129,6 +156,10 @@ app.use((req, res) => {
 
 app.listen(PORT, () => {
   console.log(`服务器运行在端口 ${PORT}`);
+  console.log(`环境: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`数据库: ${process.env.MONGODB_URI ? 'MongoDB Atlas' : '本地MongoDB'}`);
+  console.log(`AWS环境: ${process.env.AWS_REGION ? '是' : '否'}`);
+  console.log(`时间: ${new Date().toISOString()}`);
 });
 
 module.exports = app;
