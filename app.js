@@ -9,7 +9,16 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // 安全中间件
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"], // 允许内联脚本
+      styleSrc: ["'self'", "'unsafe-inline'"],  // 允许内联样式
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+}));
 app.use(cors());
 
 // 限流

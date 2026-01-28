@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简单测试页面</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        button { padding: 10px 20px; margin: 10px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        input { padding: 8px; margin: 5px; width: 200px; }
+    </style>
+</head>
+<body>
+    <h1>3C库存管理系统 - 简单测试</h1>
+    
+    <h2>API测试</h2>
+    <button onclick="testAPI()">测试API连接</button>
+    <div id="apiResult"></div>
+    
+    <h2>用户注册测试</h2>
+    <input type="text" id="username" placeholder="用户名" value="testuser123">
+    <input type="email" id="email" placeholder="邮箱" value="test123@example.com">
+    <input type="password" id="password" placeholder="密码" value="123456">
+    <select id="role">
+        <option value="staff">员工</option>
+        <option value="manager">经理</option>
+        <option value="admin">管理员</option>
+    </select>
+    <br><br>
+    <button onclick="testRegister()">注册用户</button>
+    <div id="registerResult"></div>
+    
+    <h2>用户登录测试</h2>
+    <input type="text" id="loginUser" placeholder="用户名" value="testuser123">
+    <input type="password" id="loginPass" placeholder="密码" value="123456">
+    <br><br>
+    <button onclick="testLogin()">登录</button>
+    <div id="loginResult"></div>
+
+    <script>
+        console.log('页面加载完成');
+        
+        function showResult(elementId, message, isSuccess = true) {
+            console.log('显示结果:', message);
+            const element = document.getElementById(elementId);
+            element.innerHTML = message;
+            element.className = `result ${isSuccess ? 'success' : 'error'}`;
+        }
+
+        async function testAPI() {
+            console.log('测试API连接...');
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                console.log('API响应:', data);
+                showResult('apiResult', `API连接成功: ${data.status}`);
+            } catch (error) {
+                console.error('API测试失败:', error);
+                showResult('apiResult', `API连接失败: ${error.message}`, false);
+            }
+        }
+
+        async function testRegister() {
+            console.log('测试用户注册...');
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const role = document.getElementById('role').value;
+            
+            console.log('注册数据:', { username, email, password, role });
+
+            try {
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, email, password, role })
+                });
+
+                const data = await response.json();
+                console.log('注册响应:', data);
+
+                if (response.ok) {
+                    showResult('registerResult', `注册成功! 用户: ${data.user.username}, 角色: ${data.user.role}`);
+                } else {
+                    showResult('registerResult', `注册失败: ${data.error}`, false);
+                }
+            } catch (error) {
+                console.error('注册请求失败:', error);
+                showResult('registerResult', `请求失败: ${error.message}`, false);
+            }
+        }
+
+        async function testLogin() {
+            console.log('测试用户登录...');
+            const username = document.getElementById('loginUser').value;
+            const password = document.getElementById('loginPass').value;
+            
+            console.log('登录数据:', { username, password });
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+                console.log('登录响应:', data);
+
+                if (response.ok) {
+                    showResult('loginResult', `登录成功! 用户: ${data.user.username}, Token: ${data.token.substring(0, 20)}...`);
+                } else {
+                    showResult('loginResult', `登录失败: ${data.error}`, false);
+                }
+            } catch (error) {
+                console.error('登录请求失败:', error);
+                showResult('loginResult', `请求失败: ${error.message}`, false);
+            }
+        }
+
+        // 页面加载时自动测试API
+        window.onload = function() {
+            console.log('窗口加载完成，自动测试API');
+            testAPI();
+        };
+    </script>
+</body>
+</html>

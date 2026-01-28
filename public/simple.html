@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>最简单测试</title>
+</head>
+<body>
+    <h1>最简单的测试页面</h1>
+    <button onclick="alert('按钮工作了!')">测试按钮</button>
+    <br><br>
+    <button onclick="testAPI()">测试API</button>
+    <div id="result"></div>
+    
+    <script>
+        console.log('脚本加载了');
+        
+        function testAPI() {
+            console.log('testAPI被调用');
+            document.getElementById('result').innerHTML = '正在测试...';
+            
+            fetch('/health')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('API响应:', data);
+                    document.getElementById('result').innerHTML = 'API测试成功: ' + data.status;
+                })
+                .catch(error => {
+                    console.error('API测试失败:', error);
+                    document.getElementById('result').innerHTML = 'API测试失败: ' + error.message;
+                });
+        }
+    </script>
+</body>
+</html>
