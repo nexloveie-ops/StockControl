@@ -82,7 +82,32 @@ app.get('/health', (req, res) => {
 
 // 根路径
 app.get('/', (req, res) => {
-  res.json({ message: '3C销售库存管理系统 API' });
+  // 检查是否在AWS环境中
+  const isAWS = req.get('host')?.includes('elasticbeanstalk') || req.get('host')?.includes('amazonaws');
+  
+  if (isAWS) {
+    // AWS环境，重定向到AWS优化版本
+    res.redirect('/aws.html');
+  } else {
+    // 本地环境，显示API信息
+    res.json({ 
+      message: '3C销售库存管理系统 API',
+      version: '1.0.0',
+      environment: process.env.NODE_ENV || 'development',
+      endpoints: {
+        health: '/health',
+        auth: '/api/auth/*',
+        products: '/api/products/*',
+        inventory: '/api/inventory/*',
+        sales: '/api/sales/*'
+      },
+      webInterface: {
+        main: '/form-only.html',
+        aws: '/aws.html',
+        test: '/working.html'
+      }
+    });
+  }
 });
 
 // 错误处理中间件
