@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>登录 - CELESTIA TRADE PARTNERS LIMITED</title>
+  <title>Login - CELESTIA TRADE PARTNERS LIMITED</title>
+  <script src="/i18n.js"></script>
   <style>
     * {
       margin: 0;
@@ -356,25 +357,25 @@
     <!-- 左侧品牌区域 -->
     <div class="login-left">
       <div class="company-logo">🏢</div>
-      <h1 class="company-name">CELESTIA TRADE PARTNERS LIMITED</h1>
-      <p class="company-tagline">专业的3C产品批发零售管理平台</p>
+      <h1 class="company-name" data-i18n="company.name">CELESTIA TRADE PARTNERS LIMITED</h1>
+      <p class="company-tagline" data-i18n="company.tagline">专业的3C产品批发零售管理平台</p>
       
       <div class="features">
         <div class="feature-item">
           <div class="feature-icon">📦</div>
-          <div class="feature-text">智能库存管理</div>
+          <div class="feature-text" data-i18n="feature.inventory">智能库存管理</div>
         </div>
         <div class="feature-item">
           <div class="feature-icon">💰</div>
-          <div class="feature-text">销售数据分析</div>
+          <div class="feature-text" data-i18n="feature.sales">销售数据分析</div>
         </div>
         <div class="feature-item">
           <div class="feature-icon">🔄</div>
-          <div class="feature-text">供应链协同</div>
+          <div class="feature-text" data-i18n="feature.supply">供应链协同</div>
         </div>
         <div class="feature-item">
           <div class="feature-icon">📊</div>
-          <div class="feature-text">实时报表统计</div>
+          <div class="feature-text" data-i18n="feature.reports">实时报表统计</div>
         </div>
       </div>
     </div>
@@ -382,19 +383,20 @@
     <!-- 右侧登录表单 -->
     <div class="login-right">
       <div class="login-header">
-        <h2 class="login-title">欢迎回来</h2>
-        <p class="login-subtitle">请登录您的账户以继续</p>
+        <h2 class="login-title" data-i18n="login.title">欢迎回来</h2>
+        <p class="login-subtitle" data-i18n="login.subtitle">请登录您的账户以继续</p>
       </div>
       
       <div class="error-message" id="errorMessage"></div>
       
       <form id="loginForm">
         <div class="form-group">
-          <label class="form-label" for="username">用户名或邮箱</label>
+          <label class="form-label" for="username" data-i18n="login.username">用户名或邮箱</label>
           <input 
             type="text" 
             id="username" 
             class="form-input" 
+            data-i18n-placeholder="login.username"
             placeholder="请输入用户名或邮箱"
             required
             autocomplete="username"
@@ -402,11 +404,12 @@
         </div>
         
         <div class="form-group">
-          <label class="form-label" for="password">密码</label>
+          <label class="form-label" for="password" data-i18n="login.password">密码</label>
           <input 
             type="password" 
             id="password" 
             class="form-input" 
+            data-i18n-placeholder="login.password"
             placeholder="请输入密码"
             required
             autocomplete="current-password"
@@ -416,36 +419,36 @@
         <div class="form-options">
           <label class="remember-me">
             <input type="checkbox" id="rememberMe">
-            <span>记住我</span>
+            <span data-i18n="login.rememberMe">记住我</span>
           </label>
-          <a href="#" class="forgot-password">忘记密码？</a>
+          <a href="#" class="forgot-password" data-i18n="login.forgotPassword">忘记密码？</a>
         </div>
         
-        <button type="submit" class="login-button" id="loginButton">
+        <button type="submit" class="login-button" id="loginButton" data-i18n="login.button">
           登录
         </button>
       </form>
       
       <div class="divider">
-        <span class="divider-text">测试账号</span>
+        <span class="divider-text" data-i18n="login.testAccounts">测试账号</span>
       </div>
       
       <div class="test-accounts">
-        <div class="test-accounts-title">点击快速登录</div>
+        <div class="test-accounts-title" data-i18n="login.clickToLogin">点击快速登录</div>
         <div class="test-account" data-username="admin" data-password="admin123">
-          <span class="test-account-role">👑 管理员</span>
+          <span class="test-account-role"><span data-i18n="role.admin">👑 管理员</span></span>
           <span class="test-account-creds">admin / admin123</span>
         </div>
         <div class="test-account" data-username="warehouse1" data-password="warehouse123">
-          <span class="test-account-role">📦 仓管员</span>
+          <span class="test-account-role"><span data-i18n="role.warehouse">📦 仓管员</span></span>
           <span class="test-account-creds">warehouse1 / warehouse123</span>
         </div>
         <div class="test-account" data-username="merchant_vip" data-password="merchant123">
-          <span class="test-account-role">💎 VIP商户</span>
+          <span class="test-account-role"><span data-i18n="role.merchant.vip">💎 VIP商户</span></span>
           <span class="test-account-creds">merchant_vip / merchant123</span>
         </div>
         <div class="test-account" data-username="customer1" data-password="customer123">
-          <span class="test-account-role">🛒 零售客户</span>
+          <span class="test-account-role"><span data-i18n="role.customer">🛒 零售客户</span></span>
           <span class="test-account-creds">customer1 / customer123</span>
         </div>
       </div>
@@ -470,7 +473,7 @@
     async function handleLogin(username, password) {
       const loginButton = document.getElementById('loginButton');
       loginButton.disabled = true;
-      loginButton.textContent = '登录中...';
+      loginButton.textContent = i18n.t('loading');
       
       try {
         // 这里暂时使用简单的验证逻辑
@@ -500,14 +503,14 @@
             window.location.href = '/inventory.html';
           }
         } else {
-          showError('用户名或密码错误');
+          showError(i18n.t('login.error.invalid'));
           loginButton.disabled = false;
-          loginButton.textContent = '登录';
+          loginButton.textContent = i18n.t('login.button');
         }
       } catch (error) {
-        showError('登录失败，请稍后重试');
+        showError(i18n.t('login.error.failed'));
         loginButton.disabled = false;
-        loginButton.textContent = '登录';
+        loginButton.textContent = i18n.t('login.button');
       }
     }
     
@@ -519,7 +522,7 @@
       const password = document.getElementById('password').value;
       
       if (!username || !password) {
-        showError('请输入用户名和密码');
+        showError(i18n.t('login.error.empty'));
         return;
       }
       
