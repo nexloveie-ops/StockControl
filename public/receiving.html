@@ -537,6 +537,12 @@
 
     // 初始化
     loadSuppliers();
+    
+    // 监听语言变化事件
+    window.addEventListener('languageChanged', () => {
+      // 翻译动态内容
+      i18n.translateDynamicContent();
+    });
   </script>
 </body>
 </html>

@@ -369,10 +369,17 @@
 </head>
 <body>
   <div class="header">
-    <h1>🛒 销售管理</h1>
-    <div class="nav">
-      <a href="/prototype.html">← 返回主页</a>
-      <a href="/sales.html">销售</a>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <h1>🛒 销售管理</h1>
+        <div class="nav">
+          <a href="/prototype.html">← 返回主页</a>
+          <a href="/sales.html">销售</a>
+        </div>
+      </div>
+      <button onclick="logout()" style="padding: 10px 20px; background: rgba(255,255,255,0.2); color: white; border: 2px solid white; border-radius: 5px; cursor: pointer; font-weight: 600;">
+        退出登录
+      </button>
     </div>
   </div>
 
@@ -505,6 +512,7 @@
       
       if (groups.length === 0) {
         grid.innerHTML = '<div class="empty-cart">暂无可用产品</div>';
+        if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
         return;
       }
       
@@ -526,6 +534,9 @@
           </div>
         `;
       }).join('');
+      
+      // 翻译动态内容
+      if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
     }
 
     // 显示分组下的产品
@@ -593,6 +604,7 @@
       
       if (productList.length === 0) {
         grid.innerHTML = '<div class="empty-cart">暂无可用产品</div>';
+        if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
         return;
       }
       
@@ -623,6 +635,9 @@
           </div>
         `;
       }).join('');
+      
+      // 翻译动态内容
+      if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
     }
 
     // 渲染客户列表
@@ -707,6 +722,7 @@
         container.innerHTML = '<div class="empty-cart">购物车为空<br>请选择产品</div>';
         summary.style.display = 'none';
         createBtn.disabled = true;
+        if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
         return;
       }
       
@@ -736,6 +752,9 @@
       summary.style.display = 'block';
       createBtn.disabled = !selectedCustomer;
       calculateTotal();
+      
+      // 翻译动态内容
+      if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
     }
 
     // 更新数量
@@ -970,11 +989,30 @@
       document.getElementById('successModal').classList.remove('show');
       window.location.reload();
     });
+    
+    // 登出功能
+    function logout() {
+      if (confirm('确定要退出登录吗？')) {
+        window.location.href = '/login.html';
+      }
+    }
 
     // 初始化
     loadProductGroups();
     loadProducts();
     loadCustomers();
+    
+    // 监听语言变化事件
+    window.addEventListener('languageChanged', () => {
+      // 重新渲染所有内容
+      if (currentGroupProducts.length > 0) {
+        renderProducts(currentGroupProducts);
+      } else if (productGroups.length > 0) {
+        renderProductGroups(productGroups);
+      }
+      renderCustomers();
+      renderCart();
+    });
   </script>
 </body>
 </html>

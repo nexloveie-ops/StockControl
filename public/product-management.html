@@ -469,6 +469,7 @@
       
       if (products.length === 0) {
         container.innerHTML = '<div class="loading">暂无产品数据</div>';
+        if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
         return;
       }
       
@@ -509,6 +510,9 @@
           </tbody>
         </table>
       `;
+      
+      // 翻译动态内容
+      if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
     }
 
     // 打开价格编辑模态框
@@ -732,6 +736,12 @@
 
     // 初始化
     loadProducts();
+    
+    // 监听语言变化事件
+    window.addEventListener('languageChanged', () => {
+      // 重新渲染产品列表
+      renderProducts();
+    });
   </script>
 </body>
 </html>

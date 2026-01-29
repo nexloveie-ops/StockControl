@@ -345,6 +345,14 @@ const i18n = {
     window.dispatchEvent(new CustomEvent('languageChanged', { detail: { lang: this.currentLang } }));
   },
   
+  // 公共方法：翻译动态内容
+  // 页面可以在动态加载内容后调用此方法
+  translateDynamicContent() {
+    if (this.currentLang === 'en') {
+      this.autoTranslate();
+    }
+  },
+  
   // 自动翻译常见文本
   autoTranslate() {
     const textMap = {
@@ -359,6 +367,9 @@ const i18n = {
       '删除': 'Delete',
       '编辑': 'Edit',
       '关闭': 'Close',
+      '重置': 'Reset',
+      '返回': 'Back',
+      '操作': 'Actions',
       
       // 统计
       '总产品数': 'Total Products',
@@ -367,6 +378,15 @@ const i18n = {
       '全新设备': 'New Devices',
       '二手设备': 'Used Devices',
       '供应商': 'Suppliers',
+      '总库存': 'Total Stock',
+      '可用库存': 'Available Stock',
+      '库存价值': 'Inventory Value',
+      '30天销量': '30-Day Sales',
+      '预计可售': 'Est. Months',
+      '产品数量': 'Product Count',
+      '当月销量': 'Monthly Sales',
+      '近30天销量': 'Last 30 Days Sales',
+      '最近进货': 'Latest Procurement',
       
       // 导航
       '产品管理': 'Products',
@@ -376,6 +396,11 @@ const i18n = {
       '库存管理': 'Inventory',
       '入库管理': 'Receiving',
       '销售管理': 'Sales',
+      '返回主页': 'Back to Home',
+      '← 返回主页': '← Back to Home',
+      '返回分组': 'Back to Groups',
+      '← 返回分组': '← Back to Groups',
+      '← 返回': '← Back',
       
       // 产品相关
       '产品列表': 'Product List',
@@ -389,12 +414,25 @@ const i18n = {
       '批发价': 'Wholesale Price',
       '税务分类': 'Tax Classification',
       '税额': 'Tax Amount',
+      '标识': 'Identifier',
+      '条码': 'Barcode',
+      '序列号': 'Serial Number',
+      '成色': 'Condition',
+      '数量/成色': 'Qty/Condition',
+      '数量/状态': 'Qty/Status',
+      '进货价(含税)': 'Purchase Price (incl. Tax)',
+      '产品分组': 'Product Groups',
+      '产品明细': 'Product Details',
+      '分组视图': 'Group View',
       
       // 类别
       '所有类别': 'All Categories',
       '配件': 'Accessory',
       '全新设备': 'New Device',
       '二手设备': 'Used Device',
+      '配件类': 'Accessories',
+      '全新': 'New',
+      '二手': 'Used',
       
       // 状态
       '所有状态': 'All Status',
@@ -402,29 +440,150 @@ const i18n = {
       '坏损': 'Damaged',
       '报废': 'Scrapped',
       '已售': 'Sold',
+      '当前状态': 'Current Status',
+      '新状态': 'New Status',
+      
+      // 销售相关
+      '选择产品': 'Select Product',
+      '选择客户': 'Select Customer',
+      '购物车': 'Shopping Cart',
+      '购物车为空': 'Cart is empty',
+      '请选择产品': 'Please select products',
+      '小计': 'Subtotal',
+      '折扣': 'Discount',
+      '总计': 'Total',
+      '创建发票': 'Create Invoice',
+      '确定并生成PDF': 'Finalize & Generate PDF',
+      '确定并下载PDF': 'Finalize & Download PDF',
+      '稍后处理': 'Later',
+      '发票创建成功！': 'Invoice Created Successfully!',
+      '发票号': 'Invoice Number',
+      
+      // 入库相关
+      '新增产品入库': 'Add New Product',
+      '产品类型': 'Product Type',
+      '供应商': 'Supplier',
+      '-- 选择供应商 --': '-- Select Supplier --',
+      '进货价 (不含税)': 'Purchase Price (excl. Tax)',
+      '进货税额 (自动计算)': 'Purchase Tax (auto)',
+      '建议零售价': 'Suggested Retail Price',
+      '仓储位置': 'Warehouse Location',
+      '分级批发价': 'Tiered Pricing',
+      '不同等级商户的价格': 'Prices for Different Tiers',
+      'VIP等级价格': 'VIP Tier Price',
+      'Gold等级价格': 'Gold Tier Price',
+      '确认入库': 'Confirm Receiving',
+      '按条码和数量管理': 'Managed by barcode & quantity',
+      '按序列号单独管理': 'Managed by serial number',
+      '按序列号和成色管理': 'Managed by SN & condition',
+      '序列号/IMEI': 'Serial Number/IMEI',
+      '成色等级': 'Condition Grade',
+      
+      // 产品管理相关
+      '调价': 'Adjust Price',
+      '调整价格': 'Adjust Price',
+      '更新产品状态': 'Update Status',
+      '更新仓储位置': 'Update Location',
+      '调整库存数量': 'Adjust Quantity',
+      '当前位置': 'Current Location',
+      '新位置': 'New Location',
+      '当前数量': 'Current Quantity',
+      '新数量': 'New Quantity',
+      
+      // 管理员相关
+      '管理员控制台': 'Admin Console',
+      '管理员': 'Administrator',
+      '采购订单': 'Purchase Orders',
+      '供应商管理': 'Supplier Management',
+      '报表分析': 'Reports & Analytics',
+      '用户管理': 'User Management',
+      '待处理采购订单': 'Pending Orders',
+      '本月采购总额': 'Monthly Purchase',
+      '本月销售总额': 'Monthly Sales',
+      '活跃供应商': 'Active Suppliers',
+      '采购订单列表': 'Purchase Order List',
+      '创建采购订单': 'Create Purchase Order',
+      '供应商列表': 'Supplier List',
+      '添加供应商': 'Add Supplier',
+      '库存报表': 'Inventory Report',
+      '销售报表': 'Sales Report',
+      '利润率分析': 'Profit Analysis',
+      '用户列表': 'User List',
+      '添加用户': 'Add User',
+      '更新状态': 'Update Status',
+      '停用': 'Deactivate',
+      '启用': 'Activate',
+      '编辑': 'Edit',
+      '订单号': 'Order Number',
+      '总金额': 'Total Amount',
+      '订单日期': 'Order Date',
+      '跟踪号': 'Tracking Number',
+      '联系人': 'Contact Person',
+      '邮箱': 'Email',
+      '电话': 'Phone',
+      '地址': 'Address',
+      '税号': 'Tax ID',
+      '付款条款': 'Payment Terms',
+      '角色': 'Role',
+      '商户等级': 'Merchant Tier',
+      '折扣范围': 'Discount Range',
+      '暂无采购订单': 'No purchase orders',
+      '暂无供应商': 'No suppliers',
+      '暂无用户': 'No users',
+      '暂无数据': 'No data',
       
       // 其他
       '供应商列表': 'Supplier List',
       '用户列表': 'User List',
       '销售发票列表': 'Invoice List',
-      '采购订单列表': 'Purchase Order List'
+      '采购订单列表': 'Purchase Order List',
+      '暂无产品数据': 'No products available',
+      '暂无可用产品': 'No products available',
+      '搜索产品名称、条码、序列号...': 'Search by name, barcode, serial...',
+      '搜索产品分组...': 'Search product groups...',
+      '-- 选择客户 --': '-- Select Customer --',
+      '零售': 'Retail',
+      '批发': 'Wholesale',
+      '个月': 'months',
+      '月': 'months'
     };
     
     // 遍历所有文本节点并替换
     const walker = document.createTreeWalker(
       document.body,
       NodeFilter.SHOW_TEXT,
-      null,
+      {
+        acceptNode: function(node) {
+          // 跳过script和style标签
+          if (node.parentElement.tagName === 'SCRIPT' || 
+              node.parentElement.tagName === 'STYLE') {
+            return NodeFilter.FILTER_REJECT;
+          }
+          // 只处理有实际文本内容的节点
+          if (node.textContent.trim().length > 0) {
+            return NodeFilter.FILTER_ACCEPT;
+          }
+          return NodeFilter.FILTER_REJECT;
+        }
+      },
       false
     );
     
     let node;
+    const nodesToUpdate = [];
+    
+    // 收集需要更新的节点
     while (node = walker.nextNode()) {
       const text = node.textContent.trim();
       if (text && textMap[text]) {
-        node.textContent = node.textContent.replace(text, textMap[text]);
+        nodesToUpdate.push({ node, oldText: text, newText: textMap[text] });
       }
     }
+    
+    // 批量更新节点
+    nodesToUpdate.forEach(({ node, oldText, newText }) => {
+      node.textContent = node.textContent.replace(oldText, newText);
+    });
   },
   
   // 初始化
@@ -459,6 +618,23 @@ const i18n = {
       font-size: 14px;
       font-weight: 500;
     `;
+    
+    // 添加移动端适配
+    const style = document.createElement('style');
+    style.textContent = `
+      @media (max-width: 768px) {
+        #languageSwitcher {
+          top: 10px !important;
+          right: 10px !important;
+          padding: 6px 12px !important;
+          font-size: 12px !important;
+        }
+        #languageSwitcher span:first-child {
+          font-size: 16px !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
     
     switcher.innerHTML = `
       <span style="font-size: 18px;">🌐</span>

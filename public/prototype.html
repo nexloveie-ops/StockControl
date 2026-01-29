@@ -231,12 +231,134 @@
       padding: 40px;
       color: #999;
     }
+    
+    /* 移动端适配 */
+    @media (max-width: 768px) {
+      .header {
+        padding: 15px;
+      }
+      
+      .header h1 {
+        font-size: 18px;
+      }
+      
+      .header p {
+        font-size: 12px;
+      }
+      
+      .container {
+        padding: 10px;
+      }
+      
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      
+      .stat-card {
+        padding: 15px;
+      }
+      
+      .stat-card h3 {
+        font-size: 12px;
+      }
+      
+      .stat-card .value {
+        font-size: 24px;
+      }
+      
+      .tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        gap: 5px;
+        margin-bottom: 15px;
+        padding-bottom: 5px;
+      }
+      
+      .tab {
+        padding: 10px 16px;
+        font-size: 14px;
+        white-space: nowrap;
+      }
+      
+      .card {
+        padding: 15px;
+        margin-bottom: 15px;
+      }
+      
+      .card h2 {
+        font-size: 16px;
+        margin-bottom: 12px;
+      }
+      
+      .filters {
+        flex-direction: column;
+        gap: 8px;
+      }
+      
+      .filters select,
+      .filters input,
+      .filters button {
+        width: 100%;
+      }
+      
+      table {
+        font-size: 12px;
+      }
+      
+      th, td {
+        padding: 8px 4px;
+      }
+      
+      /* 导航按钮移动端优化 */
+      div[style*="display: flex"] {
+        flex-wrap: wrap !important;
+      }
+      
+      div[style*="display: flex"] a {
+        flex: 1 1 calc(50% - 5px) !important;
+        min-width: 140px !important;
+        font-size: 13px !important;
+        padding: 10px 12px !important;
+        text-align: center !important;
+      }
+      
+      /* 语言切换按钮移动端优化 */
+      #languageSwitcher {
+        top: 10px !important;
+        right: 10px !important;
+        padding: 6px 12px !important;
+        font-size: 12px !important;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .header h1 {
+        font-size: 16px;
+      }
+      
+      div[style*="display: flex"] a {
+        flex: 1 1 100% !important;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1 data-i18n="company.name">🏪 3C产品管理系统 - 原型演示</h1>
-    <p data-i18n="company.tagline">批发零售一体化管理平台</p>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <h1 data-i18n="company.name">🏪 3C产品管理系统 - 原型演示</h1>
+        <p data-i18n="company.tagline">批发零售一体化管理平台</p>
+      </div>
+      <button onclick="logout()" style="padding: 10px 20px; background: rgba(255,255,255,0.2); color: white; border: 2px solid white; border-radius: 5px; cursor: pointer; font-weight: 600;">
+        退出登录
+      </button>
+    </div>
   </div>
 
   <div class="container">
@@ -282,6 +404,8 @@
       <a href="/receiving.html" style="padding: 12px 24px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; font-weight: 600;"><span data-i18n="nav.receiving">📥 入库管理</span></a>
       <a href="/product-management.html" style="padding: 12px 24px; background: #6c757d; color: white; text-decoration: none; border-radius: 5px; font-weight: 600;"><span data-i18n="nav.productManagement">⚙️ 产品管理</span></a>
       <a href="/sales.html" style="padding: 12px 24px; background: #fd7e14; color: white; text-decoration: none; border-radius: 5px; font-weight: 600;"><span data-i18n="nav.sales">🛒 销售管理</span></a>
+      <a href="/merchant.html" style="padding: 12px 24px; background: #6366f1; color: white; text-decoration: none; border-radius: 5px; font-weight: 600;">🏢 批发商户</a>
+      <a href="/admin.html" style="padding: 12px 24px; background: #dc3545; color: white; text-decoration: none; border-radius: 5px; font-weight: 600;">🔐 管理员</a>
     </div>
 
     <!-- 产品管理 -->
@@ -709,6 +833,28 @@
     window.addEventListener('DOMContentLoaded', () => {
       loadStats();
       loadProducts();
+    });
+    
+    // 登出功能
+    function logout() {
+      if (confirm('确定要退出登录吗？')) {
+        window.location.href = '/login.html';
+      }
+    }
+    
+    // 监听语言变化事件
+    window.addEventListener('languageChanged', () => {
+      // 重新渲染所有内容以应用翻译
+      loadStats();
+      const activeTab = document.querySelector('.tab.active');
+      if (activeTab) {
+        const tabName = activeTab.textContent.trim();
+        if (tabName.includes('产品') || tabName.includes('Products')) loadProducts();
+        else if (tabName.includes('发票') || tabName.includes('Invoices')) loadInvoices();
+        else if (tabName.includes('订单') || tabName.includes('Orders')) loadOrders();
+        else if (tabName.includes('供应商') || tabName.includes('Suppliers')) loadSuppliers();
+        else if (tabName.includes('用户') || tabName.includes('Users')) loadUsers();
+      }
     });
   </script>
 </body>

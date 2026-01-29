@@ -288,15 +288,114 @@
       padding: 40px;
       color: #999;
     }
+    
+    /* 移动端适配 */
+    @media (max-width: 768px) {
+      .header {
+        padding: 15px;
+      }
+      
+      .header h1 {
+        font-size: 20px;
+      }
+      
+      .header p {
+        font-size: 12px;
+      }
+      
+      .container {
+        padding: 10px;
+      }
+      
+      .back-button {
+        padding: 8px 16px;
+        font-size: 13px;
+      }
+      
+      .groups-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+      
+      .group-card {
+        padding: 15px;
+      }
+      
+      .group-header h3 {
+        font-size: 16px;
+      }
+      
+      .group-stats {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+      
+      .stat-item {
+        padding: 10px;
+      }
+      
+      .stat-label {
+        font-size: 11px;
+      }
+      
+      .stat-value {
+        font-size: 18px;
+      }
+      
+      .details-table {
+        font-size: 11px;
+      }
+      
+      .details-table th,
+      .details-table td {
+        padding: 8px 4px;
+      }
+      
+      /* 隐藏部分列以适应小屏幕 */
+      .details-table th:nth-child(n+6),
+      .details-table td:nth-child(n+6) {
+        display: none;
+      }
+      
+      #languageSwitcher {
+        top: 10px !important;
+        right: 10px !important;
+        padding: 6px 12px !important;
+        font-size: 12px !important;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .header h1 {
+        font-size: 18px;
+      }
+      
+      .group-stats {
+        grid-template-columns: 1fr;
+      }
+      
+      /* 进一步隐藏列 */
+      .details-table th:nth-child(n+4),
+      .details-table td:nth-child(n+4) {
+        display: none;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1>📦 库存管理</h1>
-    <div class="nav">
-      <a href="/prototype.html">← 返回主页</a>
-      <a href="/inventory.html">库存管理</a>
-      <a href="/sales.html">销售</a>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <h1>📦 库存管理</h1>
+        <div class="nav">
+          <a href="/prototype.html">← 返回主页</a>
+          <a href="/inventory.html">库存管理</a>
+          <a href="/sales.html">销售</a>
+        </div>
+      </div>
+      <button onclick="logout()" style="padding: 10px 20px; background: rgba(255,255,255,0.2); color: white; border: 2px solid white; border-radius: 5px; cursor: pointer; font-weight: 600;">
+        退出登录
+      </button>
     </div>
   </div>
 
@@ -359,6 +458,8 @@
       
       if (groups.length === 0) {
         grid.innerHTML = '<div class="empty">暂无产品数据</div>';
+        // 翻译动态内容
+        if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
         return;
       }
       
@@ -407,6 +508,9 @@
           </div>
         `;
       }).join('');
+      
+      // 翻译动态内容
+      if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
     }
 
     // 显示分组详情
@@ -573,6 +677,9 @@
           </table>
         `;
       }
+      
+      // 翻译动态内容
+      if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
     }
 
     // 返回分组视图
@@ -614,6 +721,23 @@
 
     // 初始化
     loadGroups();
+    
+    // 登出功能
+    function logout() {
+      if (confirm('确定要退出登录吗？')) {
+        window.location.href = '/login.html';
+      }
+    }
+    
+    // 监听语言变化事件
+    window.addEventListener('languageChanged', () => {
+      // 重新渲染当前视图
+      if (currentGroup) {
+        renderGroupDetail();
+      } else {
+        renderGroups();
+      }
+    });
   </script>
 </body>
 </html>

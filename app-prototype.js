@@ -851,6 +851,85 @@ app.get('/health', (req, res) => {
   });
 });
 
+// ============ 管理员 API ============
+
+// 管理员统计数据
+app.get('/api/admin/stats', async (req, res) => {
+  try {
+    // 待处理采购订单（非CONFIRMED和CANCELLED状态）
+    const pendingOrders = await PurchaseOrder.countDocuments({
+      status: { $nin: ['CONFIRMED', 'CANCELLED'] }
+    });
+    
+    // 本月采购总额
+    const now = new Date();
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthlyPurchaseOrders = await PurchaseOrder.find({
+      status: 'CONFIRMED',
+      createdAt: { $gte: firstDayOfMonth }
+    });
+    const monthlyPurchase = monthlyPurchaseOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+    
+    // 本月销售总额
+    const monthlySalesInvoices = await SalesInvoice.find({
+      status: 'FINALIZED',
+      finalizedAt: { $gte: firstDayOfMonth }
+    });
+    const monthlySales = monthlySalesInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+    
+    // 活跃供应商
+    const activeSuppliers = await Supplier3C.countDocuments({ active: true });
+    
+    res.json({
+      success: true,
+      data: {
+        pendingOrders,
+        monthlyPurchase,
+        monthlySales,
+        activeSuppliers
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 库存报表
+app.get('/api/reports/inventory', async (req, res) => {
+  try {
+    const products = await Product3C.find();
+    
+    const report = {
+      accessories: { total: 0, available: 0, value: 0 },
+      newDevices: { total: 0, available: 0, value: 0 },
+      usedDevices: { total: 0, available: 0, value: 0 }
+    };
+    
+    products.forEach(product => {
+      const qty = product.category === 'ACCESSORY' ? product.quantity : 1;
+      const value = product.purchasePrice * qty;
+      
+      if (product.category === 'ACCESSORY') {
+        report.accessories.total += qty;
+        if (product.status === 'AVAILABLE') report.accessories.available += qty;
+        report.accessories.value += value;
+      } else if (product.category === 'NEW_DEVICE') {
+        report.newDevices.total += 1;
+        if (product.status === 'AVAILABLE') report.newDevices.available += 1;
+        report.newDevices.value += value;
+      } else if (product.category === 'USED_DEVICE') {
+        report.usedDevices.total += 1;
+        if (product.status === 'AVAILABLE') report.usedDevices.available += 1;
+        report.usedDevices.value += value;
+      }
+    });
+    
+    res.json({ success: true, data: report });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // 根路径 - 重定向到登录页面
 app.get('/', (req, res) => {
   res.redirect('/login.html');
