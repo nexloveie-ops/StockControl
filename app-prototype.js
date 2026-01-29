@@ -930,6 +930,258 @@ app.get('/api/reports/inventory', async (req, res) => {
   }
 });
 
+// ============ 批发商户 API ============
+
+// 定义批发商户Schema
+const merchantSaleSchema = new mongoose.Schema({
+  merchantId: String,
+  date: Date,
+  productName: String,
+  productType: String,
+  category: String,
+  quantity: Number,
+  costPrice: Number,
+  salePrice: Number,
+  taxClassification: String,
+  taxAmount: Number,
+  paymentMethod: String,
+  createdAt: { type: Date, default: Date.now }
+});
+
+const merchantRepairSchema = new mongoose.Schema({
+  merchantId: String,
+  date: Date,
+  customerName: String,
+  repairItem: String,
+  description: String,
+  amount: Number,
+  taxAmount: Number,
+  paymentMethod: String,
+  createdAt: { type: Date, default: Date.now }
+});
+
+const MerchantSale = mongoose.model('MerchantSale', merchantSaleSchema);
+const MerchantRepair = mongoose.model('MerchantRepair', merchantRepairSchema);
+
+// 批发商户统计数据
+app.get('/api/merchant/stats', async (req, res) => {
+  try {
+    const merchantId = req.query.merchantId || 'merchant_001';
+    
+    // 我的库存（模拟数据）
+    const myInventory = 156;
+    
+    // 本月销售
+    const now = new Date();
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    const monthlySales = await MerchantSale.find({
+      merchantId,
+      date: { $gte: firstDayOfMonth }
+    });
+    
+    const monthlySalesAmount = monthlySales.reduce((sum, sale) => 
+      sum + (sale.salePrice * sale.quantity), 0
+    );
+    
+    // 本月维修
+    const monthlyRepairs = await MerchantRepair.find({
+      merchantId,
+      date: { $gte: firstDayOfMonth }
+    });
+    
+    const monthlyRepairsAmount = monthlyRepairs.reduce((sum, repair) => 
+      sum + repair.amount, 0
+    );
+    
+    // 应缴税额（本月）
+    const salesTax = monthlySales.reduce((sum, sale) => sum + sale.taxAmount, 0);
+    const repairsTax = monthlyRepairs.reduce((sum, repair) => sum + repair.taxAmount, 0);
+    const taxDue = salesTax + repairsTax;
+    
+    res.json({
+      success: true,
+      data: {
+        myInventory,
+        monthlySales: monthlySalesAmount,
+        monthlyRepairs: monthlyRepairsAmount,
+        taxDue
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 获取销售记录
+app.get('/api/merchant/sales', async (req, res) => {
+  try {
+    const merchantId = req.query.merchantId || 'merchant_001';
+    const { startDate, endDate } = req.query;
+    
+    let query = { merchantId };
+    
+    if (startDate && endDate) {
+      query.date = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+    
+    const sales = await MerchantSale.find(query).sort({ date: -1 });
+    
+    res.json({ success: true, data: sales });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 获取维修记录
+app.get('/api/merchant/repairs', async (req, res) => {
+  try {
+    const merchantId = req.query.merchantId || 'merchant_001';
+    const { startDate, endDate } = req.query;
+    
+    let query = { merchantId };
+    
+    if (startDate && endDate) {
+      query.date = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+    
+    const repairs = await MerchantRepair.find(query).sort({ date: -1 });
+    
+    res.json({ success: true, data: repairs });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 生成税务报表
+app.get('/api/merchant/tax-report', async (req, res) => {
+  try {
+    const merchantId = req.query.merchantId || 'merchant_001';
+    const { startDate, endDate } = req.query;
+    
+    if (!startDate || !endDate) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '需要提供开始日期和结束日期' 
+      });
+    }
+    
+    const query = {
+      merchantId,
+      date: {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      }
+    };
+    
+    const sales = await MerchantSale.find(query);
+    const repairs = await MerchantRepair.find(query);
+    
+    // 按日期分组销售数据
+    const dailySales = {};
+    sales.forEach(sale => {
+      const dateKey = sale.date.toISOString().split('T')[0];
+      if (!dailySales[dateKey]) {
+        dailySales[dateKey] = {
+          date: dateKey,
+          totalSales: 0,
+          cashIncome: 0,
+          cardIncome: 0
+        };
+      }
+      
+      const amount = sale.salePrice * sale.quantity;
+      dailySales[dateKey].totalSales += amount;
+      
+      if (sale.paymentMethod === 'CASH') {
+        dailySales[dateKey].cashIncome += amount;
+      } else {
+        dailySales[dateKey].cardIncome += amount;
+      }
+    });
+    
+    repairs.forEach(repair => {
+      const dateKey = repair.date.toISOString().split('T')[0];
+      if (!dailySales[dateKey]) {
+        dailySales[dateKey] = {
+          date: dateKey,
+          totalSales: 0,
+          cashIncome: 0,
+          cardIncome: 0
+        };
+      }
+      
+      dailySales[dateKey].totalSales += repair.amount;
+      
+      if (repair.paymentMethod === 'CASH') {
+        dailySales[dateKey].cashIncome += repair.amount;
+      } else {
+        dailySales[dateKey].cardIncome += repair.amount;
+      }
+    });
+    
+    // 按税务分类计算
+    const taxByClassification = {
+      VAT_23: { sales: 0, cost: 0, outputTax: 0, inputTax: 0, due: 0 },
+      MARGIN_VAT_0: { sales: 0, cost: 0, due: 0 },
+      SERVICE_VAT_13_5: { sales: 0, due: 0 }
+    };
+    
+    sales.forEach(sale => {
+      const saleAmount = sale.salePrice * sale.quantity;
+      const costAmount = sale.costPrice * sale.quantity;
+      
+      if (sale.taxClassification === 'VAT_23') {
+        taxByClassification.VAT_23.sales += saleAmount;
+        taxByClassification.VAT_23.cost += costAmount;
+        taxByClassification.VAT_23.outputTax += saleAmount * 23 / 123;
+        taxByClassification.VAT_23.inputTax += costAmount * 23 / 123;
+        taxByClassification.VAT_23.due += sale.taxAmount;
+      } else if (sale.taxClassification === 'MARGIN_VAT_0') {
+        taxByClassification.MARGIN_VAT_0.sales += saleAmount;
+        taxByClassification.MARGIN_VAT_0.cost += costAmount;
+        taxByClassification.MARGIN_VAT_0.due += sale.taxAmount;
+      }
+    });
+    
+    repairs.forEach(repair => {
+      taxByClassification.SERVICE_VAT_13_5.sales += repair.amount;
+      taxByClassification.SERVICE_VAT_13_5.due += repair.taxAmount;
+    });
+    
+    // 计算总额
+    const totalCashIncome = Object.values(dailySales).reduce((sum, day) => sum + day.cashIncome, 0);
+    const totalCardIncome = Object.values(dailySales).reduce((sum, day) => sum + day.cardIncome, 0);
+    const totalSales = totalCashIncome + totalCardIncome;
+    const totalTaxDue = taxByClassification.VAT_23.due + 
+                        taxByClassification.MARGIN_VAT_0.due + 
+                        taxByClassification.SERVICE_VAT_13_5.due;
+    
+    res.json({
+      success: true,
+      data: {
+        period: { startDate, endDate },
+        dailySales: Object.values(dailySales).sort((a, b) => a.date.localeCompare(b.date)),
+        summary: {
+          totalSales,
+          totalCashIncome,
+          totalCardIncome,
+          totalTaxDue
+        },
+        taxByClassification
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // 根路径 - 重定向到登录页面
 app.get('/', (req, res) => {
   res.redirect('/login.html');

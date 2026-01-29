@@ -379,11 +379,20 @@
 
     // 加载统计数据
     async function loadStats() {
-      // 模拟数据
-      document.getElementById('myInventory').textContent = '156';
-      document.getElementById('monthlySales').textContent = '€12,450';
-      document.getElementById('monthlyRepairs').textContent = '€3,200';
-      document.getElementById('taxDue').textContent = '€2,847';
+      try {
+        const response = await fetch(`${API_BASE}/merchant/stats?merchantId=${merchantId}`);
+        const result = await response.json();
+        
+        if (result.success) {
+          const stats = result.data;
+          document.getElementById('myInventory').textContent = stats.myInventory || 0;
+          document.getElementById('monthlySales').textContent = '€' + (stats.monthlySales || 0).toFixed(2);
+          document.getElementById('monthlyRepairs').textContent = '€' + (stats.monthlyRepairs || 0).toFixed(2);
+          document.getElementById('taxDue').textContent = '€' + (stats.taxDue || 0).toFixed(2);
+        }
+      } catch (error) {
+        console.error('加载统计数据失败:', error);
+      }
     }
 
     // 加载我的库存
@@ -403,13 +412,9 @@
           </thead>
           <tbody>
             <tr>
-              <td>示例产品</td>
-              <td><span class="badge badge-info">配件</span></td>
-              <td>50</td>
-              <td>€10.00</td>
-              <td>€15.00</td>
-              <td><span class="badge badge-primary">VAT 23%</span></td>
-              <td><span class="badge badge-success">可销售</span></td>
+              <td colspan="7" style="text-align: center; color: #999; padding: 40px;">
+                库存管理功能开发中...
+              </td>
             </tr>
           </tbody>
         </table>
@@ -426,61 +431,103 @@
     }
 
     // 加载销售记录
-    function loadSales() {
-      document.getElementById('salesTable').innerHTML = `
-        <table>
-          <thead>
-            <tr>
-              <th>日期</th>
-              <th>产品</th>
-              <th>数量</th>
-              <th>销售额</th>
-              <th>成本</th>
-              <th>税额</th>
-              <th>支付方式</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>2024-01-15</td>
-              <td>示例产品</td>
-              <td>2</td>
-              <td>€30.00</td>
-              <td>€20.00</td>
-              <td>€5.61</td>
-              <td><span class="badge badge-info">现金</span></td>
-            </tr>
-          </tbody>
-        </table>
-      `;
+    async function loadSales() {
+      const container = document.getElementById('salesTable');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/sales?merchantId=${merchantId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data.length > 0) {
+          const html = `
+            <table>
+              <thead>
+                <tr>
+                  <th>日期</th>
+                  <th>产品</th>
+                  <th>类别</th>
+                  <th>数量</th>
+                  <th>销售额</th>
+                  <th>成本</th>
+                  <th>税额</th>
+                  <th>支付方式</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${result.data.slice(0, 50).map(sale => `
+                  <tr>
+                    <td>${new Date(sale.date).toLocaleDateString('zh-CN')}</td>
+                    <td>${sale.productName}</td>
+                    <td>${getCategoryBadge(sale.category)}</td>
+                    <td>${sale.quantity}</td>
+                    <td>€${(sale.salePrice * sale.quantity).toFixed(2)}</td>
+                    <td>€${(sale.costPrice * sale.quantity).toFixed(2)}</td>
+                    <td>€${sale.taxAmount.toFixed(2)}</td>
+                    <td>${getPaymentBadge(sale.paymentMethod)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            ${result.data.length > 50 ? `<p style="text-align: center; color: #666; margin-top: 10px;">显示最近50条记录，共${result.data.length}条</p>` : ''}
+          `;
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = '<div class="loading">暂无销售记录</div>';
+        }
+        
+        if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
+      } catch (error) {
+        container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+      }
     }
 
     // 加载维修记录
-    function loadRepairs() {
-      document.getElementById('repairsTable').innerHTML = `
-        <table>
-          <thead>
-            <tr>
-              <th>日期</th>
-              <th>客户</th>
-              <th>维修项目</th>
-              <th>金额</th>
-              <th>税额</th>
-              <th>支付方式</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>2024-01-15</td>
-              <td>张三</td>
-              <td>屏幕更换</td>
-              <td>€100.00</td>
-              <td>€11.89</td>
-              <td><span class="badge badge-primary">刷卡</span></td>
-            </tr>
-          </tbody>
-        </table>
-      `;
+    async function loadRepairs() {
+      const container = document.getElementById('repairsTable');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/repairs?merchantId=${merchantId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data.length > 0) {
+          const html = `
+            <table>
+              <thead>
+                <tr>
+                  <th>日期</th>
+                  <th>客户</th>
+                  <th>维修项目</th>
+                  <th>金额</th>
+                  <th>税额</th>
+                  <th>支付方式</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${result.data.slice(0, 50).map(repair => `
+                  <tr>
+                    <td>${new Date(repair.date).toLocaleDateString('zh-CN')}</td>
+                    <td>${repair.customerName}</td>
+                    <td>${repair.repairItem}</td>
+                    <td>€${repair.amount.toFixed(2)}</td>
+                    <td>€${repair.taxAmount.toFixed(2)}</td>
+                    <td>${getPaymentBadge(repair.paymentMethod)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            ${result.data.length > 50 ? `<p style="text-align: center; color: #666; margin-top: 10px;">显示最近50条记录，共${result.data.length}条</p>` : ''}
+          `;
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = '<div class="loading">暂无维修记录</div>';
+        }
+        
+        if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
+      } catch (error) {
+        container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+      }
     }
 
     // 加载报表
@@ -494,7 +541,7 @@
     }
 
     // 生成税务报表
-    function generateTaxReport() {
+    async function generateTaxReport() {
       const startDate = document.getElementById('taxStartDate').value;
       const endDate = document.getElementById('taxEndDate').value;
       
@@ -503,90 +550,139 @@
         return;
       }
       
-      // 示例税务报表
-      document.getElementById('taxReportContent').innerHTML = `
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px;">
-          <h3 style="margin-bottom: 20px;">税务报表 (${startDate} 至 ${endDate})</h3>
+      const container = document.getElementById('taxReportContent');
+      container.innerHTML = '<div class="loading">生成报表中...</div>';
+      
+      try {
+        const response = await fetch(
+          `${API_BASE}/merchant/tax-report?merchantId=${merchantId}&startDate=${startDate}&endDate=${endDate}`
+        );
+        const result = await response.json();
+        
+        if (result.success) {
+          const data = result.data;
+          const { dailySales, summary, taxByClassification } = data;
           
-          <table style="margin-bottom: 30px;">
-            <thead>
-              <tr>
-                <th>日期</th>
-                <th>销售额</th>
-                <th>现金收入</th>
-                <th>刷卡收入</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>2024-01-15</td>
-                <td>€1,230.00</td>
-                <td>€450.00</td>
-                <td>€780.00</td>
-              </tr>
-              <tr style="font-weight: bold; background: #e9ecef;">
-                <td>合计</td>
-                <td>€1,230.00</td>
-                <td>€450.00</td>
-                <td>€780.00</td>
-              </tr>
-            </tbody>
-          </table>
+          // 生成日销售表格
+          const dailyTable = dailySales.length > 0 ? `
+            <table style="margin-bottom: 30px;">
+              <thead>
+                <tr>
+                  <th>日期</th>
+                  <th>销售额</th>
+                  <th>现金收入</th>
+                  <th>刷卡收入</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${dailySales.map(day => `
+                  <tr>
+                    <td>${new Date(day.date).toLocaleDateString('zh-CN')}</td>
+                    <td>€${day.totalSales.toFixed(2)}</td>
+                    <td>€${day.cashIncome.toFixed(2)}</td>
+                    <td>€${day.cardIncome.toFixed(2)}</td>
+                  </tr>
+                `).join('')}
+                <tr style="font-weight: bold; background: #e9ecef;">
+                  <td>合计</td>
+                  <td>€${summary.totalSales.toFixed(2)}</td>
+                  <td>€${summary.totalCashIncome.toFixed(2)}</td>
+                  <td>€${summary.totalCardIncome.toFixed(2)}</td>
+                </tr>
+              </tbody>
+            </table>
+          ` : '<p style="color: #999; text-align: center; padding: 20px;">该时间段内无销售数据</p>';
           
-          <h4 style="margin: 20px 0 10px 0;">税务计算明细</h4>
-          <table>
-            <thead>
-              <tr>
-                <th>税务分类</th>
-                <th>销售额</th>
-                <th>销项税</th>
-                <th>成本</th>
-                <th>进项税</th>
-                <th>应缴税额</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>VAT 23%</td>
-                <td>€1,000.00</td>
-                <td>€186.99</td>
-                <td>€700.00</td>
-                <td>€130.89</td>
-                <td style="color: #dc3545; font-weight: bold;">€56.10</td>
-              </tr>
-              <tr>
-                <td>Service VAT 13.5%</td>
-                <td>€100.00</td>
-                <td>€11.89</td>
-                <td>-</td>
-                <td>-</td>
-                <td style="color: #dc3545; font-weight: bold;">€11.89</td>
-              </tr>
-              <tr>
-                <td>Margin VAT 0%</td>
-                <td>€130.00</td>
-                <td>-</td>
-                <td>€80.00</td>
-                <td>-</td>
-                <td style="color: #dc3545; font-weight: bold;">€9.35</td>
-              </tr>
-              <tr style="font-weight: bold; background: #fff3cd;">
-                <td colspan="5" style="text-align: right;">总应缴税额：</td>
-                <td style="color: #dc3545; font-size: 18px;">€77.34</td>
-              </tr>
-            </tbody>
-          </table>
+          container.innerHTML = `
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px;">
+              <h3 style="margin-bottom: 20px;">税务报表 (${startDate} 至 ${endDate})</h3>
+              
+              ${dailyTable}
+              
+              <h4 style="margin: 20px 0 10px 0;">税务计算明细</h4>
+              <table>
+                <thead>
+                  <tr>
+                    <th>税务分类</th>
+                    <th>销售额</th>
+                    <th>销项税</th>
+                    <th>成本</th>
+                    <th>进项税</th>
+                    <th>应缴税额</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${taxByClassification.VAT_23.sales > 0 ? `
+                    <tr>
+                      <td>VAT 23%</td>
+                      <td>€${taxByClassification.VAT_23.sales.toFixed(2)}</td>
+                      <td>€${taxByClassification.VAT_23.outputTax.toFixed(2)}</td>
+                      <td>€${taxByClassification.VAT_23.cost.toFixed(2)}</td>
+                      <td>€${taxByClassification.VAT_23.inputTax.toFixed(2)}</td>
+                      <td style="color: #dc3545; font-weight: bold;">€${taxByClassification.VAT_23.due.toFixed(2)}</td>
+                    </tr>
+                  ` : ''}
+                  ${taxByClassification.SERVICE_VAT_13_5.sales > 0 ? `
+                    <tr>
+                      <td>Service VAT 13.5%</td>
+                      <td>€${taxByClassification.SERVICE_VAT_13_5.sales.toFixed(2)}</td>
+                      <td>€${taxByClassification.SERVICE_VAT_13_5.due.toFixed(2)}</td>
+                      <td>-</td>
+                      <td>-</td>
+                      <td style="color: #dc3545; font-weight: bold;">€${taxByClassification.SERVICE_VAT_13_5.due.toFixed(2)}</td>
+                    </tr>
+                  ` : ''}
+                  ${taxByClassification.MARGIN_VAT_0.sales > 0 ? `
+                    <tr>
+                      <td>Margin VAT</td>
+                      <td>€${taxByClassification.MARGIN_VAT_0.sales.toFixed(2)}</td>
+                      <td>-</td>
+                      <td>€${taxByClassification.MARGIN_VAT_0.cost.toFixed(2)}</td>
+                      <td>-</td>
+                      <td style="color: #dc3545; font-weight: bold;">€${taxByClassification.MARGIN_VAT_0.due.toFixed(2)}</td>
+                    </tr>
+                  ` : ''}
+                  <tr style="font-weight: bold; background: #fff3cd;">
+                    <td colspan="5" style="text-align: right;">总应缴税额：</td>
+                    <td style="color: #dc3545; font-size: 18px;">€${summary.totalTaxDue.toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
+              
+              <div style="margin-top: 20px; padding: 15px; background: white; border-left: 4px solid #6366f1;">
+                <p style="margin: 0; color: #666;">
+                  <strong>计算说明：</strong><br>
+                  • VAT 23%: 销项税 = 销售额×23/123, 进项税 = 成本×23/123, 应缴 = 销项税 - 进项税<br>
+                  • Service VAT 13.5%: 应缴税 = 金额×13.5/113.5<br>
+                  • Margin VAT: 应缴税 = (销售额 - 成本)×23/123
+                </p>
+              </div>
+            </div>
+          `;
           
-          <div style="margin-top: 20px; padding: 15px; background: white; border-left: 4px solid #6366f1;">
-            <p style="margin: 0; color: #666;">
-              <strong>计算说明：</strong><br>
-              • VAT 23%: 销项税 = 1000×23/123=186.99, 进项税 = 700×23/123=130.89, 应缴 = 56.10<br>
-              • Service VAT 13.5%: 应缴税 = 100×13.5/113.5=11.89<br>
-              • Margin VAT: 应缴税 = (130-80)×23/123=9.35
-            </p>
-          </div>
-        </div>
-      `;
+          if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
+        }
+      } catch (error) {
+        container.innerHTML = `<div class="loading">生成报表失败: ${error.message}</div>`;
+      }
+    }
+    
+    // 辅助函数
+    function getCategoryBadge(category) {
+      const badges = {
+        'NEW_DEVICE': '<span class="badge badge-success">全新设备</span>',
+        'USED_DEVICE': '<span class="badge badge-warning">二手设备</span>',
+        'ACCESSORY': '<span class="badge badge-info">配件</span>'
+      };
+      return badges[category] || category;
+    }
+    
+    function getPaymentBadge(method) {
+      const badges = {
+        'CASH': '<span class="badge badge-info">现金</span>',
+        'CARD': '<span class="badge badge-primary">刷卡</span>'
+      };
+      return badges[method] || method;
     }
 
     // 占位函数
