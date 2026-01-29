@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>库存管理 - 3C产品管理系统</title>
   <script src="/i18n.js"></script>
+  <script src="/auth-guard.js"></script>
   <style>
     * {
       margin: 0;
@@ -722,11 +723,9 @@
     // 初始化
     loadGroups();
     
-    // 登出功能
+    // 登出功能 - 使用AuthGuard统一的logout
     function logout() {
-      if (confirm('确定要退出登录吗？')) {
-        window.location.href = '/login.html';
-      }
+      AuthGuard.logout();
     }
     
     // 监听语言变化事件

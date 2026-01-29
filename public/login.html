@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login - CELESTIA TRADE PARTNERS LIMITED</title>
   <script src="/i18n.js"></script>
+  <script src="/auth-guard.js"></script>
   <style>
     * {
       margin: 0;
@@ -484,24 +485,24 @@
         
         // 简单验证（实际应该调用后端）
         const validUsers = {
-          'admin': 'admin123',
-          'warehouse1': 'warehouse123',
-          'merchant_vip': 'merchant123',
-          'merchant_gold': 'merchant123',
-          'customer1': 'customer123'
+          'admin': { password: 'admin123', role: 'admin' },
+          'warehouse1': { password: 'warehouse123', role: 'warehouse_staff' },
+          'merchant_vip': { password: 'merchant123', role: 'merchant' },
+          'merchant_gold': { password: 'merchant123', role: 'merchant' },
+          'customer1': { password: 'customer123', role: 'merchant' }
         };
         
-        if (validUsers[username] === password) {
+        const user = validUsers[username];
+        
+        if (user && user.password === password) {
           // 登录成功
           localStorage.setItem('username', username);
+          localStorage.setItem('userRole', user.role);
           localStorage.setItem('loginTime', new Date().toISOString());
           
-          // 根据用户角色跳转到不同页面
-          if (username === 'admin' || username === 'warehouse1') {
-            window.location.href = '/prototype.html';
-          } else {
-            window.location.href = '/inventory.html';
-          }
+          // 根据用户角色跳转到对应的主页
+          const homePage = AuthGuard.getRoleHomePage(user.role);
+          window.location.href = homePage;
         } else {
           showError(i18n.t('login.error.invalid'));
           loginButton.disabled = false;
@@ -542,22 +543,10 @@
       });
     });
     
-    // 检查是否已登录
+    // 检查是否已登录 - 已禁用自动跳转
+    // 用户访问登录页面时应该能够看到登录表单，而不是自动跳转
     window.addEventListener('DOMContentLoaded', () => {
-      const username = localStorage.getItem('username');
-      const loginTime = localStorage.getItem('loginTime');
-      
-      if (username && loginTime) {
-        // 检查登录是否过期（7天）
-        const loginDate = new Date(loginTime);
-        const now = new Date();
-        const daysDiff = (now - loginDate) / (1000 * 60 * 60 * 24);
-        
-        if (daysDiff < 7) {
-          // 自动跳转
-          window.location.href = '/prototype.html';
-        }
-      }
+      // 不再自动跳转，让用户可以正常访问登录页面
     });
   </script>
 </body>

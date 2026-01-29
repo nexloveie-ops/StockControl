@@ -1182,6 +1182,350 @@ app.get('/api/merchant/tax-report', async (req, res) => {
   }
 });
 
+// ============ 批发商库存管理 API ============
+
+const MerchantInventory = require('./models/MerchantInventory');
+const MerchantOrder = require('./models/MerchantOrder');
+
+// 获取批发商库存列表
+app.get('/api/merchant/inventory', async (req, res) => {
+  try {
+    const merchantId = req.query.merchantId || 'merchant_001';
+    
+    const inventory = await MerchantInventory.find({ merchantId })
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      success: true,
+      data: inventory
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 获取仓库可订购产品列表（批发商订货用）
+app.get('/api/merchant/warehouse-products', async (req, res) => {
+  try {
+    // 获取仓库中可销售的产品
+    const products = await Product3C.find({ 
+      status: 'AVAILABLE'
+    }).sort({ createdAt: -1 });
+    
+    // 按产品类型分组
+    const groupedProducts = {};
+    
+    products.forEach(product => {
+      const key = `${product.productType}_${product.category}`;
+      
+      if (!groupedProducts[key]) {
+        groupedProducts[key] = {
+          productType: product.productType,
+          category: product.category,
+          brand: product.brand,
+          model: product.model,
+          products: [],
+          totalAvailable: 0,
+          wholesalePrice: product.wholesalePrice,
+          suggestedRetailPrice: product.suggestedRetailPrice,
+          taxClassification: product.taxClassification
+        };
+      }
+      
+      groupedProducts[key].products.push(product);
+      
+      if (product.category === 'ACCESSORY') {
+        groupedProducts[key].totalAvailable += product.quantity;
+      } else {
+        groupedProducts[key].totalAvailable += 1;
+      }
+    });
+    
+    res.json({
+      success: true,
+      data: Object.values(groupedProducts)
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 批发商下订单（从仓库订货）
+app.post('/api/merchant/orders', async (req, res) => {
+  try {
+    const { merchantId, merchantName, items } = req.body;
+    
+    if (!merchantId || !items || items.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '缺少必要参数' 
+      });
+    }
+    
+    // 生成订单号
+    const orderNumber = MerchantOrder.generateOrderNumber();
+    
+    // 计算订单总额并验证库存
+    let totalAmount = 0;
+    const orderItems = [];
+    
+    for (const item of items) {
+      const product = await Product3C.findById(item.productId);
+      
+      if (!product) {
+        return res.status(404).json({ 
+          success: false, 
+          error: `产品不存在: ${item.productId}` 
+        });
+      }
+      
+      if (product.status !== 'AVAILABLE') {
+        return res.status(400).json({ 
+          success: false, 
+          error: `产品不可用: ${product.name}` 
+        });
+      }
+      
+      // 检查库存
+      if (product.category === 'ACCESSORY') {
+        if (product.quantity < item.quantity) {
+          return res.status(400).json({ 
+            success: false, 
+            error: `库存不足: ${product.name}，可用: ${product.quantity}` 
+          });
+        }
+      } else {
+        if (item.quantity > 1) {
+          return res.status(400).json({ 
+            success: false, 
+            error: `非配件类产品每次只能订购1件: ${product.name}` 
+          });
+        }
+      }
+      
+      const subtotal = product.wholesalePrice * item.quantity;
+      totalAmount += subtotal;
+      
+      orderItems.push({
+        warehouseProductId: product._id,
+        productName: product.name,
+        category: product.category,
+        productType: product.productType,
+        quantity: item.quantity,
+        unitPrice: product.wholesalePrice,
+        subtotal
+      });
+    }
+    
+    // 创建订单
+    const order = new MerchantOrder({
+      orderNumber,
+      merchantId,
+      merchantName,
+      items: orderItems,
+      totalAmount,
+      status: 'PENDING'
+    });
+    
+    await order.save();
+    
+    res.json({
+      success: true,
+      data: order
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 确认订单并转移库存
+app.post('/api/merchant/orders/:orderId/confirm', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    
+    const order = await MerchantOrder.findById(orderId);
+    
+    if (!order) {
+      return res.status(404).json({ 
+        success: false, 
+        error: '订单不存在' 
+      });
+    }
+    
+    if (order.status !== 'PENDING') {
+      return res.status(400).json({ 
+        success: false, 
+        error: '订单状态不正确' 
+      });
+    }
+    
+    // 开始事务处理
+    for (const item of order.items) {
+      const product = await Product3C.findById(item.warehouseProductId);
+      
+      if (!product) {
+        return res.status(404).json({ 
+          success: false, 
+          error: `产品不存在: ${item.productName}` 
+        });
+      }
+      
+      // 减少仓库库存
+      if (product.category === 'ACCESSORY') {
+        product.quantity -= item.quantity;
+        if (product.quantity === 0) {
+          product.status = 'SOLD';
+        }
+      } else {
+        product.status = 'SOLD';
+      }
+      
+      await product.save();
+      
+      // 添加到批发商库存
+      let merchantInventory = await MerchantInventory.findOne({
+        merchantId: order.merchantId,
+        productName: item.productName,
+        category: item.category
+      });
+      
+      if (merchantInventory) {
+        // 更新现有库存
+        merchantInventory.quantity += item.quantity;
+        merchantInventory.costPrice = item.unitPrice; // 更新成本价
+      } else {
+        // 创建新库存记录
+        merchantInventory = new MerchantInventory({
+          merchantId: order.merchantId,
+          merchantName: order.merchantName,
+          productName: item.productName,
+          category: item.category,
+          productType: item.productType,
+          brand: product.brand,
+          model: product.model,
+          quantity: item.quantity,
+          costPrice: item.unitPrice,
+          retailPrice: product.suggestedRetailPrice,
+          taxClassification: product.taxClassification,
+          warehouseProductId: product._id
+        });
+      }
+      
+      await merchantInventory.save();
+    }
+    
+    // 更新订单状态
+    order.status = 'CONFIRMED';
+    order.confirmedDate = new Date();
+    await order.save();
+    
+    res.json({
+      success: true,
+      data: order
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 获取批发商订单列表
+app.get('/api/merchant/orders', async (req, res) => {
+  try {
+    const merchantId = req.query.merchantId || 'merchant_001';
+    
+    const orders = await MerchantOrder.find({ merchantId })
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      success: true,
+      data: orders
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 批发商销售产品（从自己的库存）
+app.post('/api/merchant/sell', async (req, res) => {
+  try {
+    const { merchantId, inventoryId, quantity, paymentMethod } = req.body;
+    
+    if (!merchantId || !inventoryId || !quantity) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '缺少必要参数' 
+      });
+    }
+    
+    // 查找批发商库存
+    const inventory = await MerchantInventory.findById(inventoryId);
+    
+    if (!inventory) {
+      return res.status(404).json({ 
+        success: false, 
+        error: '库存不存在' 
+      });
+    }
+    
+    if (inventory.merchantId !== merchantId) {
+      return res.status(403).json({ 
+        success: false, 
+        error: '无权操作此库存' 
+      });
+    }
+    
+    if (inventory.quantity < quantity) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `库存不足，可用: ${inventory.quantity}` 
+      });
+    }
+    
+    // 减少库存
+    inventory.quantity -= quantity;
+    await inventory.save();
+    
+    // 计算税额
+    const saleAmount = inventory.retailPrice * quantity;
+    const costAmount = inventory.costPrice * quantity;
+    let taxAmount = 0;
+    
+    if (inventory.taxClassification === 'VAT_23') {
+      const outputTax = saleAmount * 23 / 123;
+      const inputTax = costAmount * 23 / 123;
+      taxAmount = outputTax - inputTax;
+    } else if (inventory.taxClassification === 'SERVICE_VAT_13_5') {
+      taxAmount = saleAmount * 13.5 / 113.5;
+    } else if (inventory.taxClassification === 'MARGIN_VAT_0') {
+      taxAmount = (saleAmount - costAmount) * 23 / 123;
+    }
+    
+    // 记录销售（这里简化处理，实际应该创建销售记录表）
+    const saleRecord = {
+      merchantId,
+      inventoryId,
+      productName: inventory.productName,
+      category: inventory.category,
+      quantity,
+      salePrice: inventory.retailPrice,
+      costPrice: inventory.costPrice,
+      taxAmount,
+      paymentMethod: paymentMethod || 'CASH',
+      date: new Date()
+    };
+    
+    res.json({
+      success: true,
+      data: {
+        sale: saleRecord,
+        remainingStock: inventory.quantity
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // 根路径 - 重定向到登录页面
 app.get('/', (req, res) => {
   res.redirect('/login.html');

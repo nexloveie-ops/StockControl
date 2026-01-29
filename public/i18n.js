@@ -602,7 +602,7 @@ const i18n = {
     switcher.id = 'languageSwitcher';
     switcher.style.cssText = `
       position: fixed;
-      top: 20px;
+      bottom: 20px;
       right: 20px;
       z-index: 9999;
       background: white;
@@ -624,7 +624,7 @@ const i18n = {
     style.textContent = `
       @media (max-width: 768px) {
         #languageSwitcher {
-          top: 10px !important;
+          bottom: 10px !important;
           right: 10px !important;
           padding: 6px 12px !important;
           font-size: 12px !important;

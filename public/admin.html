@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>管理员控制台 - 3C产品管理系统</title>
   <script src="/i18n.js"></script>
+  <script src="/auth-guard.js"></script>
   <style>
     * {
       margin: 0;
@@ -637,10 +638,9 @@
       alert('编辑用户功能开发中...');
     }
     
+    // 登出功能 - 使用AuthGuard统一的logout
     function logout() {
-      if (confirm('确定要退出登录吗？')) {
-        window.location.href = '/login.html';
-      }
+      AuthGuard.logout();
     }
 
     // 初始化

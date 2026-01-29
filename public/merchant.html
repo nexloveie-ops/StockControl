@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>批发商户中心 - 3C产品管理系统</title>
   <script src="/i18n.js"></script>
+  <script src="/auth-guard.js"></script>
   <style>
     * {
       margin: 0;
@@ -396,38 +397,142 @@
     }
 
     // 加载我的库存
-    function loadMyInventory() {
-      document.getElementById('inventoryTable').innerHTML = `
-        <table>
-          <thead>
-            <tr>
-              <th>产品名称</th>
-              <th>类别</th>
-              <th>数量</th>
-              <th>成本价</th>
-              <th>零售价</th>
-              <th>税务分类</th>
-              <th>状态</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colspan="7" style="text-align: center; color: #999; padding: 40px;">
-                库存管理功能开发中...
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      `;
+    async function loadMyInventory() {
+      const container = document.getElementById('inventoryTable');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/inventory?merchantId=${merchantId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data.length > 0) {
+          const html = `
+            <table>
+              <thead>
+                <tr>
+                  <th>产品名称</th>
+                  <th>类别</th>
+                  <th>品牌/型号</th>
+                  <th>库存数量</th>
+                  <th>成本价</th>
+                  <th>零售价</th>
+                  <th>税务分类</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${result.data.map(item => `
+                  <tr>
+                    <td><strong>${item.productName}</strong></td>
+                    <td>${getCategoryBadge(item.category)}</td>
+                    <td>${item.brand || '-'} ${item.model || ''}</td>
+                    <td><strong>${item.quantity}</strong></td>
+                    <td>€${item.costPrice.toFixed(2)}</td>
+                    <td>€${item.retailPrice.toFixed(2)}</td>
+                    <td>${getTaxBadge(item.taxClassification)}</td>
+                    <td>${getStatusBadge(item.status)}</td>
+                    <td>
+                      <button class="btn btn-success" style="padding: 6px 12px; font-size: 12px;" 
+                        onclick="sellProduct('${item._id}', '${item.productName}', ${item.quantity}, ${item.retailPrice})"
+                        ${item.quantity === 0 ? 'disabled' : ''}>
+                        销售
+                      </button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = `
+            <div style="background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107; margin-bottom: 20px;">
+              <h3 style="color: #856404; margin-bottom: 10px;">📦 批发商独立库存系统</h3>
+              <p style="color: #856404; margin: 0;">
+                这里显示的是您作为批发商在自己店铺中的库存，与仓库库存是独立管理的。<br>
+                您可以通过"仓库订货"功能从仓库采购产品到您的库存中。
+              </p>
+            </div>
+            <p style="text-align: center; color: #999; padding: 40px;">
+              暂无库存数据<br>
+              <small>请前往"仓库订货"页面采购产品</small>
+            </p>
+          `;
+        }
+      } catch (error) {
+        container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+      }
     }
 
     // 加载仓库产品
-    function loadWarehouseProducts() {
-      document.getElementById('warehouseProducts').innerHTML = `
-        <p style="color: #999; text-align: center; padding: 40px;">
-          此功能将显示仓库可订购的产品列表
-        </p>
-      `;
+    async function loadWarehouseProducts() {
+      const container = document.getElementById('warehouseProducts');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/warehouse-products`);
+        const result = await response.json();
+        
+        if (result.success && result.data.length > 0) {
+          const html = `
+            <div style="background: #d1ecf1; padding: 20px; border-radius: 8px; border-left: 4px solid #17a2b8; margin-bottom: 20px;">
+              <h3 style="color: #0c5460; margin-bottom: 10px;">🏭 从仓库订货</h3>
+              <p style="color: #0c5460; margin: 0;">
+                以下是仓库中可供采购的产品。选择产品并输入数量后点击"订货"按钮。<br>
+                订单确认后，产品将从仓库转移到您的批发商库存中。
+              </p>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>产品类型</th>
+                  <th>类别</th>
+                  <th>品牌/型号</th>
+                  <th>可用数量</th>
+                  <th>批发价</th>
+                  <th>建议零售价</th>
+                  <th>税务分类</th>
+                  <th>订货数量</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${result.data.map((group, index) => `
+                  <tr>
+                    <td><strong>${group.productType}</strong></td>
+                    <td>${getCategoryBadge(group.category)}</td>
+                    <td>${group.brand || '-'} ${group.model || ''}</td>
+                    <td><strong>${group.totalAvailable}</strong></td>
+                    <td>€${group.wholesalePrice.toFixed(2)}</td>
+                    <td>€${group.suggestedRetailPrice.toFixed(2)}</td>
+                    <td>${getTaxBadge(group.taxClassification)}</td>
+                    <td>
+                      <input type="number" id="orderQty_${index}" min="1" max="${group.totalAvailable}" 
+                        value="1" style="width: 80px; padding: 5px; border: 1px solid #ddd; border-radius: 4px;">
+                    </td>
+                    <td>
+                      <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" 
+                        onclick="orderFromWarehouse(${index}, '${group.products[0]._id}', '${group.productType}', ${group.category === 'ACCESSORY' ? group.totalAvailable : 1})">
+                        订货
+                      </button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = `
+            <p style="color: #999; text-align: center; padding: 40px;">
+              仓库暂无可订购产品
+            </p>
+          `;
+        }
+      } catch (error) {
+        container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+      }
     }
 
     // 加载销售记录
@@ -684,6 +789,138 @@
       };
       return badges[method] || method;
     }
+    
+    function getTaxBadge(tax) {
+      const badges = {
+        'VAT_23': '<span class="badge badge-primary">VAT 23%</span>',
+        'MARGIN_VAT_0': '<span class="badge badge-info">Margin VAT</span>',
+        'SERVICE_VAT_13_5': '<span class="badge badge-warning">Service 13.5%</span>'
+      };
+      return badges[tax] || tax;
+    }
+    
+    function getStatusBadge(status) {
+      const badges = {
+        'ACTIVE': '<span class="badge badge-success">正常</span>',
+        'LOW_STOCK': '<span class="badge badge-warning">库存低</span>',
+        'OUT_OF_STOCK': '<span class="badge badge-danger">缺货</span>'
+      };
+      return badges[status] || status;
+    }
+    
+    // 从仓库订货
+    async function orderFromWarehouse(index, productId, productName, maxQty) {
+      const qtyInput = document.getElementById(`orderQty_${index}`);
+      const quantity = parseInt(qtyInput.value);
+      
+      if (!quantity || quantity < 1) {
+        alert('请输入有效的订货数量');
+        return;
+      }
+      
+      if (quantity > maxQty) {
+        alert(`订货数量不能超过可用数量 ${maxQty}`);
+        return;
+      }
+      
+      if (!confirm(`确定要订购 ${quantity} 件 ${productName} 吗？`)) {
+        return;
+      }
+      
+      try {
+        // 创建订单
+        const orderResponse = await fetch(`${API_BASE}/merchant/orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            merchantId,
+            merchantName: 'VIP商户', // 实际应从session获取
+            items: [{
+              productId,
+              quantity
+            }]
+          })
+        });
+        
+        const orderResult = await orderResponse.json();
+        
+        if (!orderResult.success) {
+          alert('订单创建失败: ' + orderResult.error);
+          return;
+        }
+        
+        // 自动确认订单
+        const confirmResponse = await fetch(`${API_BASE}/merchant/orders/${orderResult.data._id}/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const confirmResult = await confirmResponse.json();
+        
+        if (confirmResult.success) {
+          alert(`订货成功！已将 ${quantity} 件 ${productName} 添加到您的库存`);
+          // 刷新页面数据
+          loadWarehouseProducts();
+          loadStats();
+        } else {
+          alert('订单确认失败: ' + confirmResult.error);
+        }
+      } catch (error) {
+        alert('订货失败: ' + error.message);
+      }
+    }
+    
+    // 销售产品
+    async function sellProduct(inventoryId, productName, availableQty, retailPrice) {
+      const quantity = prompt(`请输入销售数量（可用: ${availableQty}）:`, '1');
+      
+      if (!quantity) return;
+      
+      const qty = parseInt(quantity);
+      if (isNaN(qty) || qty < 1) {
+        alert('请输入有效的数量');
+        return;
+      }
+      
+      if (qty > availableQty) {
+        alert(`销售数量不能超过库存数量 ${availableQty}`);
+        return;
+      }
+      
+      const paymentMethod = confirm('支付方式：\n确定 = 刷卡\n取消 = 现金') ? 'CARD' : 'CASH';
+      
+      const totalAmount = (qty * retailPrice).toFixed(2);
+      
+      if (!confirm(`确认销售：\n产品: ${productName}\n数量: ${qty}\n单价: €${retailPrice.toFixed(2)}\n总额: €${totalAmount}\n支付: ${paymentMethod === 'CARD' ? '刷卡' : '现金'}`)) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/sell`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            merchantId,
+            inventoryId,
+            quantity: qty,
+            paymentMethod
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert(`销售成功！\n剩余库存: ${result.data.remainingStock}`);
+          // 刷新库存列表
+          loadMyInventory();
+          loadStats();
+        } else {
+          alert('销售失败: ' + result.error);
+        }
+      } catch (error) {
+        alert('销售失败: ' + error.message);
+      }
+    }
 
     // 占位函数
     function showAddProductModal() {
@@ -698,10 +935,9 @@
       alert('新增维修功能开发中...');
     }
 
+    // 登出功能 - 使用AuthGuard统一的logout
     function logout() {
-      if (confirm('确定要退出登录吗？')) {
-        window.location.href = '/login.html';
-      }
+      AuthGuard.logout();
     }
 
     // 初始化
