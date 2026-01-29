@@ -851,6 +851,11 @@ app.get('/health', (req, res) => {
   });
 });
 
+// 根路径 - 重定向到登录页面
+app.get('/', (req, res) => {
+  res.redirect('/login.html');
+});
+
 // 启动服务器
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
