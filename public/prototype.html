@@ -235,53 +235,53 @@
 </head>
 <body>
   <div class="header">
-    <h1>🏪 3C产品管理系统 - 原型演示</h1>
-    <p>批发零售一体化管理平台</p>
+    <h1 data-i18n="company.name">🏪 3C产品管理系统 - 原型演示</h1>
+    <p data-i18n="company.tagline">批发零售一体化管理平台</p>
   </div>
 
   <div class="container">
     <!-- 统计卡片 -->
     <div class="stats-grid" id="statsGrid">
       <div class="stat-card">
-        <h3>总产品数</h3>
+        <h3 data-i18n="stats.totalProducts">总产品数</h3>
         <div class="value" id="totalProducts">-</div>
       </div>
       <div class="stat-card">
-        <h3>可销售产品</h3>
+        <h3 data-i18n="stats.availableProducts">可销售产品</h3>
         <div class="value" id="availableProducts">-</div>
       </div>
       <div class="stat-card">
-        <h3>配件类</h3>
+        <h3 data-i18n="stats.accessories">配件类</h3>
         <div class="value" id="accessories">-</div>
       </div>
       <div class="stat-card">
-        <h3>全新设备</h3>
+        <h3 data-i18n="stats.newDevices">全新设备</h3>
         <div class="value" id="newDevices">-</div>
       </div>
       <div class="stat-card">
-        <h3>二手设备</h3>
+        <h3 data-i18n="stats.usedDevices">二手设备</h3>
         <div class="value" id="usedDevices">-</div>
       </div>
       <div class="stat-card">
-        <h3>供应商</h3>
+        <h3 data-i18n="stats.suppliers">供应商</h3>
         <div class="value" id="totalSuppliers">-</div>
       </div>
     </div>
 
     <!-- 标签页 -->
     <div class="tabs">
-      <button class="tab active" onclick="switchTab('products')">产品管理</button>
-      <button class="tab" onclick="switchTab('invoices')">销售发票</button>
-      <button class="tab" onclick="switchTab('orders')">采购订单</button>
-      <button class="tab" onclick="switchTab('suppliers')">供应商</button>
-      <button class="tab" onclick="switchTab('users')">用户管理</button>
+      <button class="tab active" onclick="switchTab('products')" data-i18n="nav.products">产品管理</button>
+      <button class="tab" onclick="switchTab('invoices')" data-i18n="nav.invoices">销售发票</button>
+      <button class="tab" onclick="switchTab('orders')" data-i18n="nav.orders">采购订单</button>
+      <button class="tab" onclick="switchTab('suppliers')" data-i18n="nav.suppliers">供应商</button>
+      <button class="tab" onclick="switchTab('users')" data-i18n="nav.users">用户管理</button>
     </div>
     
     <div style="margin-bottom: 20px; display: flex; gap: 10px;">
-      <a href="/inventory.html" style="padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; font-weight: 600;">📦 库存管理</a>
-      <a href="/receiving.html" style="padding: 12px 24px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; font-weight: 600;">📥 入库管理</a>
-      <a href="/product-management.html" style="padding: 12px 24px; background: #6c757d; color: white; text-decoration: none; border-radius: 5px; font-weight: 600;">⚙️ 产品管理</a>
-      <a href="/sales.html" style="padding: 12px 24px; background: #fd7e14; color: white; text-decoration: none; border-radius: 5px; font-weight: 600;">🛒 销售管理</a>
+      <a href="/inventory.html" style="padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; font-weight: 600;"><span data-i18n="nav.inventory">📦 库存管理</span></a>
+      <a href="/receiving.html" style="padding: 12px 24px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; font-weight: 600;"><span data-i18n="nav.receiving">📥 入库管理</span></a>
+      <a href="/product-management.html" style="padding: 12px 24px; background: #6c757d; color: white; text-decoration: none; border-radius: 5px; font-weight: 600;"><span data-i18n="nav.productManagement">⚙️ 产品管理</span></a>
+      <a href="/sales.html" style="padding: 12px 24px; background: #fd7e14; color: white; text-decoration: none; border-radius: 5px; font-weight: 600;"><span data-i18n="nav.sales">🛒 销售管理</span></a>
     </div>
 
     <!-- 产品管理 -->

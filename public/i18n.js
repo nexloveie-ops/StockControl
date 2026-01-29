@@ -333,11 +333,98 @@ const i18n = {
       element.title = this.t(key);
     });
     
+    // 自动翻译常见文本（即使没有 data-i18n 属性）
+    if (this.currentLang === 'en') {
+      this.autoTranslate();
+    }
+    
     // 更新 HTML lang 属性
     document.documentElement.lang = this.currentLang === 'zh' ? 'zh-CN' : 'en';
     
     // 触发自定义事件，让页面可以响应语言变化
     window.dispatchEvent(new CustomEvent('languageChanged', { detail: { lang: this.currentLang } }));
+  },
+  
+  // 自动翻译常见文本
+  autoTranslate() {
+    const textMap = {
+      // 通用
+      '加载中...': 'Loading...',
+      '暂无数据': 'No Data',
+      '搜索': 'Search',
+      '筛选': 'Filter',
+      '保存': 'Save',
+      '取消': 'Cancel',
+      '确认': 'Confirm',
+      '删除': 'Delete',
+      '编辑': 'Edit',
+      '关闭': 'Close',
+      
+      // 统计
+      '总产品数': 'Total Products',
+      '可销售产品': 'Available Products',
+      '配件类': 'Accessories',
+      '全新设备': 'New Devices',
+      '二手设备': 'Used Devices',
+      '供应商': 'Suppliers',
+      
+      // 导航
+      '产品管理': 'Products',
+      '销售发票': 'Invoices',
+      '采购订单': 'Purchase Orders',
+      '用户管理': 'Users',
+      '库存管理': 'Inventory',
+      '入库管理': 'Receiving',
+      '销售管理': 'Sales',
+      
+      // 产品相关
+      '产品列表': 'Product List',
+      '产品名称': 'Product Name',
+      '类别': 'Category',
+      '数量': 'Quantity',
+      '状态': 'Status',
+      '位置': 'Location',
+      '进货价': 'Purchase Price',
+      '零售价': 'Retail Price',
+      '批发价': 'Wholesale Price',
+      '税务分类': 'Tax Classification',
+      '税额': 'Tax Amount',
+      
+      // 类别
+      '所有类别': 'All Categories',
+      '配件': 'Accessory',
+      '全新设备': 'New Device',
+      '二手设备': 'Used Device',
+      
+      // 状态
+      '所有状态': 'All Status',
+      '可销售': 'Available',
+      '坏损': 'Damaged',
+      '报废': 'Scrapped',
+      '已售': 'Sold',
+      
+      // 其他
+      '供应商列表': 'Supplier List',
+      '用户列表': 'User List',
+      '销售发票列表': 'Invoice List',
+      '采购订单列表': 'Purchase Order List'
+    };
+    
+    // 遍历所有文本节点并替换
+    const walker = document.createTreeWalker(
+      document.body,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+    
+    let node;
+    while (node = walker.nextNode()) {
+      const text = node.textContent.trim();
+      if (text && textMap[text]) {
+        node.textContent = node.textContent.replace(text, textMap[text]);
+      }
+    }
   },
   
   // 初始化
