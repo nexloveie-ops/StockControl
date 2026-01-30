@@ -261,22 +261,62 @@
 
     <!-- 标签页 -->
     <div class="tabs">
-      <button class="tab active" onclick="switchTab('my-inventory')">我的库存</button>
-      <button class="tab" onclick="switchTab('warehouse-order')">仓库订货</button>
-      <button class="tab" onclick="switchTab('sales')">销售业务</button>
+      <button class="tab active" onclick="switchTab('sales')">销售业务</button>
       <button class="tab" onclick="switchTab('repairs')">维修业务</button>
+      <button class="tab" onclick="switchTab('my-inventory')">我的库存</button>
+      <button class="tab" onclick="switchTab('warehouse-order')">仓库订货</button>
       <button class="tab" onclick="switchTab('reports')">报表中心</button>
       <button class="tab" onclick="switchTab('tax-report')">税务报表</button>
     </div>
 
+    <!-- 销售业务 -->
+    <div id="sales" class="tab-content active">
+      <div class="card">
+        <h2>销售业务</h2>
+        <p style="color: #666; margin-bottom: 20px;">从您的库存中选择产品进行销售</p>
+        
+        <!-- 销售表单 -->
+        <div id="salesForm">
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+      
+      <!-- 销售记录查询 -->
+      <div class="card">
+        <h2>销售记录查询</h2>
+        <div class="form-grid" style="margin-bottom: 20px;">
+          <div class="form-group">
+            <label>开始日期</label>
+            <input type="date" id="salesStartDate">
+          </div>
+          <div class="form-group">
+            <label>结束日期</label>
+            <input type="date" id="salesEndDate">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="querySalesRecords()">查询销售记录</button>
+        
+        <div id="salesRecordsTable" style="margin-top: 20px;">
+          <p style="text-align: center; color: #999; padding: 20px;">请选择日期范围并点击查询</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 维修业务 -->
+    <div id="repairs" class="tab-content">
+      <div class="card">
+        <h2>维修记录</h2>
+        <button class="btn btn-success" onclick="showNewRepairModal()" style="margin-bottom: 15px;">+ 新增维修</button>
+        <div id="repairsTable">
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+    </div>
 
     <!-- 我的库存 -->
-    <div id="my-inventory" class="tab-content active">
+    <div id="my-inventory" class="tab-content">
       <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-          <h2>我的库存</h2>
-          <button class="btn btn-primary" onclick="showAddProductModal()">+ 添加产品</button>
-        </div>
+        <h2>我的库存</h2>
         <div id="inventoryTable">
           <div class="loading">加载中...</div>
         </div>
@@ -289,28 +329,6 @@
         <h2>从仓库订货</h2>
         <p style="color: #666; margin-bottom: 20px;">选择产品从仓库采购到您的库存</p>
         <div id="warehouseProducts">
-          <div class="loading">加载中...</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 销售业务 -->
-    <div id="sales" class="tab-content">
-      <div class="card">
-        <h2>销售记录</h2>
-        <button class="btn btn-success" onclick="showNewSaleModal()" style="margin-bottom: 15px;">+ 新增销售</button>
-        <div id="salesTable">
-          <div class="loading">加载中...</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 维修业务 -->
-    <div id="repairs" class="tab-content">
-      <div class="card">
-        <h2>维修记录</h2>
-        <button class="btn btn-success" onclick="showNewRepairModal()" style="margin-bottom: 15px;">+ 新增维修</button>
-        <div id="repairsTable">
           <div class="loading">加载中...</div>
         </div>
       </div>
@@ -370,10 +388,10 @@
       
       // 加载对应数据
       switch(tabName) {
+        case 'sales': loadSalesForm(); break;
+        case 'repairs': loadRepairs(); break;
         case 'my-inventory': loadMyInventory(); break;
         case 'warehouse-order': loadWarehouseProducts(); break;
-        case 'sales': loadSales(); break;
-        case 'repairs': loadRepairs(); break;
         case 'reports': loadReports(); break;
       }
     }
@@ -393,6 +411,150 @@
         }
       } catch (error) {
         console.error('加载统计数据失败:', error);
+      }
+    }
+
+    // 加载销售业务表单
+    async function loadSalesForm() {
+      const container = document.getElementById('salesForm');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/inventory?merchantId=${merchantId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data.length > 0) {
+          const html = `
+            <table>
+              <thead>
+                <tr>
+                  <th>产品名称</th>
+                  <th>类别</th>
+                  <th>品牌/型号</th>
+                  <th>库存数量</th>
+                  <th>零售价</th>
+                  <th>税务分类</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${result.data.map(item => `
+                  <tr>
+                    <td><strong>${item.productName}</strong></td>
+                    <td>${getCategoryBadge(item.category)}</td>
+                    <td>${item.brand || '-'} ${item.model || ''}</td>
+                    <td><strong>${item.quantity}</strong></td>
+                    <td>€${item.retailPrice.toFixed(2)}</td>
+                    <td>${getTaxBadge(item.taxClassification)}</td>
+                    <td>${getStatusBadge(item.status)}</td>
+                    <td>
+                      <button class="btn btn-success" style="padding: 6px 12px; font-size: 12px;" 
+                        onclick="sellProduct('${item._id}', '${item.productName}', ${item.quantity}, ${item.retailPrice})"
+                        ${item.quantity === 0 ? 'disabled' : ''}>
+                        销售
+                      </button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = `
+            <div style="background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;">
+              <h3 style="color: #856404; margin-bottom: 10px;">📦 暂无库存</h3>
+              <p style="color: #856404; margin: 0;">
+                您的库存为空，请先前往"仓库订货"页面采购产品。
+              </p>
+            </div>
+          `;
+        }
+      } catch (error) {
+        container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+      }
+    }
+    
+    // 查询销售记录
+    async function querySalesRecords() {
+      const startDate = document.getElementById('salesStartDate').value;
+      const endDate = document.getElementById('salesEndDate').value;
+      
+      if (!startDate || !endDate) {
+        alert('请选择日期范围');
+        return;
+      }
+      
+      const container = document.getElementById('salesRecordsTable');
+      container.innerHTML = '<div class="loading">查询中...</div>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/sales?merchantId=${merchantId}&startDate=${startDate}&endDate=${endDate}`);
+        const result = await response.json();
+        
+        if (result.success && result.data.length > 0) {
+          // 过滤日期范围内的记录
+          const filteredData = result.data.filter(sale => {
+            const saleDate = new Date(sale.date);
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999); // 包含结束日期的全天
+            return saleDate >= start && saleDate <= end;
+          });
+          
+          if (filteredData.length > 0) {
+            const html = `
+              <table>
+                <thead>
+                  <tr>
+                    <th>日期</th>
+                    <th>产品</th>
+                    <th>类别</th>
+                    <th>数量</th>
+                    <th>销售额</th>
+                    <th>成本</th>
+                    <th>税额</th>
+                    <th>支付方式</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${filteredData.map(sale => `
+                    <tr>
+                      <td>${new Date(sale.date).toLocaleDateString('zh-CN')}</td>
+                      <td>${sale.productName}</td>
+                      <td>${getCategoryBadge(sale.category)}</td>
+                      <td>${sale.quantity}</td>
+                      <td>€${(sale.salePrice * sale.quantity).toFixed(2)}</td>
+                      <td>€${(sale.costPrice * sale.quantity).toFixed(2)}</td>
+                      <td>€${sale.taxAmount.toFixed(2)}</td>
+                      <td>${getPaymentBadge(sale.paymentMethod)}</td>
+                    </tr>
+                  `).join('')}
+                  <tr style="font-weight: bold; background: #f8f9fa;">
+                    <td colspan="4" style="text-align: right;">合计：</td>
+                    <td>€${filteredData.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0).toFixed(2)}</td>
+                    <td>€${filteredData.reduce((sum, s) => sum + (s.costPrice * s.quantity), 0).toFixed(2)}</td>
+                    <td>€${filteredData.reduce((sum, s) => sum + s.taxAmount, 0).toFixed(2)}</td>
+                    <td>-</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p style="text-align: center; color: #666; margin-top: 10px;">
+                共找到 ${filteredData.length} 条销售记录
+              </p>
+            `;
+            container.innerHTML = html;
+          } else {
+            container.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">该时间段内无销售记录</p>';
+          }
+        } else {
+          container.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">该时间段内无销售记录</p>';
+        }
+        
+        if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
+      } catch (error) {
+        container.innerHTML = `<div class="loading">查询失败: ${error.message}</div>`;
       }
     }
 
@@ -418,7 +580,6 @@
                   <th>零售价</th>
                   <th>税务分类</th>
                   <th>状态</th>
-                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -432,13 +593,6 @@
                     <td>€${item.retailPrice.toFixed(2)}</td>
                     <td>${getTaxBadge(item.taxClassification)}</td>
                     <td>${getStatusBadge(item.status)}</td>
-                    <td>
-                      <button class="btn btn-success" style="padding: 6px 12px; font-size: 12px;" 
-                        onclick="sellProduct('${item._id}', '${item.productName}', ${item.quantity}, ${item.retailPrice})"
-                        ${item.quantity === 0 ? 'disabled' : ''}>
-                        销售
-                      </button>
-                    </td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -923,14 +1077,6 @@
     }
 
     // 占位函数
-    function showAddProductModal() {
-      alert('添加产品功能开发中...');
-    }
-
-    function showNewSaleModal() {
-      alert('新增销售功能开发中...');
-    }
-
     function showNewRepairModal() {
       alert('新增维修功能开发中...');
     }
@@ -943,13 +1089,19 @@
     // 初始化
     window.addEventListener('DOMContentLoaded', () => {
       loadStats();
-      loadMyInventory();
+      loadSalesForm(); // 默认加载销售业务页面
       
       // 设置默认日期（本月）
       const now = new Date();
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      
+      // 税务报表日期
       document.getElementById('taxStartDate').valueAsDate = firstDay;
       document.getElementById('taxEndDate').valueAsDate = now;
+      
+      // 销售记录查询日期
+      document.getElementById('salesStartDate').valueAsDate = firstDay;
+      document.getElementById('salesEndDate').valueAsDate = now;
     });
   </script>
 </body>
