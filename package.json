@@ -4,8 +4,8 @@
   "description": "一个基于Node.js和MongoDB的3C类产品销售库存管理系统，支持产品管理、库存跟踪、销售记录和供应商管理。",
   "main": "app.js",
   "scripts": {
-    "start": "node app-prototype.js",
-    "start-old": "node app.js",
+    "start": "node app.js",
+    "start-old": "node app-old-backup.js",
     "start-simple": "node app-simple.js",
     "prototype": "node app-prototype.js",
     "seed": "node scripts/seed-data.js",

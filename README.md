@@ -39,9 +39,21 @@ npm install
 cp .env.example .env
 ```
 
-4. 启动开发服务器
+4. 启动服务器
 ```bash
+# 生产环境启动
+npm start
+
+# 或直接运行
+node app.js
+
+# 开发环境（需要安装nodemon）
 npm run dev
+```
+
+5. 访问应用
+```
+http://localhost:3000/prototype-working.html
 ```
 
 ### AWS部署
