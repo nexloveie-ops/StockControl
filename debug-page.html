@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>调试页面 - 数据加载测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 1px solid #ddd;
+        }
+        .stat-card h3 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .debug-info {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .group-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 1px solid #ddd;
+        }
+        .group-card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .group-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+        button {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .error {
+            color: #dc3545;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .success {
+            color: #155724;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>数据加载调试页面</h1>
+    <p>这个页面用于测试API数据加载是否正常工作</p>
+    
+    <div>
+        <button onclick="testStatsAPI()">测试统计API</button>
+        <button onclick="testProductsAPI()">测试产品API</button>
+        <button onclick="loadAllData()">加载所有数据</button>
+        <button onclick="clearDebug()">清除调试信息</button>
+    </div>
+    
+    <div id="debugInfo" class="debug-info">等待测试...</div>
+    
+    <h2>统计数据</h2>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>总产品数</h3>
+            <div class="value" id="totalProducts">-</div>
+        </div>
+        <div class="stat-card">
+            <h3>可销售产品</h3>
+            <div class="value" id="availableProducts">-</div>
+        </div>
+        <div class="stat-card">
+            <h3>配件类</h3>
+            <div class="value" id="accessories">-</div>
+        </div>
+        <div class="stat-card">
+            <h3>全新设备</h3>
+            <div class="value" id="newDevices">-</div>
+        </div>
+        <div class="stat-card">
+            <h3>二手设备</h3>
+            <div class="value" id="usedDevices">-</div>
+        </div>
+        <div class="stat-card">
+            <h3>供应商</h3>
+            <div class="value" id="totalSuppliers">-</div>
+        </div>
+    </div>
+    
+    <h2>产品分组</h2>
+    <div id="productsContainer" class="products-grid">
+        <div>等待加载...</div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/admin';
+        
+        function log(message) {
+            const debugInfo = document.getElementById('debugInfo');
+            const timestamp = new Date().toLocaleTimeString();
+            debugInfo.textContent += `[${timestamp}] ${message}\n`;
+            console.log(message);
+        }
+        
+        function clearDebug() {
+            document.getElementById('debugInfo').textContent = '调试信息已清除\n';
+        }
+        
+        async function testStatsAPI() {
+            log('=== 测试统计API ===');
+            try {
+                log('发送请求到: /api/stats');
+                const response = await fetch('/api/stats');
+                log(`响应状态: ${response.status} ${response.statusText}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                log(`响应数据: ${JSON.stringify(result, null, 2)}`);
+                
+                if (result.success && result.data) {
+                    const stats = result.data;
+                    
+                    // 更新统计卡片
+                    document.getElementById('totalProducts').textContent = stats.totalProducts || 0;
+                    document.getElementById('availableProducts').textContent = stats.availableProducts || 0;
+                    document.getElementById('accessories').textContent = stats.productsByCategory?.accessories || 0;
+                    document.getElementById('newDevices').textContent = stats.productsByCategory?.newDevices || 0;
+                    document.getElementById('usedDevices').textContent = stats.productsByCategory?.usedDevices || 0;
+                    document.getElementById('totalSuppliers').textContent = stats.totalSuppliers || 0;
+                    
+                    log('✅ 统计数据更新成功');
+                } else {
+                    log('❌ API返回数据格式错误');
+                }
+            } catch (error) {
+                log(`❌ 统计API测试失败: ${error.message}`);
+            }
+        }
+        
+        async function testProductsAPI() {
+            log('=== 测试产品API ===');
+            try {
+                log('发送请求到: /api/products/groups');
+                const response = await fetch('/api/products/groups');
+                log(`响应状态: ${response.status} ${response.statusText}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                log(`响应数据: ${JSON.stringify(result, null, 2)}`);
+                
+                if (result.success && result.data && result.data.length > 0) {
+                    log(`✅ 获取到 ${result.data.length} 个产品分组`);
+                    renderProducts(result.data);
+                } else {
+                    log('⚠️ 没有产品数据');
+                    document.getElementById('productsContainer').innerHTML = '<div>没有产品数据</div>';
+                }
+            } catch (error) {
+                log(`❌ 产品API测试失败: ${error.message}`);
+            }
+        }
+        
+        function renderProducts(groups) {
+            const container = document.getElementById('productsContainer');
+            
+            const html = groups.map(group => {
+                const categoryText = group.category === 'Brand New' ? '全新' : 
+                                   group.category === 'Pre-Owned' ? '二手' : '配件';
+                
+                return `
+                    <div class="group-card">
+                        <div class="group-card-title">${group.productType}</div>
+                        <div style="margin-bottom: 15px; color: #666;">${categoryText}</div>
+                        
+                        <div class="group-stats">
+                            <div class="stat-item">
+                                <div class="stat-label">总库存</div>
+                                <div class="stat-value">${group.totalStock || 0}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">可销售</div>
+                                <div class="stat-value">${group.availableStock || 0}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">库存价值</div>
+                                <div class="stat-value">€${(group.totalValue || 0).toFixed(0)}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">产品数量</div>
+                                <div class="stat-value">${group.productCount || 0}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = html;
+            log('✅ 产品分组渲染完成');
+        }
+        
+        async function loadAllData() {
+            log('=== 加载所有数据 ===');
+            await testStatsAPI();
+            await testProductsAPI();
+            log('=== 所有数据加载完成 ===');
+        }
+        
+        // 页面加载时自动测试
+        window.addEventListener('DOMContentLoaded', () => {
+            log('=== 页面加载完成，开始自动测试 ===');
+            setTimeout(() => {
+                loadAllData();
+            }, 100);
+        });
+    </script>
+</body>
+</html>

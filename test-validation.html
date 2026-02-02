@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>入库表单验证测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .result { margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 3px; }
+        .error { background: #f8d7da; color: #721c24; }
+        .success { background: #d4edda; color: #155724; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { padding: 8px; border: 1px solid #ddd; text-align: left; }
+        th { background: #f8f9fa; }
+        input, select { width: 100%; padding: 4px; border: 1px solid #ccc; border-radius: 3px; }
+        .required { border-color: #dc3545; }
+        small { color: #666; font-size: 11px; }
+    </style>
+</head>
+<body>
+    <h1>入库表单验证测试</h1>
+    
+    <div class="test-section">
+        <h2>产品分类验证测试</h2>
+        <p>测试不同产品分类的序列号要求：</p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>产品名称</th>
+                    <th>分类</th>
+                    <th>序列号/条码</th>
+                    <th>成色</th>
+                    <th>验证状态</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><input type="text" id="product1_name" value="iPhone 15 Pro" required></td>
+                    <td>
+                        <select id="product1_category" onchange="updateValidation(1)" required>
+                            <option value="全新设备" selected>全新设备</option>
+                            <option value="手机配件">手机配件</option>
+                        </select>
+                    </td>
+                    <td>
+                        <input type="text" id="product1_serial" placeholder="SN/IMEI (必填)" required>
+                        <small id="product1_help">设备必须输入SN或IMEI</small>
+                    </td>
+                    <td>
+                        <select id="product1_condition" required>
+                            <option value="Brand New" selected>全新</option>
+                            <option value="Pre-Owned">二手</option>
+                        </select>
+                    </td>
+                    <td id="product1_status">等待验证</td>
+                </tr>
+                <tr>
+                    <td><input type="text" id="product2_name" value="iPhone 保护壳" required></td>
+                    <td>
+                        <select id="product2_category" onchange="updateValidation(2)" required>
+                            <option value="手机配件" selected>手机配件</option>
+                            <option value="全新设备">全新设备</option>
+                        </select>
+                    </td>
+                    <td>
+                        <input type="text" id="product2_serial" placeholder="条码 (可选)">
+                        <small id="product2_help">配件可选输入条码</small>
+                    </td>
+                    <td>
+                        <select id="product2_condition" required>
+                            <option value="Brand New" selected>全新</option>
+                            <option value="Pre-Owned">二手</option>
+                        </select>
+                    </td>
+                    <td id="product2_status">等待验证</td>
+                </tr>
+                <tr>
+                    <td><input type="text" id="product3_name" value="MacBook Pro" required></td>
+                    <td>
+                        <select id="product3_category" onchange="updateValidation(3)" required>
+                            <option value="二手设备" selected>二手设备</option>
+                            <option value="电脑配件">电脑配件</option>
+                        </select>
+                    </td>
+                    <td>
+                        <input type="text" id="product3_serial" placeholder="SN/IMEI (必填)" required>
+                        <small id="product3_help">设备必须输入SN或IMEI</small>
+                    </td>
+                    <td>
+                        <select id="product3_condition" required>
+                            <option value="Pre-Owned" selected>二手</option>
+                            <option value="Brand New">全新</option>
+                        </select>
+                    </td>
+                    <td id="product3_status">等待验证</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <button onclick="validateAllProducts()">验证所有产品</button>
+        <button onclick="resetForm()">重置表单</button>
+        
+        <div id="validationResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>测试用例</h2>
+        <button onclick="testCase1()">测试案例1: 设备缺少序列号</button>
+        <button onclick="testCase2()">测试案例2: 配件有条码</button>
+        <button onclick="testCase3()">测试案例3: 混合产品类型</button>
+        <div id="testResults"></div>
+    </div>
+
+    <script>
+        function updateValidation(productIndex) {
+            const categorySelect = document.getElementById(`product${productIndex}_category`);
+            const serialInput = document.getElementById(`product${productIndex}_serial`);
+            const helpText = document.getElementById(`product${productIndex}_help`);
+            
+            const category = categorySelect.value;
+            const isDevice = ['全新设备', '二手设备'].includes(category);
+            
+            if (isDevice) {
+                serialInput.placeholder = 'SN/IMEI (必填)';
+                serialInput.required = true;
+                serialInput.style.borderColor = '#dc3545';
+                helpText.textContent = '设备必须输入SN或IMEI';
+                helpText.style.color = '#dc3545';
+            } else {
+                serialInput.placeholder = '条码 (可选)';
+                serialInput.required = false;
+                serialInput.style.borderColor = '#ccc';
+                helpText.textContent = '配件可选输入条码';
+                helpText.style.color = '#666';
+            }
+            
+            document.getElementById(`product${productIndex}_status`).textContent = '需要重新验证';
+        }
+
+        function validateProduct(productIndex) {
+            const name = document.getElementById(`product${productIndex}_name`).value.trim();
+            const category = document.getElementById(`product${productIndex}_category`).value;
+            const serial = document.getElementById(`product${productIndex}_serial`).value.trim();
+            const condition = document.getElementById(`product${productIndex}_condition`).value;
+            
+            const isDevice = ['全新设备', '二手设备'].includes(category);
+            const statusElement = document.getElementById(`product${productIndex}_status`);
+            
+            let errors = [];
+            
+            if (!name) {
+                errors.push('产品名称不能为空');
+            }
+            
+            if (!category) {
+                errors.push('必须选择分类');
+            }
+            
+            if (!condition) {
+                errors.push('必须选择成色');
+            }
+            
+            if (isDevice && !serial) {
+                errors.push('设备类产品必须输入序列号或IMEI');
+            }
+            
+            if (errors.length > 0) {
+                statusElement.textContent = '❌ ' + errors.join(', ');
+                statusElement.className = 'error';
+                return false;
+            } else {
+                statusElement.textContent = '✅ 验证通过';
+                statusElement.className = 'success';
+                return true;
+            }
+        }
+
+        function validateAllProducts() {
+            let allValid = true;
+            let results = [];
+            
+            for (let i = 1; i <= 3; i++) {
+                const isValid = validateProduct(i);
+                const name = document.getElementById(`product${i}_name`).value.trim();
+                const category = document.getElementById(`product${i}_category`).value;
+                
+                results.push({
+                    name: name || `产品${i}`,
+                    category,
+                    valid: isValid
+                });
+                
+                if (!isValid) allValid = false;
+            }
+            
+            const resultsDiv = document.getElementById('validationResults');
+            resultsDiv.innerHTML = `
+                <div class="result ${allValid ? 'success' : 'error'}">
+                    <h4>验证结果: ${allValid ? '✅ 全部通过' : '❌ 存在错误'}</h4>
+                    <ul>
+                        ${results.map(r => `<li>${r.name} (${r.category}): ${r.valid ? '✅ 通过' : '❌ 失败'}</li>`).join('')}
+                    </ul>
+                    ${allValid ? '<p><strong>可以提交入库！</strong></p>' : '<p><strong>请修正错误后重试</strong></p>'}
+                </div>
+            `;
+        }
+
+        function resetForm() {
+            document.getElementById('product1_name').value = 'iPhone 15 Pro';
+            document.getElementById('product1_category').value = '全新设备';
+            document.getElementById('product1_serial').value = '';
+            document.getElementById('product1_condition').value = 'Brand New';
+            
+            document.getElementById('product2_name').value = 'iPhone 保护壳';
+            document.getElementById('product2_category').value = '手机配件';
+            document.getElementById('product2_serial').value = '';
+            document.getElementById('product2_condition').value = 'Brand New';
+            
+            document.getElementById('product3_name').value = 'MacBook Pro';
+            document.getElementById('product3_category').value = '二手设备';
+            document.getElementById('product3_serial').value = '';
+            document.getElementById('product3_condition').value = 'Pre-Owned';
+            
+            for (let i = 1; i <= 3; i++) {
+                updateValidation(i);
+                document.getElementById(`product${i}_status`).textContent = '等待验证';
+                document.getElementById(`product${i}_status`).className = '';
+            }
+            
+            document.getElementById('validationResults').innerHTML = '';
+            document.getElementById('testResults').innerHTML = '';
+        }
+
+        function testCase1() {
+            // 设备缺少序列号
+            document.getElementById('product1_name').value = 'iPhone 15 Pro';
+            document.getElementById('product1_category').value = '全新设备';
+            document.getElementById('product1_serial').value = ''; // 故意留空
+            updateValidation(1);
+            
+            const isValid = validateProduct(1);
+            document.getElementById('testResults').innerHTML = `
+                <div class="result ${isValid ? 'success' : 'error'}">
+                    <h4>测试案例1结果: ${isValid ? '❌ 测试失败（应该验证失败）' : '✅ 测试通过（正确拒绝）'}</h4>
+                    <p>设备类产品缺少序列号应该被拒绝</p>
+                </div>
+            `;
+        }
+
+        function testCase2() {
+            // 配件有条码
+            document.getElementById('product2_name').value = 'iPhone 保护壳';
+            document.getElementById('product2_category').value = '手机配件';
+            document.getElementById('product2_serial').value = '1234567890123';
+            updateValidation(2);
+            
+            const isValid = validateProduct(2);
+            document.getElementById('testResults').innerHTML = `
+                <div class="result ${isValid ? 'success' : 'error'}">
+                    <h4>测试案例2结果: ${isValid ? '✅ 测试通过（正确接受）' : '❌ 测试失败（应该验证通过）'}</h4>
+                    <p>配件类产品有条码应该被接受</p>
+                </div>
+            `;
+        }
+
+        function testCase3() {
+            // 混合产品类型
+            document.getElementById('product1_serial').value = '359123456789012';
+            document.getElementById('product2_serial').value = '1234567890123';
+            document.getElementById('product3_serial').value = 'C02YX1234567';
+            
+            updateValidation(1);
+            updateValidation(2);
+            updateValidation(3);
+            
+            validateAllProducts();
+            
+            document.getElementById('testResults').innerHTML = `
+                <div class="result success">
+                    <h4>测试案例3结果: ✅ 混合产品类型测试完成</h4>
+                    <p>请查看上方的验证结果</p>
+                </div>
+            `;
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            updateValidation(1);
+            updateValidation(2);
+            updateValidation(3);
+        });
+    </script>
+</body>
+</html>

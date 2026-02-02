@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>jQuery版本测试</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        button { padding: 10px 20px; margin: 10px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        input { padding: 8px; margin: 5px; width: 200px; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 5px; background: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <h1>jQuery版本测试</h1>
+    
+    <h2>用户注册</h2>
+    <input type="text" id="username" placeholder="用户名" value="jquerytest">
+    <input type="email" id="email" placeholder="邮箱" value="jquery@test.com">
+    <input type="password" id="password" placeholder="密码" value="123456">
+    <select id="role">
+        <option value="admin">管理员</option>
+        <option value="manager">经理</option>
+        <option value="staff">员工</option>
+    </select>
+    <br><br>
+    <button id="registerBtn">注册</button>
+    <div id="registerResult" class="result"></div>
+    
+    <h2>用户登录</h2>
+    <input type="text" id="loginUser" placeholder="用户名" value="jquerytest">
+    <input type="password" id="loginPass" placeholder="密码" value="123456">
+    <br><br>
+    <button id="loginBtn">登录</button>
+    <div id="loginResult" class="result"></div>
+    
+    <h2>API测试</h2>
+    <button id="healthBtn">健康检查</button>
+    <div id="healthResult" class="result"></div>
+
+    <script>
+        $(document).ready(function() {
+            console.log('jQuery加载完成');
+            
+            // 注册按钮
+            $('#registerBtn').click(function() {
+                console.log('注册按钮被点击');
+                
+                var userData = {
+                    username: $('#username').val(),
+                    email: $('#email').val(),
+                    password: $('#password').val(),
+                    role: $('#role').val()
+                };
+                
+                console.log('注册数据:', userData);
+                
+                $.ajax({
+                    url: '/api/auth/register',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(userData),
+                    success: function(data) {
+                        console.log('注册成功:', data);
+                        $('#registerResult').html('注册成功: ' + data.user.username + ' (' + data.user.role + ')');
+                    },
+                    error: function(xhr) {
+                        console.log('注册失败:', xhr.responseJSON);
+                        $('#registerResult').html('注册失败: ' + xhr.responseJSON.error);
+                    }
+                });
+            });
+            
+            // 登录按钮
+            $('#loginBtn').click(function() {
+                console.log('登录按钮被点击');
+                
+                var loginData = {
+                    username: $('#loginUser').val(),
+                    password: $('#loginPass').val()
+                };
+                
+                $.ajax({
+                    url: '/api/auth/login',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(loginData),
+                    success: function(data) {
+                        console.log('登录成功:', data);
+                        $('#loginResult').html('登录成功: ' + data.user.username + ' (' + data.user.role + ')');
+                        localStorage.setItem('token', data.token);
+                    },
+                    error: function(xhr) {
+                        console.log('登录失败:', xhr.responseJSON);
+                        $('#loginResult').html('登录失败: ' + xhr.responseJSON.error);
+                    }
+                });
+            });
+            
+            // 健康检查按钮
+            $('#healthBtn').click(function() {
+                console.log('健康检查按钮被点击');
+                
+                $.get('/health', function(data) {
+                    console.log('健康检查成功:', data);
+                    $('#healthResult').html('健康检查: ' + data.status + ' - ' + new Date(data.timestamp).toLocaleString());
+                }).fail(function() {
+                    $('#healthResult').html('健康检查失败');
+                });
+            });
+            
+            // 自动执行健康检查
+            $('#healthBtn').click();
+        });
+    </script>
+</body>
+</html>

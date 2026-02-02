@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>销售管理 - 3C产品管理系统</title>
+  <script src="/i18n.js"></script>
+  <script src="/auth-guard.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+      background: #f5f5f5;
+      color: #333;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .header h1 {
+      font-size: 24px;
+      margin-bottom: 5px;
+    }
+    
+    .header .nav {
+      margin-top: 10px;
+    }
+    
+    .header .nav a {
+      color: white;
+      text-decoration: none;
+      margin-right: 20px;
+      opacity: 0.9;
+    }
+    
+    .header .nav a:hover {
+      opacity: 1;
+      text-decoration: underline;
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .sales-layout {
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: 20px;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .card h2 {
+      font-size: 20px;
+      margin-bottom: 15px;
+      color: #333;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .search-box {
+      margin-bottom: 20px;
+    }
+    
+    .search-box input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 15px;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    
+    .product-card {
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 15px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .product-card:hover {
+      border-color: #667eea;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    }
+    
+    .product-card.selected {
+      border-color: #667eea;
+      background: #f0f4ff;
+    }
+    
+    .product-card h3 {
+      font-size: 16px;
+      margin-bottom: 8px;
+      color: #333;
+    }
+    
+    .product-card .price {
+      font-size: 20px;
+      font-weight: bold;
+      color: #667eea;
+      margin: 10px 0;
+    }
+    
+    .product-card .info {
+      font-size: 12px;
+      color: #666;
+      margin: 5px 0;
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    
+    .badge-success { background: #d4edda; color: #155724; }
+    .badge-info { background: #d1ecf1; color: #0c5460; }
+    .badge-warning { background: #fff3cd; color: #856404; }
+    .badge-primary { background: #cfe2ff; color: #084298; }
+    
+    .cart-section {
+      position: sticky;
+      top: 20px;
+    }
+    
+    .customer-select {
+      margin-bottom: 20px;
+    }
+    
+    .customer-select select {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    
+    .cart-items {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-bottom: 20px;
+    }
+    
+    .cart-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .cart-item-info {
+      flex: 1;
+    }
+    
+    .cart-item-name {
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+    
+    .cart-item-price {
+      color: #666;
+      font-size: 14px;
+    }
+    
+    .cart-item-qty {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .qty-btn {
+      width: 30px;
+      height: 30px;
+      border: 1px solid #ddd;
+      background: white;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    
+    .qty-btn:hover {
+      background: #f0f0f0;
+    }
+    
+    .qty-input {
+      width: 50px;
+      text-align: center;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 5px;
+    }
+    
+    .remove-btn {
+      color: #dc3545;
+      cursor: pointer;
+      padding: 5px 10px;
+      border: none;
+      background: none;
+      font-size: 18px;
+    }
+    
+    .cart-summary {
+      border-top: 2px solid #e0e0e0;
+      padding-top: 15px;
+    }
+    
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    
+    .summary-row.total {
+      font-size: 18px;
+      font-weight: bold;
+      color: #667eea;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #e0e0e0;
+    }
+    
+    .discount-input {
+      display: flex;
+      gap: 10px;
+      margin: 15px 0;
+    }
+    
+    .discount-input input {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 15px;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-top: 10px;
+    }
+    
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #5568d3;
+    }
+    
+    .btn-success {
+      background: #28a745;
+      color: white;
+    }
+    
+    .btn-success:hover {
+      background: #218838;
+    }
+    
+    .btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    
+    .empty-cart {
+      text-align: center;
+      padding: 40px 20px;
+      color: #999;
+    }
+    
+    .alert {
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+    
+    .alert-success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .alert-error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal.show {
+      display: flex;
+    }
+    
+    .modal-content {
+      background: white;
+      border-radius: 10px;
+      padding: 30px;
+      max-width: 500px;
+      width: 90%;
+      text-align: center;
+    }
+    
+    .modal-content h3 {
+      margin-bottom: 20px;
+      color: #28a745;
+    }
+    
+    .modal-content p {
+      margin-bottom: 20px;
+      color: #666;
+    }
+    
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <h1>🛒 销售管理</h1>
+        <div class="nav">
+          <a href="/prototype.html">← 返回主页</a>
+          <a href="/sales.html">销售</a>
+        </div>
+      </div>
+      <button onclick="logout()" style="padding: 10px 20px; background: rgba(255,255,255,0.2); color: white; border: 2px solid white; border-radius: 5px; cursor: pointer; font-weight: 600;">
+        退出登录
+      </button>
+    </div>
+  </div>
+
+  <div class="container">
+    <div id="alertContainer"></div>
+    
+    <div class="sales-layout">
+      <!-- 产品选择区 -->
+      <div class="card">
+        <h2>📦 选择产品</h2>
+        
+        <!-- 分组视图 -->
+        <div id="groupView" style="display: block;">
+          <div class="search-box">
+            <input type="text" id="groupSearch" placeholder="搜索产品分组...">
+          </div>
+          <div class="product-grid" id="groupGrid">
+            <div class="loading">加载产品分组中...</div>
+          </div>
+        </div>
+        
+        <!-- 产品列表视图 -->
+        <div id="productListView" style="display: none;">
+          <div style="margin-bottom: 15px;">
+            <button class="btn btn-primary" onclick="backToGroups()" style="width: auto; padding: 10px 20px;">
+              ← 返回分组
+            </button>
+            <span id="currentGroupTitle" style="margin-left: 15px; font-size: 18px; font-weight: 600;"></span>
+          </div>
+          <div class="search-box">
+            <input type="text" id="productSearch" placeholder="搜索产品名称、条码、序列号...">
+          </div>
+          <div class="product-grid" id="productGrid">
+            <div class="loading">加载产品中...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 购物车区 -->
+      <div class="cart-section">
+        <div class="card">
+          <h2>🛍️ 购物车</h2>
+          
+          <div class="customer-select">
+            <label style="display: block; margin-bottom: 5px; font-weight: 600;">选择客户</label>
+            <select id="customerSelect">
+              <option value="">-- 选择客户 --</option>
+            </select>
+          </div>
+          
+          <div class="cart-items" id="cartItems">
+            <div class="empty-cart">购物车为空<br>请选择产品</div>
+          </div>
+          
+          <div class="cart-summary" id="cartSummary" style="display: none;">
+            <div class="summary-row">
+              <span>小计:</span>
+              <span id="subtotal">€0.00</span>
+            </div>
+            
+            <div class="discount-input">
+              <input type="number" id="discountPercent" placeholder="折扣 %" min="0" max="100" value="0">
+              <span style="line-height: 35px;">%</span>
+            </div>
+            
+            <div class="summary-row">
+              <span>折扣:</span>
+              <span id="discountAmount">-€0.00</span>
+            </div>
+            
+            <div class="summary-row">
+              <span>税额:</span>
+              <span id="taxAmount">€0.00</span>
+            </div>
+            
+            <div class="summary-row total">
+              <span>总计:</span>
+              <span id="totalAmount">€0.00</span>
+            </div>
+          </div>
+          
+          <button class="btn btn-primary" id="createInvoiceBtn" disabled>创建发票</button>
+          <button class="btn btn-success" id="finalizeBtn" style="display: none;">确定并生成PDF</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 成功模态框 -->
+  <div class="modal" id="successModal">
+    <div class="modal-content">
+      <h3>✅ 发票创建成功！</h3>
+      <p>发票号: <strong id="invoiceNumber"></strong></p>
+      <p>您可以选择确定发票（更新库存）并下载PDF</p>
+      <div class="modal-actions">
+        <button class="btn btn-success" id="finalizeAndDownloadBtn">确定并下载PDF</button>
+        <button class="btn btn-primary" id="closeModalBtn">稍后处理</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+    let products = [];
+    let productGroups = [];
+    let currentGroupProducts = [];
+    let customers = [];
+    let cart = [];
+    let selectedCustomer = null;
+    let currentInvoiceId = null;
+
+    // 加载产品分组
+    async function loadProductGroups() {
+      try {
+        const response = await fetch(`${API_BASE}/products/groups`);
+        const result = await response.json();
+        
+        if (result.success) {
+          productGroups = result.data.filter(g => g.availableStock > 0);
+          renderProductGroups(productGroups);
+        }
+      } catch (error) {
+        showAlert('加载产品分组失败: ' + error.message, 'error');
+      }
+    }
+
+    // 渲染产品分组
+    function renderProductGroups(groups) {
+      const grid = document.getElementById('groupGrid');
+      
+      if (groups.length === 0) {
+        grid.innerHTML = '<div class="empty-cart">暂无可用产品</div>';
+        if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
+        return;
+      }
+      
+      grid.innerHTML = groups.map(g => {
+        const categoryClass = g.category === 'ACCESSORY' ? 'info' : 
+                             g.category === 'NEW_DEVICE' ? 'success' : 'warning';
+        const categoryText = g.category === 'ACCESSORY' ? '配件' : 
+                            g.category === 'NEW_DEVICE' ? '全新设备' : '二手设备';
+        
+        return `
+          <div class="product-card" onclick="showGroupProducts('${g.productType}', '${g.category}')">
+            <h3>${g.productType}</h3>
+            <div class="info">
+              <span class="badge badge-${categoryClass}">${categoryText}</span>
+              <span class="badge badge-info">库存: ${g.availableStock}</span>
+            </div>
+            <div class="price">€${g.avgRetailPrice.toFixed(2)}</div>
+            <div class="info">${g.productCount} 个产品</div>
+          </div>
+        `;
+      }).join('');
+      
+      // 翻译动态内容
+      if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
+    }
+
+    // 显示分组下的产品
+    async function showGroupProducts(productType, category) {
+      try {
+        const response = await fetch(
+          `${API_BASE}/products/group-details?productType=${encodeURIComponent(productType)}&category=${category}`
+        );
+        const result = await response.json();
+        
+        if (result.success) {
+          currentGroupProducts = result.data.products.filter(p => p.status === 'AVAILABLE');
+          
+          // 切换视图
+          document.getElementById('groupView').style.display = 'none';
+          document.getElementById('productListView').style.display = 'block';
+          document.getElementById('currentGroupTitle').textContent = productType;
+          
+          renderProducts(currentGroupProducts);
+        }
+      } catch (error) {
+        showAlert('加载产品失败: ' + error.message, 'error');
+      }
+    }
+
+    // 返回分组视图
+    function backToGroups() {
+      document.getElementById('groupView').style.display = 'block';
+      document.getElementById('productListView').style.display = 'none';
+      currentGroupProducts = [];
+    }
+
+    // 加载产品（保留原有功能）
+    async function loadProducts() {
+      try {
+        const response = await fetch(`${API_BASE}/sales/available-products`);
+        const result = await response.json();
+        
+        if (result.success) {
+          products = result.data;
+        }
+      } catch (error) {
+        showAlert('加载产品失败: ' + error.message, 'error');
+      }
+    }
+
+    // 加载客户
+    async function loadCustomers() {
+      try {
+        const response = await fetch(`${API_BASE}/sales/customers`);
+        const result = await response.json();
+        
+        if (result.success) {
+          customers = result.data;
+          renderCustomers();
+        }
+      } catch (error) {
+        showAlert('加载客户失败: ' + error.message, 'error');
+      }
+    }
+
+    // 渲染产品列表
+    function renderProducts(productList) {
+      const grid = document.getElementById('productGrid');
+      
+      if (productList.length === 0) {
+        grid.innerHTML = '<div class="empty-cart">暂无可用产品</div>';
+        if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
+        return;
+      }
+      
+      grid.innerHTML = productList.map(p => {
+        const isInCart = cart.some(item => item.productId === p._id);
+        const price = getProductPrice(p);
+        
+        // 计算税额
+        let taxRate = 0;
+        if (p.taxClassification === 'VAT_23') taxRate = 0.23;
+        else if (p.taxClassification === 'SERVICE_VAT_13_5') taxRate = 0.135;
+        const taxAmount = price * taxRate;
+        
+        return `
+          <div class="product-card ${isInCart ? 'selected' : ''}" onclick="addToCart('${p._id}')">
+            <h3>${p.name}</h3>
+            <div class="price">€${price.toFixed(2)}</div>
+            <div class="info">
+              ${getCategoryBadge(p.category)}
+              ${p.category === 'ACCESSORY' ? `<span class="badge badge-info">库存: ${p.quantity}</span>` : ''}
+            </div>
+            <div class="info">${p.barcode || p.serialNumber || ''}</div>
+            <div class="info">
+              ${getTaxBadge(p.taxClassification)}
+              ${taxAmount > 0 ? `<span class="badge badge-warning">税: €${taxAmount.toFixed(2)}</span>` : ''}
+            </div>
+            <div class="info">位置: ${p.warehouseLocation}</div>
+          </div>
+        `;
+      }).join('');
+      
+      // 翻译动态内容
+      if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
+    }
+
+    // 渲染客户列表
+    function renderCustomers() {
+      const select = document.getElementById('customerSelect');
+      select.innerHTML = '<option value="">-- 选择客户 --</option>' +
+        customers.map(c => `
+          <option value="${c._id}" data-customer='${JSON.stringify(c)}'>
+            ${c.username} - ${c.role === 'RETAIL_CUSTOMER' ? '零售' : '批发'}
+            ${c.merchantTier ? ` (${c.merchantTier.tierName})` : ''}
+          </option>
+        `).join('');
+    }
+
+    // 获取产品价格（根据客户类型）
+    function getProductPrice(product) {
+      if (!selectedCustomer) {
+        return product.suggestedRetailPrice;
+      }
+      
+      if (selectedCustomer.role === 'WHOLESALE_MERCHANT') {
+        if (selectedCustomer.merchantTier) {
+          const tierPrice = product.tierPricing.find(
+            t => t.tierLevel === selectedCustomer.merchantTier.tierLevel
+          );
+          return tierPrice ? tierPrice.price : product.wholesalePrice;
+        }
+        return product.wholesalePrice;
+      }
+      
+      return product.suggestedRetailPrice;
+    }
+
+    // 添加到购物车
+    function addToCart(productId) {
+      // 从当前显示的产品列表中查找（优先从分组产品中查找）
+      let product = currentGroupProducts.find(p => p._id === productId);
+      if (!product) {
+        product = products.find(p => p._id === productId);
+      }
+      if (!product) return;
+      
+      const existingItem = cart.find(item => item.productId === productId);
+      
+      if (existingItem) {
+        // 如果是配件，增加数量
+        if (product.category === 'ACCESSORY') {
+          if (existingItem.quantity < product.quantity) {
+            existingItem.quantity++;
+          } else {
+            showAlert('库存不足', 'error');
+            return;
+          }
+        } else {
+          showAlert('设备已在购物车中', 'error');
+          return;
+        }
+      } else {
+        cart.push({
+          productId: product._id,
+          product: product,
+          quantity: 1
+        });
+      }
+      
+      renderCart();
+      // 重新渲染当前显示的产品列表，而不是切换视图
+      if (currentGroupProducts.length > 0) {
+        renderProducts(currentGroupProducts);
+      } else {
+        renderProducts(products);
+      }
+    }
+
+    // 渲染购物车
+    function renderCart() {
+      const container = document.getElementById('cartItems');
+      const summary = document.getElementById('cartSummary');
+      const createBtn = document.getElementById('createInvoiceBtn');
+      
+      if (cart.length === 0) {
+        container.innerHTML = '<div class="empty-cart">购物车为空<br>请选择产品</div>';
+        summary.style.display = 'none';
+        createBtn.disabled = true;
+        if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
+        return;
+      }
+      
+      container.innerHTML = cart.map(item => {
+        const price = getProductPrice(item.product);
+        const total = price * item.quantity;
+        
+        return `
+          <div class="cart-item">
+            <div class="cart-item-info">
+              <div class="cart-item-name">${item.product.name}</div>
+              <div class="cart-item-price">€${price.toFixed(2)} × ${item.quantity} = €${total.toFixed(2)}</div>
+            </div>
+            <div class="cart-item-qty">
+              ${item.product.category === 'ACCESSORY' ? `
+                <button class="qty-btn" onclick="updateQuantity('${item.productId}', -1)">-</button>
+                <input type="number" class="qty-input" value="${item.quantity}" 
+                       onchange="setQuantity('${item.productId}', this.value)" min="1" max="${item.product.quantity}">
+                <button class="qty-btn" onclick="updateQuantity('${item.productId}', 1)">+</button>
+              ` : ''}
+              <button class="remove-btn" onclick="removeFromCart('${item.productId}')">×</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+      summary.style.display = 'block';
+      createBtn.disabled = !selectedCustomer;
+      calculateTotal();
+      
+      // 翻译动态内容
+      if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
+    }
+
+    // 更新数量
+    function updateQuantity(productId, delta) {
+      const item = cart.find(i => i.productId === productId);
+      if (!item) return;
+      
+      const newQty = item.quantity + delta;
+      if (newQty < 1) {
+        removeFromCart(productId);
+        return;
+      }
+      
+      if (newQty > item.product.quantity) {
+        showAlert('库存不足', 'error');
+        return;
+      }
+      
+      item.quantity = newQty;
+      renderCart();
+    }
+
+    // 设置数量
+    function setQuantity(productId, value) {
+      const item = cart.find(i => i.productId === productId);
+      if (!item) return;
+      
+      const qty = parseInt(value);
+      if (isNaN(qty) || qty < 1) {
+        item.quantity = 1;
+      } else if (qty > item.product.quantity) {
+        item.quantity = item.product.quantity;
+        showAlert('已设置为最大库存数量', 'error');
+      } else {
+        item.quantity = qty;
+      }
+      
+      renderCart();
+    }
+
+    // 从购物车移除
+    function removeFromCart(productId) {
+      cart = cart.filter(item => item.productId !== productId);
+      renderCart();
+      // 重新渲染当前显示的产品列表
+      if (currentGroupProducts.length > 0) {
+        renderProducts(currentGroupProducts);
+      } else if (products.length > 0) {
+        renderProducts(products);
+      }
+    }
+
+    // 计算总额
+    function calculateTotal() {
+      let subtotal = 0;
+      let totalTax = 0;
+      
+      cart.forEach(item => {
+        const price = getProductPrice(item.product);
+        const lineTotal = price * item.quantity;
+        subtotal += lineTotal;
+        
+        // 计算税额
+        let taxRate = 0;
+        if (item.product.taxClassification === 'VAT_23') taxRate = 0.23;
+        else if (item.product.taxClassification === 'SERVICE_VAT_13_5') taxRate = 0.135;
+        
+        totalTax += lineTotal * taxRate;
+      });
+      
+      const discountPercent = parseFloat(document.getElementById('discountPercent').value) || 0;
+      const discountAmount = subtotal * (discountPercent / 100);
+      const total = subtotal - discountAmount + totalTax;
+      
+      document.getElementById('subtotal').textContent = `€${subtotal.toFixed(2)}`;
+      document.getElementById('discountAmount').textContent = `-€${discountAmount.toFixed(2)}`;
+      document.getElementById('taxAmount').textContent = `€${totalTax.toFixed(2)}`;
+      document.getElementById('totalAmount').textContent = `€${total.toFixed(2)}`;
+    }
+
+    // 创建发票
+    async function createInvoice() {
+      if (!selectedCustomer) {
+        showAlert('请选择客户', 'error');
+        return;
+      }
+      
+      if (cart.length === 0) {
+        showAlert('购物车为空', 'error');
+        return;
+      }
+      
+      const discountPercent = parseFloat(document.getElementById('discountPercent').value) || 0;
+      
+      const invoiceData = {
+        customer: {
+          name: selectedCustomer.username,
+          email: selectedCustomer.email,
+          customerType: selectedCustomer.role === 'RETAIL_CUSTOMER' ? 'RETAIL' : 'WHOLESALE',
+          merchantTier: selectedCustomer.merchantTier
+        },
+        lineItems: cart.map(item => ({
+          productId: item.productId,
+          quantity: item.quantity
+        })),
+        discountPercent: discountPercent
+      };
+      
+      try {
+        const response = await fetch(`${API_BASE}/sales/create-invoice`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(invoiceData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          currentInvoiceId = result.data._id;
+          document.getElementById('invoiceNumber').textContent = result.data.invoiceNumber;
+          document.getElementById('successModal').classList.add('show');
+        } else {
+          showAlert('创建发票失败: ' + result.error, 'error');
+        }
+      } catch (error) {
+        showAlert('创建发票失败: ' + error.message, 'error');
+      }
+    }
+
+    // 确定发票并下载PDF
+    async function finalizeAndDownload() {
+      if (!currentInvoiceId) return;
+      
+      try {
+        // 确定发票
+        const response = await fetch(`${API_BASE}/sales/finalize-invoice/${currentInvoiceId}`, {
+          method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          // 下载PDF
+          window.open(`${API_BASE}/sales/invoice-pdf/${currentInvoiceId}`, '_blank');
+          
+          // 重置
+          cart = [];
+          selectedCustomer = null;
+          currentInvoiceId = null;
+          document.getElementById('customerSelect').value = '';
+          document.getElementById('discountPercent').value = '0';
+          document.getElementById('successModal').classList.remove('show');
+          
+          renderCart();
+          loadProducts();
+          
+          showAlert('发票已确定，库存已更新！', 'success');
+        } else {
+          showAlert('确定发票失败: ' + result.error, 'error');
+        }
+      } catch (error) {
+        showAlert('操作失败: ' + error.message, 'error');
+      }
+    }
+
+    // 显示提示
+    function showAlert(message, type) {
+      const container = document.getElementById('alertContainer');
+      const alert = document.createElement('div');
+      alert.className = `alert alert-${type}`;
+      alert.textContent = message;
+      container.appendChild(alert);
+      
+      setTimeout(() => {
+        alert.remove();
+      }, 3000);
+    }
+
+    // 辅助函数
+    function getCategoryBadge(category) {
+      const badges = {
+        'ACCESSORY': '<span class="badge badge-info">配件</span>',
+        'NEW_DEVICE': '<span class="badge badge-success">全新</span>',
+        'USED_DEVICE': '<span class="badge badge-warning">二手</span>'
+      };
+      return badges[category] || '';
+    }
+    
+    function getTaxBadge(tax) {
+      const badges = {
+        'VAT_23': '<span class="badge badge-primary">VAT 23%</span>',
+        'MARGIN_VAT_0': '<span class="badge badge-info">Margin 0%</span>',
+        'SERVICE_VAT_13_5': '<span class="badge badge-warning">Service 13.5%</span>'
+      };
+      return badges[tax] || tax;
+    }
+
+    // 事件监听
+    document.getElementById('customerSelect').addEventListener('change', (e) => {
+      const option = e.target.selectedOptions[0];
+      if (option.value) {
+        selectedCustomer = JSON.parse(option.dataset.customer);
+        renderCart();
+        renderProducts(products);
+      } else {
+        selectedCustomer = null;
+      }
+    });
+
+    document.getElementById('discountPercent').addEventListener('input', calculateTotal);
+    document.getElementById('productSearch').addEventListener('input', (e) => {
+      const search = e.target.value.toLowerCase();
+      const filtered = currentGroupProducts.filter(p => 
+        p.name.toLowerCase().includes(search) ||
+        (p.barcode && p.barcode.toLowerCase().includes(search)) ||
+        (p.serialNumber && p.serialNumber.toLowerCase().includes(search))
+      );
+      renderProducts(filtered);
+    });
+    
+    document.getElementById('groupSearch').addEventListener('input', (e) => {
+      const search = e.target.value.toLowerCase();
+      const filtered = productGroups.filter(g => 
+        g.productType.toLowerCase().includes(search)
+      );
+      renderProductGroups(filtered);
+    });
+
+    document.getElementById('createInvoiceBtn').addEventListener('click', createInvoice);
+    document.getElementById('finalizeAndDownloadBtn').addEventListener('click', finalizeAndDownload);
+    document.getElementById('closeModalBtn').addEventListener('click', () => {
+      document.getElementById('successModal').classList.remove('show');
+      window.location.reload();
+    });
+    
+    // 登出功能 - 使用AuthGuard统一的logout
+    function logout() {
+      AuthGuard.logout();
+    }
+
+    // 初始化
+    loadProductGroups();
+    loadProducts();
+    loadCustomers();
+    
+    // 监听语言变化事件
+    window.addEventListener('languageChanged', () => {
+      // 重新渲染所有内容
+      if (currentGroupProducts.length > 0) {
+        renderProducts(currentGroupProducts);
+      } else if (productGroups.length > 0) {
+        renderProductGroups(productGroups);
+      }
+      renderCustomers();
+      renderCart();
+    });
+  </script>
+</body>
+</html>

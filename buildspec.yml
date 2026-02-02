@@ -1,0 +1,59 @@
+version: 0.2
+
+env:
+  variables:
+    NODE_ENV: production
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - echo Entered the install phase...
+      - echo Installing dependencies...
+      - echo Checking for package-lock.json...
+      - ls -la package*.json
+      - npm ci --only=production
+      
+  pre_build:
+    commands:
+      - echo Entered the pre_build phase...
+      - echo Checking Node.js and npm versions
+      - node --version
+      - npm --version
+      - echo Running linting and tests if available...
+      - npm run test --if-present
+      
+  build:
+    commands:
+      - echo Entered the build phase...
+      - echo Build started on `date`
+      - echo Creating production build...
+      - echo No additional build steps required for Node.js Express app
+      - echo Verifying application structure...
+      - ls -la
+      
+  post_build:
+    commands:
+      - echo Entered the post_build phase...
+      - echo Build completed on `date`
+      - echo Preparing artifacts for deployment...
+
+artifacts:
+  files:
+    - '**/*'
+  exclude-paths:
+    - node_modules/**/*
+    - .git/**/*
+    - .gitignore
+    - buildspec.yml
+    - '*.md'
+    - .vscode/**/*
+    - .idea/**/*
+    - coverage/**/*
+    - test/**/*
+    - tests/**/*
+
+cache:
+  paths:
+    - 'node_modules/**/*'

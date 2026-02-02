@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片识别测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .result { margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 3px; }
+        pre { background: #f1f1f1; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>图片识别测试页面</h1>
+    
+    <div class="test-section">
+        <h2>测试不同文件名的识别结果</h2>
+        <button onclick="testRecognition('mobile-invoice.jpg')">测试 mobile-invoice.jpg</button>
+        <button onclick="testRecognition('electronic-parts.png')">测试 electronic-parts.png</button>
+        <button onclick="testRecognition('digital-components.jpg')">测试 digital-components.jpg</button>
+        <button onclick="testRecognition('random-invoice.pdf')">测试 random-invoice.pdf</button>
+        <button onclick="testRecognition('celtic-supplies.jpg')">测试 celtic-supplies.jpg</button>
+        <div id="testResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>上传真实图片测试</h2>
+        <input type="file" id="fileInput" accept="image/*">
+        <button onclick="uploadAndTest()">上传并测试</button>
+        <div id="uploadResults"></div>
+    </div>
+
+    <script>
+        async function testRecognition(filename) {
+            try {
+                // 创建一个模拟文件
+                const blob = new Blob(['test'], { type: 'image/jpeg' });
+                const file = new File([blob], filename, { type: 'image/jpeg' });
+                
+                const formData = new FormData();
+                formData.append('invoice', file);
+                
+                const response = await fetch('/api/admin/recognize-invoice', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                const resultsDiv = document.getElementById('testResults');
+                resultsDiv.innerHTML += `
+                    <div class="result">
+                        <h4>文件名: ${filename}</h4>
+                        <p><strong>供应商:</strong> ${result.data.supplier.name} (置信度: ${result.data.supplier.confidence}%)</p>
+                        <p><strong>产品数量:</strong> ${result.data.products.length}</p>
+                        <p><strong>发票号:</strong> ${result.data.invoice.number}</p>
+                        <details>
+                            <summary>完整结果</summary>
+                            <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                        </details>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('测试失败:', error);
+                document.getElementById('testResults').innerHTML += `
+                    <div class="result" style="background: #f8d7da; color: #721c24;">
+                        <h4>文件名: ${filename}</h4>
+                        <p>测试失败: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function uploadAndTest() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('请选择文件');
+                return;
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('invoice', file);
+                
+                const response = await fetch('/api/admin/recognize-invoice', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                document.getElementById('uploadResults').innerHTML = `
+                    <div class="result">
+                        <h4>上传文件: ${file.name}</h4>
+                        <p><strong>供应商:</strong> ${result.data.supplier.name} (置信度: ${result.data.supplier.confidence}%)</p>
+                        <p><strong>产品数量:</strong> ${result.data.products.length}</p>
+                        <p><strong>发票号:</strong> ${result.data.invoice.number}</p>
+                        <details>
+                            <summary>完整结果</summary>
+                            <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                        </details>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('上传测试失败:', error);
+                document.getElementById('uploadResults').innerHTML = `
+                    <div class="result" style="background: #f8d7da; color: #721c24;">
+                        <p>上传测试失败: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

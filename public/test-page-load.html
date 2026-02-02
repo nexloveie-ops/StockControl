@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>页面加载测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        iframe { width: 100%; height: 600px; border: 1px solid #ddd; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>页面加载测试</h1>
+    
+    <div class="test-result info">
+        <h3>测试目标</h3>
+        <p>验证 prototype-fixed.html 页面是否能正常加载和运行</p>
+    </div>
+    
+    <button onclick="testPageLoad()">测试页面加载</button>
+    <button onclick="testAPIConnection()">测试API连接</button>
+    <button onclick="loadPageInFrame()">在框架中加载页面</button>
+    
+    <div id="testResults"></div>
+    
+    <div id="pageFrame" style="display: none;">
+        <h3>页面预览</h3>
+        <iframe id="testFrame" src=""></iframe>
+    </div>
+
+    <script>
+        async function testPageLoad() {
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.innerHTML = '<div class="test-result info">正在测试页面加载...</div>';
+            
+            try {
+                const response = await fetch('/prototype-fixed.html');
+                const content = await response.text();
+                
+                let results = [];
+                
+                // 检查HTTP状态
+                if (response.ok) {
+                    results.push('<div class="test-result success">✅ HTTP状态: 200 OK</div>');
+                } else {
+                    results.push(`<div class="test-result error">❌ HTTP状态: ${response.status}</div>`);
+                }
+                
+                // 检查内容长度
+                results.push(`<div class="test-result info">📄 页面大小: ${content.length} 字符</div>`);
+                
+                // 检查关键元素
+                const hasTitle = content.includes('<title>');
+                const hasScript = content.includes('<script>');
+                const hasLoadAllData = content.includes('loadAllData');
+                const hasAPI_BASE = content.includes('API_BASE');
+                
+                results.push(`<div class="test-result ${hasTitle ? 'success' : 'error'}">${hasTitle ? '✅' : '❌'} 标题标签</div>`);
+                results.push(`<div class="test-result ${hasScript ? 'success' : 'error'}">${hasScript ? '✅' : '❌'} JavaScript代码</div>`);
+                results.push(`<div class="test-result ${hasLoadAllData ? 'success' : 'error'}">${hasLoadAllData ? '✅' : '❌'} loadAllData函数</div>`);
+                results.push(`<div class="test-result ${hasAPI_BASE ? 'success' : 'error'}">${hasAPI_BASE ? '✅' : '❌'} API_BASE常量</div>`);
+                
+                resultsDiv.innerHTML = results.join('');
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="test-result error">❌ 页面加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        async function testAPIConnection() {
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.innerHTML = '<div class="test-result info">正在测试API连接...</div>';
+            
+            const apis = [
+                { name: '统计API', url: '/api/stats' },
+                { name: '产品分组API', url: '/api/products/groups' },
+                { name: '供应商API', url: '/api/suppliers' }
+            ];
+            
+            let results = [];
+            
+            for (const api of apis) {
+                try {
+                    const response = await fetch(api.url);
+                    const data = await response.json();
+                    
+                    if (response.ok && data.success) {
+                        results.push(`<div class="test-result success">✅ ${api.name}: 正常 (${data.data?.length || '数据正常'})</div>`);
+                    } else {
+                        results.push(`<div class="test-result error">❌ ${api.name}: 失败 - ${data.error || '未知错误'}</div>`);
+                    }
+                } catch (error) {
+                    results.push(`<div class="test-result error">❌ ${api.name}: 连接失败 - ${error.message}</div>`);
+                }
+            }
+            
+            resultsDiv.innerHTML = results.join('');
+        }
+        
+        function loadPageInFrame() {
+            const frameDiv = document.getElementById('pageFrame');
+            const iframe = document.getElementById('testFrame');
+            
+            iframe.src = '/prototype-fixed.html';
+            frameDiv.style.display = 'block';
+            
+            iframe.onload = function() {
+                document.getElementById('testResults').innerHTML = '<div class="test-result success">✅ 页面已在框架中加载</div>';
+            };
+            
+            iframe.onerror = function() {
+                document.getElementById('testResults').innerHTML = '<div class="test-result error">❌ 页面在框架中加载失败</div>';
+            };
+        }
+    </script>
+</body>
+</html>

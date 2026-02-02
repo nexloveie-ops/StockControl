@@ -1,0 +1,149 @@
+/* 通用移动端样式 - 可被所有页面引用 */
+
+@media (max-width: 768px) {
+  /* 通用布局 */
+  body {
+    font-size: 14px;
+  }
+  
+  .header {
+    padding: 15px !important;
+  }
+  
+  .header h1 {
+    font-size: 20px !important;
+  }
+  
+  .header p {
+    font-size: 12px !important;
+  }
+  
+  .container {
+    padding: 10px !important;
+    max-width: 100% !important;
+  }
+  
+  /* 卡片 */
+  .card {
+    padding: 15px !important;
+    margin-bottom: 15px !important;
+  }
+  
+  .card h2 {
+    font-size: 16px !important;
+  }
+  
+  /* 按钮 */
+  button {
+    padding: 10px 16px !important;
+    font-size: 14px !important;
+  }
+  
+  /* 表单 */
+  .form-group {
+    margin-bottom: 15px !important;
+  }
+  
+  .form-label {
+    font-size: 13px !important;
+  }
+  
+  .form-input,
+  .form-select {
+    padding: 10px !important;
+    font-size: 14px !important;
+  }
+  
+  /* 表格 */
+  table {
+    font-size: 11px !important;
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  th, td {
+    padding: 8px 4px !important;
+    white-space: nowrap;
+  }
+  
+  /* 模态框 */
+  .modal-content {
+    width: 95% !important;
+    max-width: 95% !important;
+    margin: 10px auto !important;
+    padding: 20px !important;
+  }
+  
+  .modal-header h3 {
+    font-size: 18px !important;
+  }
+  
+  /* 语言切换按钮 */
+  #languageSwitcher {
+    top: 10px !important;
+    right: 10px !important;
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+  }
+  
+  /* 筛选器 */
+  .filters {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  
+  .filters select,
+  .filters input,
+  .filters button {
+    width: 100% !important;
+  }
+  
+  /* 网格布局 */
+  .grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  
+  /* 产品卡片 */
+  .product-card {
+    padding: 12px !important;
+  }
+  
+  .product-card h4 {
+    font-size: 14px !important;
+  }
+  
+  /* 统计卡片 */
+  .stat-card {
+    padding: 12px !important;
+  }
+  
+  .stat-card h3 {
+    font-size: 12px !important;
+  }
+  
+  .stat-card .value {
+    font-size: 20px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .header h1 {
+    font-size: 18px !important;
+  }
+  
+  .modal-content {
+    width: 98% !important;
+    padding: 15px !important;
+  }
+  
+  button {
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+  }
+  
+  table {
+    font-size: 10px !important;
+  }
+}

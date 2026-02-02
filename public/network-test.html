@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>网络连接测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        button { padding: 10px 20px; margin: 10px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 5px; background: #f8f9fa; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>网络连接诊断</h1>
+    
+    <h2>基础测试</h2>
+    <button onclick="testJS()">测试JavaScript</button>
+    <div id="jsResult" class="result"></div>
+    
+    <h2>网络连接测试</h2>
+    <button onclick="testImage()">测试图片加载</button>
+    <button onclick="testLink()">测试链接跳转</button>
+    <button onclick="testLocation()">测试页面跳转</button>
+    <div id="networkResult" class="result"></div>
+    
+    <h2>直接链接测试</h2>
+    <p>如果JavaScript请求不工作，试试直接链接：</p>
+    <a href="/health" target="_blank">健康检查 (新窗口)</a><br>
+    <a href="/api/test-db" target="_blank">数据库测试 (新窗口)</a><br>
+    
+    <h2>表单测试</h2>
+    <form action="/health" method="GET" target="_blank">
+        <button type="submit">表单GET请求</button>
+    </form>
+    
+    <h2>系统信息</h2>
+    <div id="systemInfo" class="result"></div>
+    
+    <script>
+        function testJS() {
+            console.log('JavaScript测试');
+            document.getElementById('jsResult').innerHTML = 
+                'JavaScript工作正常！<br>' +
+                '时间: ' + new Date().toLocaleString() + '<br>' +
+                '用户代理: ' + navigator.userAgent + '<br>' +
+                '协议: ' + location.protocol + '<br>' +
+                '主机: ' + location.host;
+            document.getElementById('jsResult').className = 'result success';
+        }
+        
+        function testImage() {
+            console.log('测试图片加载');
+            document.getElementById('networkResult').innerHTML = '正在测试图片加载...';
+            
+            var img = new Image();
+            img.onload = function() {
+                console.log('图片加载成功');
+                document.getElementById('networkResult').innerHTML = '图片加载成功！网络连接正常';
+                document.getElementById('networkResult').className = 'result success';
+            };
+            img.onerror = function() {
+                console.log('图片加载失败');
+                document.getElementById('networkResult').innerHTML = '图片加载失败！可能是网络问题';
+                document.getElementById('networkResult').className = 'result error';
+            };
+            // 使用健康检查端点作为图片源（会失败但能测试网络）
+            img.src = '/health?t=' + Date.now();
+        }
+        
+        function testLink() {
+            console.log('测试链接');
+            // 创建一个隐藏的iframe来测试请求
+            var iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.onload = function() {
+                console.log('iframe加载成功');
+                document.getElementById('networkResult').innerHTML = 'iframe加载成功！网络连接正常';
+                document.getElementById('networkResult').className = 'result success';
+                document.body.removeChild(iframe);
+            };
+            iframe.onerror = function() {
+                console.log('iframe加载失败');
+                document.getElementById('networkResult').innerHTML = 'iframe加载失败！';
+                document.getElementById('networkResult').className = 'result error';
+                document.body.removeChild(iframe);
+            };
+            iframe.src = '/health';
+            document.body.appendChild(iframe);
+        }
+        
+        function testLocation() {
+            if (confirm('这将跳转到健康检查页面，确定吗？')) {
+                window.location.href = '/health';
+            }
+        }
+        
+        function showSystemInfo() {
+            var info = 
+                '浏览器: ' + navigator.userAgent + '<br>' +
+                '协议: ' + location.protocol + '<br>' +
+                '主机: ' + location.host + '<br>' +
+                '端口: ' + location.port + '<br>' +
+                '路径: ' + location.pathname + '<br>' +
+                '是否HTTPS: ' + (location.protocol === 'https:') + '<br>' +
+                '是否本地: ' + (location.hostname === 'localhost' || location.hostname === '127.0.0.1') + '<br>' +
+                'Cookie启用: ' + navigator.cookieEnabled + '<br>' +
+                '在线状态: ' + navigator.onLine;
+            
+            document.getElementById('systemInfo').innerHTML = info;
+            document.getElementById('systemInfo').className = 'result';
+        }
+        
+        // 页面加载时执行
+        window.onload = function() {
+            testJS();
+            showSystemInfo();
+        };
+        
+        // 监听网络状态变化
+        window.addEventListener('online', function() {
+            console.log('网络连接恢复');
+        });
+        
+        window.addEventListener('offline', function() {
+            console.log('网络连接断开');
+        });
+    </script>
+</body>
+</html>

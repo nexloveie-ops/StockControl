@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>仓管员页面功能测试</title>
+</head>
+<body>
+  <h1>仓管员页面功能测试</h1>
+  
+  <div style="margin: 20px 0;">
+    <h2>✅ 问题修复验证</h2>
+    <ul>
+      <li><strong>问题1：</strong> 库存产品管理点击分类弹窗显示错误和无法关闭
+        <ul>
+          <li>✅ 已修复分类筛选API，现在正确返回对应分类的产品</li>
+          <li>✅ 已修复弹窗关闭功能，使用专用的closeCategoryModal函数</li>
+          <li>✅ 添加了点击背景关闭弹窗的功能</li>
+          <li>✅ 添加了调试日志帮助排查问题</li>
+        </ul>
+      </li>
+      <li><strong>问题2：</strong> 发票上传入库功能进货价读取和税务分类问题
+        <ul>
+          <li>✅ 修复了进货价字段读取，支持purchasePrice和costPrice字段</li>
+          <li>✅ 添加了税务分类选择框（VAT 23%, VAT 13.5%, VAT 0%）</li>
+          <li>✅ 实现了根据产品分类自动设置默认税率</li>
+          <li>✅ 进货价变化时自动计算批发价（进货价 * 1.2）</li>
+          <li>✅ 产品分类变化时自动更新税率</li>
+        </ul>
+      </li>
+      <li><strong>问题3：</strong> 入库管理需要手动录入功能
+        <ul>
+          <li>✅ 添加了入库方式选择（发票上传 / 手动录入）</li>
+          <li>✅ 实现了完整的手动录入界面</li>
+          <li>✅ 支持供应商选择和发票号码输入</li>
+          <li>✅ 动态产品行管理（添加/删除产品）</li>
+          <li>✅ 设备产品根据数量生成多个SN/IMEI输入框</li>
+          <li>✅ 配件产品显示单个条码输入框（可选）</li>
+          <li>✅ 完整的数据验证和入库确认流程</li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+  
+  <div style="margin: 20px 0;">
+    <h2>测试链接</h2>
+    <ul>
+      <li><a href="/prototype-working.html" target="_blank">🏠 仓管员工作台 (prototype-working.html)</a></li>
+      <li><a href="/admin.html" target="_blank">⚙️ 管理后台 (admin.html)</a></li>
+      <li><a href="/login.html" target="_blank">🔐 登录页面 (测试跳转)</a></li>
+    </ul>
+  </div>
+  
+  <div style="margin: 20px 0;">
+    <h2>API测试</h2>
+    <button onclick="testProductsAPI()">测试产品API</button>
+    <button onclick="testCategoryFilter()">测试分类筛选</button>
+    <button onclick="testSearch()">测试搜索功能</button>
+    <div id="apiResults" style="margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 5px;"></div>
+  </div>
+  
+  <div style="margin: 20px 0;">
+    <h2>数据库状态</h2>
+    <button onclick="checkDatabaseStatus()">检查数据库状态</button>
+    <div id="dbResults" style="margin-top: 10px; padding: 10px; background: #f0f8ff; border-radius: 5px;"></div>
+  </div>
+
+  <script>
+    async function testProductsAPI() {
+      try {
+        const response = await fetch('/api/products');
+        const result = await response.json();
+        
+        // 统计分类
+        const categories = {};
+        result.data?.forEach(product => {
+          const category = product.productType || '未分类';
+          categories[category] = (categories[category] || 0) + 1;
+        });
+        
+        document.getElementById('apiResults').innerHTML = `
+          <h3>产品API测试结果:</h3>
+          <p>状态: ${result.success ? '✅ 成功' : '❌ 失败'}</p>
+          <p>产品数量: ${result.data?.length || 0}</p>
+          <h4>分类统计:</h4>
+          <ul>
+            ${Object.entries(categories).map(([cat, count]) => `<li>${cat}: ${count} 个产品</li>`).join('')}
+          </ul>
+        `;
+      } catch (error) {
+        document.getElementById('apiResults').innerHTML = `
+          <h3>产品API测试结果:</h3>
+          <p>❌ 错误: ${error.message}</p>
+        `;
+      }
+    }
+    
+    async function testCategoryFilter() {
+      try {
+        const response = await fetch('/api/products?category=手机配件');
+        const result = await response.json();
+        document.getElementById('apiResults').innerHTML = `
+          <h3>分类筛选测试结果:</h3>
+          <p>状态: ${result.success ? '✅ 成功' : '❌ 失败'}</p>
+          <p>手机配件产品数量: ${result.data?.length || 0}</p>
+          <ul>
+            ${(result.data || []).map(p => `<li>${p.name} (${p.productType})</li>`).join('')}
+          </ul>
+        `;
+      } catch (error) {
+        document.getElementById('apiResults').innerHTML = `
+          <h3>分类筛选测试结果:</h3>
+          <p>❌ 错误: ${error.message}</p>
+        `;
+      }
+    }
+    
+    async function testSearch() {
+      try {
+        const response = await fetch('/api/products?search=iPhone');
+        const result = await response.json();
+        document.getElementById('apiResults').innerHTML = `
+          <h3>搜索功能测试结果:</h3>
+          <p>状态: ${result.success ? '✅ 成功' : '❌ 失败'}</p>
+          <p>搜索"iPhone"结果数量: ${result.data?.length || 0}</p>
+          <ul>
+            ${(result.data || []).map(p => `<li>${p.name} (${p.productType})</li>`).join('')}
+          </ul>
+        `;
+      } catch (error) {
+        document.getElementById('apiResults').innerHTML = `
+          <h3>搜索功能测试结果:</h3>
+          <p>❌ 错误: ${error.message}</p>
+        `;
+      }
+    }
+    
+    async function checkDatabaseStatus() {
+      try {
+        const response = await fetch('/api/stats');
+        const result = await response.json();
+        document.getElementById('dbResults').innerHTML = `
+          <h3>数据库状态:</h3>
+          <p>状态: ${result.success ? '✅ 连接正常' : '❌ 连接失败'}</p>
+          <p>总产品数: ${result.data?.totalProducts || 0}</p>
+          <p>可销售产品: ${result.data?.availableProducts || 0}</p>
+          <p>供应商数量: ${result.data?.totalSuppliers || 0}</p>
+        `;
+      } catch (error) {
+        document.getElementById('dbResults').innerHTML = `
+          <h3>数据库状态:</h3>
+          <p>❌ 错误: ${error.message}</p>
+        `;
+      }
+    }
+    
+    // 页面加载时自动测试
+    window.onload = function() {
+      testProductsAPI();
+      checkDatabaseStatus();
+    };
+  </script>
+</body>
+</html>

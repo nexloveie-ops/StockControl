@@ -1,0 +1,56 @@
+{
+  "name": "3c-inventory-system",
+  "version": "1.0.0",
+  "description": "一个基于Node.js和MongoDB的3C类产品销售库存管理系统，支持产品管理、库存跟踪、销售记录和供应商管理。",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app-prototype.js",
+    "start-old": "node app.js",
+    "start-simple": "node app-simple.js",
+    "prototype": "node app-prototype.js",
+    "seed": "node scripts/seed-data.js",
+    "dev": "nodemon app-prototype.js",
+    "test": "echo \"No tests specified\" && exit 0",
+    "lint": "echo \"No linting configured\" && exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nexloveie-ops/StockControl.git"
+  },
+  "keywords": [
+    "inventory",
+    "management",
+    "3c",
+    "sales",
+    "nodejs",
+    "mongodb"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "bugs": {
+    "url": "https://github.com/nexloveie-ops/StockControl/issues"
+  },
+  "homepage": "https://github.com/nexloveie-ops/StockControl#readme",
+  "dependencies": {
+    "axios": "^1.13.4",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "form-data": "^4.0.5",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.1.5",
+    "multer": "^2.0.2",
+    "node-fetch": "^3.3.2",
+    "openai": "^6.17.0",
+    "pdfkit": "^0.17.2"
+  },
+  "devDependencies": {
+    "jest": "^30.2.0",
+    "nodemon": "^3.1.11"
+  }
+}

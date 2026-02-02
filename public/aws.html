@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3C库存管理系统 - AWS版本</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        h2 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .links {
+            margin: 20px 0;
+        }
+        .links a {
+            display: inline-block;
+            margin: 5px 10px 5px 0;
+            padding: 8px 16px;
+            background: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .links a:hover {
+            background: #218838;
+        }
+        .aws-info {
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏪 3C库存管理系统 - AWS版本</h1>
+        <div class="aws-info">
+            <strong>AWS Elastic Beanstalk部署版本</strong><br>
+            专为云环境优化，使用表单提交确保最大兼容性
+        </div>
+
+        <!-- 系统状态检查 -->
+        <div class="section">
+            <h2>🔧 系统状态检查</h2>
+            <div class="links">
+                <a href="/health" target="_blank">健康检查</a>
+                <a href="/api/test" target="_blank">API测试</a>
+                <a href="/api/test-db" target="_blank">数据库连接测试</a>
+            </div>
+            <div id="systemStatus">
+                <script>
+                    document.write('<div class="success">页面加载时间: ' + new Date().toLocaleString() + '</div>');
+                    document.write('<div class="info">主机: ' + window.location.host + '<br>协议: ' + window.location.protocol + '</div>');
+                </script>
+            </div>
+        </div>
+
+        <!-- 环境变量检查 -->
+        <div class="section">
+            <h2>🌍 环境配置检查</h2>
+            <p>点击下面的链接检查AWS环境配置：</p>
+            <div class="links">
+                <a href="/api/test" target="_blank">基础API测试</a>
+                <a href="/api/test-db" target="_blank">MongoDB连接测试</a>
+            </div>
+            <p><small>如果数据库连接失败，请检查AWS Environment Properties中的MONGODB_URI配置</small></p>
+        </div>
+
+        <!-- 用户注册 -->
+        <div class="section">
+            <h2>👤 用户注册</h2>
+            <form action="/api/auth/register" method="POST" target="result_window" onsubmit="openResultWindow()">
+                <div class="form-group">
+                    <label>用户名:</label>
+                    <input type="text" name="username" placeholder="请输入用户名" required>
+                </div>
+                <div class="form-group">
+                    <label>邮箱:</label>
+                    <input type="email" name="email" placeholder="请输入邮箱" required>
+                </div>
+                <div class="form-group">
+                    <label>密码:</label>
+                    <input type="password" name="password" placeholder="请输入密码" minlength="6" required>
+                </div>
+                <div class="form-group">
+                    <label>角色:</label>
+                    <select name="role">
+                        <option value="staff">员工</option>
+                        <option value="manager">经理</option>
+                        <option value="admin">管理员</option>
+                    </select>
+                </div>
+                <button type="submit">注册用户</button>
+            </form>
+        </div>
+
+        <!-- 用户登录 -->
+        <div class="section">
+            <h2>🔐 用户登录</h2>
+            <form action="/api/auth/login" method="POST" target="result_window" onsubmit="openResultWindow()">
+                <div class="form-group">
+                    <label>用户名:</label>
+                    <input type="text" name="username" placeholder="请输入用户名" required>
+                </div>
+                <div class="form-group">
+                    <label>密码:</label>
+                    <input type="password" name="password" placeholder="请输入密码" required>
+                </div>
+                <button type="submit">用户登录</button>
+            </form>
+        </div>
+
+        <!-- 快速测试 -->
+        <div class="section">
+            <h2>⚡ 快速测试</h2>
+            <p>使用预设数据快速测试功能：</p>
+            
+            <form action="/api/auth/register" method="POST" target="result_window" onsubmit="openResultWindow()" style="display: inline-block; margin-right: 10px;">
+                <input type="hidden" name="username" value="awstest">
+                <input type="hidden" name="email" value="aws@test.com">
+                <input type="hidden" name="password" value="123456">
+                <input type="hidden" name="role" value="admin">
+                <button type="submit">快速注册AWS测试用户</button>
+            </form>
+            
+            <form action="/api/auth/login" method="POST" target="result_window" onsubmit="openResultWindow()" style="display: inline-block;">
+                <input type="hidden" name="username" value="awstest">
+                <input type="hidden" name="password" value="123456">
+                <button type="submit">快速登录AWS测试用户</button>
+            </form>
+        </div>
+
+        <!-- API文档 -->
+        <div class="section">
+            <h2>📚 API文档</h2>
+            <h3>认证接口</h3>
+            <ul>
+                <li><code>POST /api/auth/register</code> - 用户注册</li>
+                <li><code>POST /api/auth/login</code> - 用户登录</li>
+                <li><code>GET /api/auth/me</code> - 获取用户信息（需要Bearer token）</li>
+            </ul>
+            
+            <h3>系统接口</h3>
+            <ul>
+                <li><code>GET /health</code> - 健康检查</li>
+                <li><code>GET /api/test-db</code> - 数据库连接测试</li>
+            </ul>
+            
+            <h3>使用JWT Token</h3>
+            <p>登录成功后，在HTTP请求头中添加：</p>
+            <code>Authorization: Bearer YOUR_JWT_TOKEN</code>
+        </div>
+
+        <!-- AWS部署信息 -->
+        <div class="section">
+            <h2>☁️ AWS部署信息</h2>
+            <h3>环境变量配置</h3>
+            <p>确保在AWS Elastic Beanstalk的Environment Properties中配置：</p>
+            <ul>
+                <li><code>NODE_ENV=production</code></li>
+                <li><code>MONGODB_URI=mongodb+srv://toys123ie_db_user:scirvqPqLXJerZ7f@toys123ie.9gsjch4.mongodb.net/3c-inventory?retryWrites=true&w=majority&appName=toys123ie</code></li>
+                <li><code>JWT_SECRET=your-super-secret-jwt-key</code></li>
+                <li><code>JWT_EXPIRE=7d</code></li>
+            </ul>
+            
+            <h3>故障排除</h3>
+            <ul>
+                <li>如果数据库连接失败，检查MongoDB Atlas网络白名单</li>
+                <li>如果API返回错误，检查CloudWatch日志</li>
+                <li>如果页面无法访问，检查安全组设置</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // 打开结果窗口
+        function openResultWindow() {
+            // 如果窗口不存在或已关闭，创建新窗口
+            if (!window.resultWindow || window.resultWindow.closed) {
+                window.resultWindow = window.open('', 'result_window', 'width=600,height=400,scrollbars=yes');
+            }
+            // 聚焦到结果窗口
+            window.resultWindow.focus();
+        }
+        
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('AWS版本页面加载完成');
+            
+            // 检查是否在AWS环境中
+            if (window.location.host.includes('elasticbeanstalk') || window.location.host.includes('amazonaws')) {
+                document.querySelector('.aws-info').innerHTML += '<br><strong>✅ 检测到AWS环境</strong>';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>产品管理 - 3C产品管理系统</title>
+  <script src="/i18n.js"></script>
+  <script src="/auth-guard.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+      background: #f5f5f5;
+      color: #333;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .header h1 {
+      font-size: 24px;
+      margin-bottom: 5px;
+    }
+    
+    .header .nav {
+      margin-top: 10px;
+    }
+    
+    .header .nav a {
+      color: white;
+      text-decoration: none;
+      margin-right: 20px;
+      opacity: 0.9;
+    }
+    
+    .header .nav a:hover {
+      opacity: 1;
+      text-decoration: underline;
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    
+    .card h2 {
+      font-size: 20px;
+      margin-bottom: 15px;
+    }
+    
+    .search-filters {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    
+    .search-filters input,
+    .search-filters select {
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    
+    .search-filters input {
+      flex: 1;
+      min-width: 200px;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    th {
+      background: #f8f9fa;
+      font-weight: 600;
+      color: #666;
+      font-size: 14px;
+    }
+    
+    td {
+      font-size: 14px;
+    }
+    
+    tr:hover {
+      background: #f8f9fa;
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    
+    .badge-success { background: #d4edda; color: #155724; }
+    .badge-warning { background: #fff3cd; color: #856404; }
+    .badge-danger { background: #f8d7da; color: #721c24; }
+    .badge-info { background: #d1ecf1; color: #0c5460; }
+    .badge-primary { background: #cfe2ff; color: #084298; }
+    
+    .action-btn {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      margin-right: 5px;
+      transition: all 0.3s;
+    }
+    
+    .btn-edit {
+      background: #667eea;
+      color: white;
+    }
+    
+    .btn-edit:hover {
+      background: #5568d3;
+    }
+    
+    .btn-status {
+      background: #28a745;
+      color: white;
+    }
+    
+    .btn-status:hover {
+      background: #218838;
+    }
+    
+    .btn-location {
+      background: #17a2b8;
+      color: white;
+    }
+    
+    .btn-location:hover {
+      background: #138496;
+    }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal.show {
+      display: flex;
+    }
+    
+    .modal-content {
+      background: white;
+      border-radius: 10px;
+      padding: 30px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    
+    .modal-content h3 {
+      margin-bottom: 20px;
+      color: #333;
+    }
+    
+    .form-group {
+      margin-bottom: 15px;
+    }
+    
+    .form-group label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 5px;
+      color: #555;
+    }
+    
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    
+    .form-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
+    
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #5568d3;
+    }
+    
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+    
+    .btn-secondary:hover {
+      background: #5a6268;
+    }
+    
+    .alert {
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+    
+    .alert-success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .alert-error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+    
+    .tier-pricing-group {
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 10px;
+      margin-top: 10px;
+    }
+    
+    .tier-pricing-group h4 {
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🔧 产品管理</h1>
+    <div class="nav">
+      <a href="/prototype.html">← 返回主页</a>
+      <a href="/inventory.html">库存管理</a>
+      <a href="/product-management.html">产品管理</a>
+      <a href="/receiving.html">入库管理</a>
+      <a href="/sales.html">销售</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <div id="alertContainer"></div>
+    
+    <div class="card">
+      <h2>产品列表</h2>
+      
+      <div class="search-filters">
+        <input type="text" id="searchInput" placeholder="搜索产品名称、条码、序列号...">
+        <select id="categoryFilter">
+          <option value="">所有类别</option>
+          <option value="ACCESSORY">配件</option>
+          <option value="NEW_DEVICE">全新设备</option>
+          <option value="USED_DEVICE">二手设备</option>
+        </select>
+        <select id="statusFilter">
+          <option value="">所有状态</option>
+          <option value="AVAILABLE">可销售</option>
+          <option value="DAMAGED">坏损</option>
+          <option value="SCRAPPED">报废</option>
+          <option value="SOLD">已售</option>
+        </select>
+        <button class="btn btn-primary" onclick="loadProducts()">搜索</button>
+      </div>
+      
+      <div id="productsTable">
+        <div class="loading">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑价格模态框 -->
+  <div class="modal" id="priceModal">
+    <div class="modal-content">
+      <h3>调整价格</h3>
+      <div class="form-group">
+        <label>产品名称</label>
+        <input type="text" id="editProductName" readonly>
+      </div>
+      <div class="form-group">
+        <label>建议零售价 *</label>
+        <input type="number" id="editRetailPrice" step="0.01" min="0">
+      </div>
+      <div class="form-group">
+        <label>批发价 *</label>
+        <input type="number" id="editWholesalePrice" step="0.01" min="0">
+      </div>
+      <div class="tier-pricing-group">
+        <h4>分级批发价</h4>
+        <div class="form-group">
+          <label>VIP等级价格</label>
+          <input type="number" id="editTierPriceVIP" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label>Gold等级价格</label>
+          <input type="number" id="editTierPriceGold" step="0.01" min="0">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" onclick="closeModal('priceModal')">取消</button>
+        <button class="btn btn-primary" onclick="updatePrice()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 更新状态模态框 -->
+  <div class="modal" id="statusModal">
+    <div class="modal-content">
+      <h3>更新产品状态</h3>
+      <div class="form-group">
+        <label>产品名称</label>
+        <input type="text" id="statusProductName" readonly>
+      </div>
+      <div class="form-group">
+        <label>当前状态</label>
+        <input type="text" id="currentStatus" readonly>
+      </div>
+      <div class="form-group">
+        <label>新状态 *</label>
+        <select id="newStatus">
+          <option value="AVAILABLE">可销售</option>
+          <option value="DAMAGED">坏损</option>
+          <option value="SCRAPPED">报废</option>
+        </select>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" onclick="closeModal('statusModal')">取消</button>
+        <button class="btn btn-primary" onclick="updateStatus()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 更新位置模态框 -->
+  <div class="modal" id="locationModal">
+    <div class="modal-content">
+      <h3>更新仓储位置</h3>
+      <div class="form-group">
+        <label>产品名称</label>
+        <input type="text" id="locationProductName" readonly>
+      </div>
+      <div class="form-group">
+        <label>当前位置</label>
+        <input type="text" id="currentLocation" readonly>
+      </div>
+      <div class="form-group">
+        <label>新位置 *</label>
+        <input type="text" id="newLocation" placeholder="如: A-01, B-02">
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" onclick="closeModal('locationModal')">取消</button>
+        <button class="btn btn-primary" onclick="updateLocation()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 调整数量模态框 -->
+  <div class="modal" id="quantityModal">
+    <div class="modal-content">
+      <h3>调整库存数量</h3>
+      <div class="form-group">
+        <label>产品名称</label>
+        <input type="text" id="quantityProductName" readonly>
+      </div>
+      <div class="form-group">
+        <label>当前数量</label>
+        <input type="number" id="currentQuantity" readonly>
+      </div>
+      <div class="form-group">
+        <label>新数量 *</label>
+        <input type="number" id="newQuantity" min="0">
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" onclick="closeModal('quantityModal')">取消</button>
+        <button class="btn btn-primary" onclick="updateQuantity()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+    let products = [];
+    let currentEditProduct = null;
+
+    // 加载产品
+    async function loadProducts() {
+      try {
+        const search = document.getElementById('searchInput').value;
+        const category = document.getElementById('categoryFilter').value;
+        const status = document.getElementById('statusFilter').value;
+        
+        let url = `${API_BASE}/admin/products?`;
+        if (category) url += `category=${category}&`;
+        if (status) url += `status=${status}&`;
+        if (search) url += `search=${search}&`;
+        
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (result.success) {
+          products = result.data.products || result.data;
+          renderProducts();
+        }
+      } catch (error) {
+        showAlert('加载产品失败: ' + error.message, 'error');
+      }
+    }
+
+    // 渲染产品表格
+    function renderProducts() {
+      const container = document.getElementById('productsTable');
+      
+      if (products.length === 0) {
+        container.innerHTML = '<div class="loading">暂无产品数据</div>';
+        if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
+        return;
+      }
+      
+      container.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>产品名称</th>
+              <th>类别</th>
+              <th>标识</th>
+              <th>数量/成色</th>
+              <th>零售价</th>
+              <th>批发价</th>
+              <th>状态</th>
+              <th>位置</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${products.map(p => `
+              <tr>
+                <td><strong>${p.name || '-'}</strong></td>
+                <td>${getCategoryBadge(p.category?.type || p.category || 'Unknown')}</td>
+                <td style="font-family: monospace; font-size: 12px;">${p.barcode || p.serialNumber || p.sku || '-'}</td>
+                <td>${p.category === 'ACCESSORY' ? (p.quantity || p.stockQuantity || 0) : (p.conditionGrade || p.condition || 'NEW')}</td>
+                <td>€${(p.suggestedRetailPrice || p.retailPrice || 0).toFixed(2)}</td>
+                <td>€${(p.wholesalePrice || p.costPrice || 0).toFixed(2)}</td>
+                <td>${getStatusBadge(p.status)}</td>
+                <td>${p.warehouseLocation}</td>
+                <td>
+                  <button class="action-btn btn-edit" onclick="openPriceModal('${p._id}')">调价</button>
+                  ${p.status !== 'SOLD' ? `<button class="action-btn btn-status" onclick="openStatusModal('${p._id}')">状态</button>` : ''}
+                  <button class="action-btn btn-location" onclick="openLocationModal('${p._id}')">位置</button>
+                  ${p.category === 'ACCESSORY' ? `<button class="action-btn btn-edit" onclick="openQuantityModal('${p._id}')">数量</button>` : ''}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+      
+      // 翻译动态内容
+      if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
+    }
+
+    // 打开价格编辑模态框
+    function openPriceModal(productId) {
+      const product = products.find(p => p._id === productId);
+      if (!product) return;
+      
+      currentEditProduct = product;
+      document.getElementById('editProductName').value = product.name;
+      document.getElementById('editRetailPrice').value = product.suggestedRetailPrice;
+      document.getElementById('editWholesalePrice').value = product.wholesalePrice;
+      
+      const vipPrice = product.tierPricing.find(t => t.tierLevel === 1);
+      const goldPrice = product.tierPricing.find(t => t.tierLevel === 2);
+      document.getElementById('editTierPriceVIP').value = vipPrice ? vipPrice.price : '';
+      document.getElementById('editTierPriceGold').value = goldPrice ? goldPrice.price : '';
+      
+      document.getElementById('priceModal').classList.add('show');
+    }
+
+    // 更新价格
+    async function updatePrice() {
+      if (!currentEditProduct) return;
+      
+      const tierPricing = [];
+      const vipPrice = parseFloat(document.getElementById('editTierPriceVIP').value);
+      const goldPrice = parseFloat(document.getElementById('editTierPriceGold').value);
+      
+      if (vipPrice > 0) tierPricing.push({ tierName: 'VIP', tierLevel: 1, price: vipPrice });
+      if (goldPrice > 0) tierPricing.push({ tierName: 'Gold', tierLevel: 2, price: goldPrice });
+      
+      try {
+        const response = await fetch(`${API_BASE}/products/${currentEditProduct._id}/pricing`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            suggestedRetailPrice: parseFloat(document.getElementById('editRetailPrice').value),
+            wholesalePrice: parseFloat(document.getElementById('editWholesalePrice').value),
+            tierPricing
+          })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          showAlert('价格更新成功！', 'success');
+          closeModal('priceModal');
+          loadProducts();
+        } else {
+          showAlert('更新失败: ' + result.error, 'error');
+        }
+      } catch (error) {
+        showAlert('更新失败: ' + error.message, 'error');
+      }
+    }
+
+    // 打开状态编辑模态框
+    function openStatusModal(productId) {
+      const product = products.find(p => p._id === productId);
+      if (!product) return;
+      
+      currentEditProduct = product;
+      document.getElementById('statusProductName').value = product.name;
+      document.getElementById('currentStatus').value = getStatusText(product.status);
+      document.getElementById('newStatus').value = product.status;
+      
+      document.getElementById('statusModal').classList.add('show');
+    }
+
+    // 更新状态
+    async function updateStatus() {
+      if (!currentEditProduct) return;
+      
+      try {
+        const response = await fetch(`${API_BASE}/products/${currentEditProduct._id}/status`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: document.getElementById('newStatus').value
+          })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          showAlert('状态更新成功！', 'success');
+          closeModal('statusModal');
+          loadProducts();
+        } else {
+          showAlert('更新失败: ' + result.error, 'error');
+        }
+      } catch (error) {
+        showAlert('更新失败: ' + error.message, 'error');
+      }
+    }
+
+    // 打开位置编辑模态框
+    function openLocationModal(productId) {
+      const product = products.find(p => p._id === productId);
+      if (!product) return;
+      
+      currentEditProduct = product;
+      document.getElementById('locationProductName').value = product.name;
+      document.getElementById('currentLocation').value = product.warehouseLocation;
+      document.getElementById('newLocation').value = product.warehouseLocation;
+      
+      document.getElementById('locationModal').classList.add('show');
+    }
+
+    // 更新位置
+    async function updateLocation() {
+      if (!currentEditProduct) return;
+      
+      try {
+        const response = await fetch(`${API_BASE}/products/${currentEditProduct._id}/location`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            warehouseLocation: document.getElementById('newLocation').value
+          })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          showAlert('位置更新成功！', 'success');
+          closeModal('locationModal');
+          loadProducts();
+        } else {
+          showAlert('更新失败: ' + result.error, 'error');
+        }
+      } catch (error) {
+        showAlert('更新失败: ' + error.message, 'error');
+      }
+    }
+
+    // 打开数量编辑模态框
+    function openQuantityModal(productId) {
+      const product = products.find(p => p._id === productId);
+      if (!product) return;
+      
+      currentEditProduct = product;
+      document.getElementById('quantityProductName').value = product.name;
+      document.getElementById('currentQuantity').value = product.quantity;
+      document.getElementById('newQuantity').value = product.quantity;
+      
+      document.getElementById('quantityModal').classList.add('show');
+    }
+
+    // 更新数量
+    async function updateQuantity() {
+      if (!currentEditProduct) return;
+      
+      try {
+        const response = await fetch(`${API_BASE}/products/${currentEditProduct._id}/quantity`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            quantity: parseInt(document.getElementById('newQuantity').value)
+          })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          showAlert('数量更新成功！', 'success');
+          closeModal('quantityModal');
+          loadProducts();
+        } else {
+          showAlert('更新失败: ' + result.error, 'error');
+        }
+      } catch (error) {
+        showAlert('更新失败: ' + error.message, 'error');
+      }
+    }
+
+    // 关闭模态框
+    function closeModal(modalId) {
+      document.getElementById(modalId).classList.remove('show');
+      currentEditProduct = null;
+    }
+
+    // 显示提示
+    function showAlert(message, type) {
+      const container = document.getElementById('alertContainer');
+      const alert = document.createElement('div');
+      alert.className = `alert alert-${type}`;
+      alert.textContent = message;
+      container.appendChild(alert);
+      
+      setTimeout(() => {
+        alert.remove();
+      }, 3000);
+    }
+
+    // 辅助函数
+    function getCategoryBadge(category) {
+      const badges = {
+        'ACCESSORY': '<span class="badge badge-info">配件</span>',
+        'NEW_DEVICE': '<span class="badge badge-success">全新</span>',
+        'USED_DEVICE': '<span class="badge badge-warning">二手</span>'
+      };
+      return badges[category] || category;
+    }
+
+    function getStatusBadge(status) {
+      const badges = {
+        'AVAILABLE': '<span class="badge badge-success">可销售</span>',
+        'DAMAGED': '<span class="badge badge-warning">坏损</span>',
+        'SCRAPPED': '<span class="badge badge-danger">报废</span>',
+        'SOLD': '<span class="badge badge-info">已售</span>'
+      };
+      return badges[status] || status;
+    }
+
+    function getStatusText(status) {
+      const texts = {
+        'AVAILABLE': '可销售',
+        'DAMAGED': '坏损',
+        'SCRAPPED': '报废',
+        'SOLD': '已售'
+      };
+      return texts[status] || status;
+    }
+
+    // 初始化
+    loadProducts();
+    
+    // 监听语言变化事件
+    window.addEventListener('languageChanged', () => {
+      // 重新渲染产品列表
+      renderProducts();
+    });
+  </script>
+</body>
+</html>

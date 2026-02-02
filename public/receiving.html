@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>入库管理 - 3C产品管理系统</title>
+  <script src="/i18n.js"></script>
+  <script src="/auth-guard.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+      background: #f5f5f5;
+      color: #333;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+      color: white;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .header h1 {
+      font-size: 24px;
+      margin-bottom: 5px;
+    }
+    
+    .header .nav {
+      margin-top: 10px;
+    }
+    
+    .header .nav a {
+      color: white;
+      text-decoration: none;
+      margin-right: 20px;
+      opacity: 0.9;
+    }
+    
+    .header .nav a:hover {
+      opacity: 1;
+      text-decoration: underline;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 10px;
+      padding: 25px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    
+    .card h2 {
+      font-size: 20px;
+      margin-bottom: 20px;
+      color: #333;
+    }
+    
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .form-group.full-width {
+      grid-column: 1 / -1;
+    }
+    
+    .form-group label {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #555;
+    }
+    
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    
+    .form-group textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #28a745;
+    }
+    
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .btn-primary {
+      background: #28a745;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #218838;
+    }
+    
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+    
+    .btn-secondary:hover {
+      background: #5a6268;
+    }
+    
+    .btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    
+    .alert {
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+    
+    .alert-success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .alert-error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    
+    .product-type-selector {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    
+    .type-btn {
+      flex: 1;
+      padding: 15px;
+      border: 2px solid #ddd;
+      background: white;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-align: center;
+    }
+    
+    .type-btn:hover {
+      border-color: #28a745;
+    }
+    
+    .type-btn.active {
+      border-color: #28a745;
+      background: #d4edda;
+    }
+    
+    .type-btn h3 {
+      margin-bottom: 5px;
+      color: #333;
+    }
+    
+    .type-btn p {
+      font-size: 12px;
+      color: #666;
+    }
+    
+    .hidden {
+      display: none;
+    }
+    
+    .tier-pricing {
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+      margin-top: 10px;
+    }
+    
+    .tier-pricing h4 {
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    
+    .tier-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 10px;
+      margin-bottom: 10px;
+      align-items: end;
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    
+    .badge-success { background: #d4edda; color: #155724; }
+    .badge-info { background: #d1ecf1; color: #0c5460; }
+    .badge-warning { background: #fff3cd; color: #856404; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>📥 入库管理</h1>
+    <div class="nav">
+      <a href="/prototype.html">← 返回主页</a>
+      <a href="/inventory.html">库存管理</a>
+      <a href="/receiving.html">入库管理</a>
+      <a href="/sales.html">销售</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <div id="alertContainer"></div>
+    
+    <div class="card">
+      <h2>新增产品入库</h2>
+      
+      <!-- 产品类型选择 -->
+      <div class="product-type-selector">
+        <div class="type-btn active" onclick="selectProductType('ACCESSORY')">
+          <h3>📦 配件类</h3>
+          <p>按条码和数量管理</p>
+        </div>
+        <div class="type-btn" onclick="selectProductType('NEW_DEVICE')">
+          <h3>📱 全新设备</h3>
+          <p>按序列号单独管理</p>
+        </div>
+        <div class="type-btn" onclick="selectProductType('USED_DEVICE')">
+          <h3>♻️ 二手设备</h3>
+          <p>按序列号和成色管理</p>
+        </div>
+      </div>
+      
+      <!-- 入库表单 -->
+      <form id="receivingForm">
+        <div class="form-grid">
+          <!-- 基本信息 -->
+          <div class="form-group full-width">
+            <label>产品名称 *</label>
+            <input type="text" id="productName" required>
+          </div>
+          
+          <div class="form-group">
+            <label>产品类型 *</label>
+            <input type="text" id="productType" placeholder="如: 数据线, iPhone 15 Pro 256GB" required>
+          </div>
+          
+          <div class="form-group">
+            <label>供应商 *</label>
+            <select id="supplier" required>
+              <option value="">-- 选择供应商 --</option>
+            </select>
+          </div>
+          
+          <!-- 配件类特有字段 -->
+          <div class="form-group accessory-field">
+            <label>条码 *</label>
+            <input type="text" id="barcode">
+          </div>
+          
+          <div class="form-group accessory-field">
+            <label>数量 *</label>
+            <input type="number" id="quantity" min="1" value="1">
+          </div>
+          
+          <!-- 设备类特有字段 -->
+          <div class="form-group device-field hidden">
+            <label>序列号/IMEI *</label>
+            <input type="text" id="serialNumber">
+          </div>
+          
+          <!-- 二手设备特有字段 -->
+          <div class="form-group used-device-field hidden">
+            <label>成色等级 *</label>
+            <select id="conditionGrade">
+              <option value="A_PLUS">A+ (几乎全新)</option>
+              <option value="A">A (轻微使用痕迹)</option>
+              <option value="B">B (明显使用痕迹)</option>
+              <option value="C">C (较多磨损)</option>
+            </select>
+          </div>
+          
+          <!-- 价格信息 -->
+          <div class="form-group">
+            <label>进货价 (不含税) *</label>
+            <input type="number" id="purchasePrice" step="0.01" min="0" required>
+          </div>
+          
+          <div class="form-group">
+            <label>税务分类 *</label>
+            <select id="taxClassification" required onchange="calculateTax()">
+              <option value="VAT_23">VAT 23%</option>
+              <option value="MARGIN_VAT_0">Margin VAT 0%</option>
+              <option value="SERVICE_VAT_13_5">Service VAT 13.5%</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label>进货税额 (自动计算)</label>
+            <input type="number" id="purchaseTax" step="0.01" readonly>
+          </div>
+          
+          <div class="form-group">
+            <label>建议零售价 *</label>
+            <input type="number" id="suggestedRetailPrice" step="0.01" min="0" required>
+          </div>
+          
+          <div class="form-group">
+            <label>批发价 *</label>
+            <input type="number" id="wholesalePrice" step="0.01" min="0" required>
+          </div>
+          
+          <div class="form-group">
+            <label>仓储位置 *</label>
+            <input type="text" id="warehouseLocation" value="A-01" required>
+          </div>
+          
+          <!-- 分级定价 -->
+          <div class="form-group full-width">
+            <label>分级批发价</label>
+            <div class="tier-pricing">
+              <h4>不同等级商户的价格</h4>
+              <div class="tier-row">
+                <div class="form-group" style="margin: 0;">
+                  <label>VIP等级价格</label>
+                  <input type="number" id="tierPriceVIP" step="0.01" min="0">
+                </div>
+                <div class="form-group" style="margin: 0;">
+                  <label>Gold等级价格</label>
+                  <input type="number" id="tierPriceGold" step="0.01" min="0">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button type="button" class="btn btn-secondary" onclick="resetForm()">重置</button>
+          <button type="submit" class="btn btn-primary">确认入库</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+    let currentProductType = 'ACCESSORY';
+    let suppliers = [];
+
+    // 加载供应商
+    async function loadSuppliers() {
+      try {
+        const response = await fetch(`${API_BASE}/suppliers`);
+        const result = await response.json();
+        
+        if (result.success) {
+          suppliers = result.data;
+          const select = document.getElementById('supplier');
+          select.innerHTML = '<option value="">-- 选择供应商 --</option>' +
+            suppliers.map(s => `<option value="${s._id}">${s.name}</option>`).join('');
+        }
+      } catch (error) {
+        showAlert('加载供应商失败: ' + error.message, 'error');
+      }
+    }
+
+    // 选择产品类型
+    function selectProductType(type) {
+      currentProductType = type;
+      
+      // 更新按钮状态
+      document.querySelectorAll('.type-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.closest('.type-btn').classList.add('active');
+      
+      // 显示/隐藏相关字段
+      document.querySelectorAll('.accessory-field').forEach(el => {
+        el.classList.toggle('hidden', type !== 'ACCESSORY');
+        el.querySelector('input').required = type === 'ACCESSORY';
+      });
+      
+      document.querySelectorAll('.device-field').forEach(el => {
+        el.classList.toggle('hidden', type === 'ACCESSORY');
+        el.querySelector('input').required = type !== 'ACCESSORY';
+      });
+      
+      document.querySelectorAll('.used-device-field').forEach(el => {
+        el.classList.toggle('hidden', type !== 'USED_DEVICE');
+        if (type === 'USED_DEVICE') {
+          el.querySelector('select').required = true;
+        }
+      });
+      
+      // 更新税务分类默认值
+      const taxSelect = document.getElementById('taxClassification');
+      if (type === 'USED_DEVICE') {
+        taxSelect.value = 'MARGIN_VAT_0';
+      } else {
+        taxSelect.value = 'VAT_23';
+      }
+      calculateTax();
+    }
+
+    // 计算税额
+    function calculateTax() {
+      const purchasePrice = parseFloat(document.getElementById('purchasePrice').value) || 0;
+      const taxClass = document.getElementById('taxClassification').value;
+      
+      let taxRate = 0;
+      if (taxClass === 'VAT_23') taxRate = 0.23;
+      else if (taxClass === 'SERVICE_VAT_13_5') taxRate = 0.135;
+      
+      const tax = purchasePrice * taxRate;
+      document.getElementById('purchaseTax').value = tax.toFixed(2);
+    }
+
+    // 提交表单
+    document.getElementById('receivingForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const formData = {
+        name: document.getElementById('productName').value,
+        productType: document.getElementById('productType').value,
+        category: currentProductType,
+        supplier: document.getElementById('supplier').value,
+        purchasePrice: parseFloat(document.getElementById('purchasePrice').value),
+        purchaseTax: parseFloat(document.getElementById('purchaseTax').value),
+        taxClassification: document.getElementById('taxClassification').value,
+        suggestedRetailPrice: parseFloat(document.getElementById('suggestedRetailPrice').value),
+        wholesalePrice: parseFloat(document.getElementById('wholesalePrice').value),
+        warehouseLocation: document.getElementById('warehouseLocation').value,
+        status: 'AVAILABLE',
+        salesStatus: 'UNSOLD',
+        tierPricing: []
+      };
+      
+      // 添加分级定价
+      const vipPrice = parseFloat(document.getElementById('tierPriceVIP').value);
+      const goldPrice = parseFloat(document.getElementById('tierPriceGold').value);
+      
+      if (vipPrice > 0) {
+        formData.tierPricing.push({ tierName: 'VIP', tierLevel: 1, price: vipPrice });
+      }
+      if (goldPrice > 0) {
+        formData.tierPricing.push({ tierName: 'Gold', tierLevel: 2, price: goldPrice });
+      }
+      
+      // 根据产品类型添加特定字段
+      if (currentProductType === 'ACCESSORY') {
+        formData.barcode = document.getElementById('barcode').value;
+        formData.quantity = parseInt(document.getElementById('quantity').value);
+      } else {
+        formData.serialNumber = document.getElementById('serialNumber').value;
+        formData.deviceType = currentProductType === 'NEW_DEVICE' ? 'NEW' : 'USED';
+        
+        if (currentProductType === 'USED_DEVICE') {
+          formData.conditionGrade = document.getElementById('conditionGrade').value;
+        }
+      }
+      
+      try {
+        const response = await fetch(`${API_BASE}/products`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showAlert('产品入库成功！', 'success');
+          resetForm();
+        } else {
+          showAlert('入库失败: ' + result.error, 'error');
+        }
+      } catch (error) {
+        showAlert('入库失败: ' + error.message, 'error');
+      }
+    });
+
+    // 重置表单
+    function resetForm() {
+      document.getElementById('receivingForm').reset();
+      document.getElementById('purchaseTax').value = '';
+      selectProductType('ACCESSORY');
+    }
+
+    // 显示提示
+    function showAlert(message, type) {
+      const container = document.getElementById('alertContainer');
+      const alert = document.createElement('div');
+      alert.className = `alert alert-${type}`;
+      alert.textContent = message;
+      container.appendChild(alert);
+      
+      setTimeout(() => {
+        alert.remove();
+      }, 3000);
+    }
+
+    // 监听进货价变化
+    document.getElementById('purchasePrice').addEventListener('input', calculateTax);
+
+    // 初始化
+    loadSuppliers();
+    
+    // 监听语言变化事件
+    window.addEventListener('languageChanged', () => {
+      // 翻译动态内容
+      i18n.translateDynamicContent();
+    });
+  </script>
+</body>
+</html>

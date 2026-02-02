@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockControl 管理系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+        }
+
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .nav-tabs {
+            display: flex;
+            background: white;
+            border-radius: 8px 8px 0 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .nav-tab {
+            flex: 1;
+            padding: 1rem;
+            text-align: center;
+            background: #ecf0f1;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+
+        .nav-tab.active {
+            background: #3498db;
+            color: white;
+        }
+
+        .nav-tab:hover:not(.active) {
+            background: #d5dbdb;
+        }
+
+        .tab-content {
+            background: white;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-height: 600px;
+        }
+
+        .tab-pane {
+            display: none;
+            padding: 2rem;
+        }
+
+        .tab-pane.active {
+            display: block;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #ecf0f1;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            color: #2c3e50;
+        }
+
+        .btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #2980b9;
+        }
+
+        .btn-success {
+            background: #27ae60;
+        }
+
+        .btn-success:hover {
+            background: #229954;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .table th,
+        .table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        .table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .table tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #7f8c8d;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #2c3e50;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        .modal-title {
+            font-size: 1.25rem;
+            color: #2c3e50;
+        }
+
+        .close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #7f8c8d;
+        }
+
+        .close:hover {
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📦 StockControl 管理系统</h1>
+    </div>
+
+    <div class="container">
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="showTab('categories')">产品分类</button>
+            <button class="nav-tab" onclick="showTab('products')">产品管理</button>
+            <button class="nav-tab" onclick="showTab('suppliers')">供应商</button>
+            <button class="nav-tab" onclick="showTab('users')">用户管理</button>
+        </div>
+
+        <div class="tab-content">
+            <!-- 产品分类标签页 -->
+            <div id="categories" class="tab-pane active">
+                <div class="section-header">
+                    <h2 class="section-title">产品分类管理</h2>
+                    <button class="btn btn-success" onclick="showAddCategoryModal()">+ 添加分类</button>
+                </div>
+                <div id="categories-content">
+                    <div class="loading">正在加载分类数据...</div>
+                </div>
+            </div>
+
+            <!-- 产品管理标签页 -->
+            <div id="products" class="tab-pane">
+                <div class="section-header">
+                    <h2 class="section-title">产品管理</h2>
+                    <button class="btn btn-success" onclick="showAddProductModal()">+ 添加产品</button>
+                </div>
+                <div id="products-content">
+                    <div class="loading">正在加载产品数据...</div>
+                </div>
+            </div>
+
+            <!-- 供应商标签页 -->
+            <div id="suppliers" class="tab-pane">
+                <div class="section-header">
+                    <h2 class="section-title">供应商管理</h2>
+                    <button class="btn btn-success" onclick="showAddSupplierModal()">+ 添加供应商</button>
+                </div>
+                <div id="suppliers-content">
+                    <div class="loading">正在加载供应商数据...</div>
+                </div>
+            </div>
+
+            <!-- 用户管理标签页 -->
+            <div id="users" class="tab-pane">
+                <div class="section-header">
+                    <h2 class="section-title">用户管理</h2>
+                    <button class="btn btn-success" onclick="showAddUserModal()">+ 添加用户</button>
+                </div>
+                <div id="users-content">
+                    <div class="loading">正在加载用户数据...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加分类模态框 -->
+    <div id="addCategoryModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">添加产品分类</h3>
+                <button class="close" onclick="closeModal('addCategoryModal')">&times;</button>
+            </div>
+            <form id="addCategoryForm">
+                <div class="form-group">
+                    <label class="form-label">分类名称</label>
+                    <input type="text" class="form-control" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">分类类型</label>
+                    <select class="form-control" name="type" required>
+                        <option value="">请选择</option>
+                        <option value="手机配件">手机配件</option>
+                        <option value="电脑配件">电脑配件</option>
+                        <option value="车载配件">车载配件</option>
+                        <option value="Audio">Audio</option>
+                        <option value="数据线">数据线</option>
+                        <option value="Power Supply">Power Supply</option>
+                        <option value="全新设备">全新设备</option>
+                        <option value="二手设备">二手设备</option>
+                        <option value="维修服务">维修服务</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">描述</label>
+                    <textarea class="form-control" name="description" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">默认税务分类</label>
+                    <select class="form-control" name="defaultVatRate">
+                        <option value="VAT 23%">VAT 23%</option>
+                        <option value="VAT 13.5%">VAT 13.5%</option>
+                        <option value="VAT 0%">VAT 0%</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">默认成色</label>
+                    <select class="form-control" name="defaultCondition">
+                        <option value="Brand New">Brand New</option>
+                        <option value="Pre-Owned">Pre-Owned</option>
+                        <option value="Refurbished">Refurbished</option>
+                    </select>
+                </div>
+                <div style="text-align: right; margin-top: 2rem;">
+                    <button type="button" class="btn" onclick="closeModal('addCategoryModal')" style="margin-right: 1rem;">取消</button>
+                    <button type="submit" class="btn btn-success">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let currentTab = 'categories';
+        let categories = [];
+        let products = [];
+        let suppliers = [];
+        let users = [];
+
+        // 标签页切换
+        function showTab(tabName) {
+            // 隐藏所有标签页
+            document.querySelectorAll('.tab-pane').forEach(pane => {
+                pane.classList.remove('active');
+            });
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // 显示选中的标签页
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+
+            currentTab = tabName;
+
+            // 加载对应数据
+            switch(tabName) {
+                case 'categories':
+                    loadCategories();
+                    break;
+                case 'products':
+                    loadProducts();
+                    break;
+                case 'suppliers':
+                    loadSuppliers();
+                    break;
+                case 'users':
+                    loadUsers();
+                    break;
+            }
+        }
+
+        // 加载分类数据
+        async function loadCategories() {
+            const content = document.getElementById('categories-content');
+            content.innerHTML = '<div class="loading">正在加载分类数据...</div>';
+
+            try {
+                const response = await fetch('/api/admin/categories');
+                const data = await response.json();
+
+                if (data.success) {
+                    categories = data.data;
+                    renderCategories();
+                } else {
+                    content.innerHTML = `<div class="error">加载失败: ${data.error}</div>`;
+                }
+            } catch (error) {
+                content.innerHTML = `<div class="error">网络错误: ${error.message}</div>`;
+            }
+        }
+
+        // 渲染分类表格
+        function renderCategories() {
+            const content = document.getElementById('categories-content');
+            
+            if (categories.length === 0) {
+                content.innerHTML = '<div class="loading">暂无分类数据</div>';
+                return;
+            }
+
+            const html = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>分类名称</th>
+                            <th>类型</th>
+                            <th>默认税率</th>
+                            <th>默认成色</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${categories.map(category => `
+                            <tr>
+                                <td>${category.name}</td>
+                                <td>${category.type}</td>
+                                <td>${category.defaultVatRate}</td>
+                                <td>${category.defaultCondition}</td>
+                                <td>
+                                    <span class="status-badge ${category.isActive ? 'status-active' : 'status-inactive'}">
+                                        ${category.isActive ? '启用' : '禁用'}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn" onclick="editCategory('${category._id}')" style="margin-right: 0.5rem;">编辑</button>
+                                    <button class="btn btn-danger" onclick="deleteCategory('${category._id}')">删除</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            content.innerHTML = html;
+        }
+
+        // 显示添加分类模态框
+        function showAddCategoryModal() {
+            document.getElementById('addCategoryModal').style.display = 'block';
+        }
+
+        // 关闭模态框
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // 添加分类表单提交
+        document.getElementById('addCategoryForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const categoryData = Object.fromEntries(formData.entries());
+
+            try {
+                const response = await fetch('/api/admin/categories', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(categoryData)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    closeModal('addCategoryModal');
+                    e.target.reset();
+                    loadCategories(); // 重新加载数据
+                    showMessage('分类添加成功！', 'success');
+                } else {
+                    showMessage(`添加失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`网络错误: ${error.message}`, 'error');
+            }
+        });
+
+        // 显示消息
+        function showMessage(message, type) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = type;
+            messageDiv.textContent = message;
+            messageDiv.style.position = 'fixed';
+            messageDiv.style.top = '20px';
+            messageDiv.style.right = '20px';
+            messageDiv.style.zIndex = '9999';
+            messageDiv.style.padding = '1rem';
+            messageDiv.style.borderRadius = '4px';
+            messageDiv.style.maxWidth = '300px';
+
+            document.body.appendChild(messageDiv);
+
+            setTimeout(() => {
+                document.body.removeChild(messageDiv);
+            }, 3000);
+        }
+
+        // 其他功能的占位函数
+        function loadProducts() {
+            document.getElementById('products-content').innerHTML = '<div class="loading">产品管理功能开发中...</div>';
+        }
+
+        function loadSuppliers() {
+            document.getElementById('suppliers-content').innerHTML = '<div class="loading">供应商管理功能开发中...</div>';
+        }
+
+        function loadUsers() {
+            document.getElementById('users-content').innerHTML = '<div class="loading">用户管理功能开发中...</div>';
+        }
+
+        function showAddProductModal() {
+            showMessage('产品添加功能开发中', 'error');
+        }
+
+        function showAddSupplierModal() {
+            showMessage('供应商添加功能开发中', 'error');
+        }
+
+        function showAddUserModal() {
+            showMessage('用户添加功能开发中', 'error');
+        }
+
+        function editCategory(id) {
+            showMessage('编辑功能开发中', 'error');
+        }
+
+        function deleteCategory(id) {
+            if (confirm('确定要删除这个分类吗？')) {
+                showMessage('删除功能开发中', 'error');
+            }
+        }
+
+        // 页面加载时初始化
+        window.onload = function() {
+            loadCategories();
+        };
+
+        // 点击模态框外部关闭
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        };
+    </script>
+</body>
+</html>
