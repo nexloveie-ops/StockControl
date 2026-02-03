@@ -61,7 +61,12 @@ const salesInvoiceSchema = new mongoose.Schema({
     },
     // 序列号（如果适用）
     serialNumbers: [String],
-    barcode: String
+    barcode: String,
+    // 产品成色
+    condition: {
+      type: String,
+      default: ''
+    }
   }],
   // 小计（不含税）
   subtotal: {

@@ -5668,6 +5668,7 @@
                     <thead>
                       <tr style="background: #f8fafc;">
                         <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Description</th>
+                        <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Condition</th>
                         <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Code</th>
                         <th style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">Quantity</th>
                         <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">Unit Price<br>(Incl. VAT)</th>
@@ -5690,6 +5691,7 @@
                         return `
                           <tr>
                             <td style="padding: 12px; border: 1px solid #e5e7eb;">${item.description || item.product?.name || 'N/A'}</td>
+                            <td style="padding: 12px; border: 1px solid #e5e7eb;">${item.condition || 'N/A'}</td>
                             <td style="padding: 12px; border: 1px solid #e5e7eb; font-family: monospace; font-size: 12px;">${code}</td>
                             <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">${item.quantity}</td>
                             <td style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">€${unitPriceIncludingTax.toFixed(2)}</td>

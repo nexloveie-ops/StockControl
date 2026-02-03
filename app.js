@@ -3356,7 +3356,8 @@ app.post('/api/admin/sales-invoices', checkDbConnection, async (req, res) => {
         taxAmount: taxAmount,
         serialNumbers: item.serialNumbers || [],
         barcode: product.barcode,
-        code: code // 新增code字段
+        code: code, // 新增code字段
+        condition: product.condition || '' // 添加产品成色
       };
     }));
     
