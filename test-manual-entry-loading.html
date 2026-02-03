@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>测试手动录入动态加载</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+    button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow: auto; }
+    select { padding: 8px; margin: 10px 0; width: 300px; }
+  </style>
+</head>
+<body>
+  <h1>🧪 测试手动录入动态加载</h1>
+
+  <div class="section">
+    <h2>步骤 1: 加载数据</h2>
+    <button onclick="loadData()">🔄 加载分类和成色数据</button>
+    <div id="loadStatus"></div>
+  </div>
+
+  <div class="section">
+    <h2>步骤 2: 查看数据</h2>
+    <h3>分类数据:</h3>
+    <pre id="categoriesData">未加载</pre>
+    
+    <h3>成色数据:</h3>
+    <pre id="conditionsData">未加载</pre>
+  </div>
+
+  <div class="section">
+    <h2>步骤 3: 测试下拉框</h2>
+    <button onclick="generateDropdowns()">生成下拉框</button>
+    
+    <div style="margin-top: 15px;">
+      <label><strong>分类下拉框:</strong></label><br>
+      <div id="categoryDropdown"></div>
+    </div>
+    
+    <div style="margin-top: 15px;">
+      <label><strong>成色下拉框:</strong></label><br>
+      <div id="conditionDropdown"></div>
+    </div>
+  </div>
+
+  <script>
+    let categoriesData = [];
+    let conditionsData = [];
+
+    // 加载分类
+    async function loadCategories() {
+      console.log('🔄 开始加载产品分类数据');
+      try {
+        const response = await fetch('/api/admin/categories');
+        console.log('📥 分类API响应:', response.status, response.statusText);
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const result = await response.json();
+        console.log('📦 分类数据:', result);
+        console.log(`✅ 分类数量: ${result.data?.length || 0}`);
+        
+        return result.data || [];
+      } catch (error) {
+        console.error('❌ 分类数据加载失败:', error);
+        return [];
+      }
+    }
+
+    // 加载成色
+    async function loadConditions() {
+      console.log('🔄 开始加载设备成色数据');
+      try {
+        const response = await fetch('/api/admin/conditions');
+        console.log('📥 成色API响应:', response.status, response.statusText);
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const result = await response.json();
+        console.log('📦 成色数据:', result);
+        console.log(`✅ 成色数量: ${result.data?.length || 0}`);
+        
+        return result.data || [];
+      } catch (error) {
+        console.error('❌ 成色数据加载失败:', error);
+        return [];
+      }
+    }
+
+    // 加载数据
+    async function loadData() {
+      const statusDiv = document.getElementById('loadStatus');
+      statusDiv.innerHTML = '<p>⏳ 正在加载...</p>';
+      
+      try {
+        categoriesData = await loadCategories();
+        conditionsData = await loadConditions();
+        
+        document.getElementById('categoriesData').textContent = JSON.stringify(categoriesData, null, 2);
+        document.getElementById('conditionsData').textContent = JSON.stringify(conditionsData, null, 2);
+        
+        statusDiv.innerHTML = `
+          <p style="color: green;">✅ 加载成功!</p>
+          <p>分类数量: ${categoriesData.length}</p>
+          <p>成色数量: ${conditionsData.length}</p>
+        `;
+      } catch (error) {
+        statusDiv.innerHTML = `<p style="color: red;">❌ 加载失败: ${error.message}</p>`;
+      }
+    }
+
+    // 生成分类选项
+    function generateCategoryOptions(categories, selectedType) {
+      if (!categories || categories.length === 0) {
+        return `
+          <option value="">没有数据 - 使用默认选项</option>
+          <option value="手机配件">手机配件</option>
+          <option value="电脑配件">电脑配件</option>
+        `;
+      }
+      
+      let html = '<option value="">选择分类...</option>';
+      html += categories
+        .filter(cat => cat.isActive)
+        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+        .map(cat => `<option value="${cat.type}">${cat.type}</option>`)
+        .join('');
+      return html;
+    }
+
+    // 生成成色选项
+    function generateConditionOptions(conditions, selectedCondition) {
+      if (!conditions || conditions.length === 0) {
+        return `
+          <option value="">没有数据 - 使用默认选项</option>
+          <option value="Brand New">全新</option>
+          <option value="Pre-Owned">二手</option>
+        `;
+      }
+      
+      return conditions
+        .filter(cond => cond.isActive)
+        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+        .map(cond => `<option value="${cond.code}">${cond.name}</option>`)
+        .join('');
+    }
+
+    // 生成下拉框
+    function generateDropdowns() {
+      const categoryHtml = `<select>${generateCategoryOptions(categoriesData, '')}</select>`;
+      const conditionHtml = `<select>${generateConditionOptions(conditionsData, '')}</select>`;
+      
+      document.getElementById('categoryDropdown').innerHTML = categoryHtml;
+      document.getElementById('conditionDropdown').innerHTML = conditionHtml;
+    }
+
+    // 页面加载时自动加载数据
+    window.onload = function() {
+      console.log('📄 页面加载完成');
+      loadData();
+    };
+  </script>
+</body>
+</html>

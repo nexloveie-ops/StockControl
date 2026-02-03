@@ -479,6 +479,49 @@
         justify-content: center;
       }
     }
+    
+    /* Modal styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.5);
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal-content {
+      background-color: #fefefe;
+      margin: auto;
+      padding: 30px;
+      border: 1px solid #888;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 900px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      position: relative;
+    }
+    
+    .close {
+      color: #aaa;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+      line-height: 20px;
+    }
+    
+    .close:hover,
+    .close:focus {
+      color: #000;
+    }
   </style>
 </head>
 <body>
@@ -544,6 +587,9 @@
       </button>
       <button class="tab" onclick="switchTab('receiving')">
         📥 入库管理
+      </button>
+      <button class="tab" onclick="switchTab('warehouse-orders')">
+        🛒 订单管理
       </button>
       <button class="tab" onclick="switchTab('partners')">
         👥 供货商/客户管理
@@ -677,6 +723,80 @@
         </div>
         
         <div id="recognitionResult" style="display: none;"></div>
+      </div>
+    </div>
+
+    <!-- 订单管理 -->
+    <div id="warehouse-orders" class="tab-content">
+      <div class="card">
+        <h2>🛒 仓库订单管理</h2>
+        <p style="color: #666; margin-bottom: 20px;">管理商户的仓库订货订单</p>
+        
+        <!-- 筛选栏 -->
+        <div style="display: flex; gap: 15px; margin-bottom: 20px; padding: 15px; background: #f9fafb; border-radius: 8px;">
+          <div>
+            <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 14px;">订单状态</label>
+            <select id="warehouseOrderStatusFilter" onchange="loadWarehouseOrders()" style="padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; min-width: 150px;">
+              <option value="">全部状态</option>
+              <option value="pending">待确认</option>
+              <option value="confirmed">已确认</option>
+              <option value="shipped">已发货</option>
+              <option value="completed">已完成</option>
+              <option value="cancelled">已取消</option>
+            </select>
+          </div>
+          
+          <div>
+            <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 14px;">商户筛选</label>
+            <input type="text" id="warehouseOrderMerchantFilter" placeholder="输入商户名称" onchange="loadWarehouseOrders()" style="padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; min-width: 200px;">
+          </div>
+          
+          <div style="display: flex; align-items: flex-end;">
+            <button onclick="loadWarehouseOrders()" style="padding: 8px 16px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+              🔄 刷新
+            </button>
+          </div>
+        </div>
+        
+        <!-- 订单列表 -->
+        <div id="warehouseOrdersList">
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 订单详情对话框 -->
+    <div id="warehouseOrderDetailModal" class="modal">
+      <div class="modal-content" style="max-width: 900px;">
+        <span class="close" onclick="closeWarehouseOrderDetail()">&times;</span>
+        <h2>📋 订单详情</h2>
+        <div id="warehouseOrderDetailContent">
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 发货对话框 -->
+    <div id="shipmentModal" class="modal">
+      <div class="modal-content" style="max-width: 1000px; max-height: 90vh; overflow-y: auto;">
+        <span class="close" onclick="closeShipmentModal()">&times;</span>
+        <h2>🚚 标记发货</h2>
+        <p style="color: #6b7280; margin-bottom: 20px;">
+          请为每个订单项目选择具体的产品或填写发货数量。
+        </p>
+        
+        <div id="shipmentItemsList">
+          <div class="loading">加载中...</div>
+        </div>
+        
+        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+          <button onclick="closeShipmentModal()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+            取消
+          </button>
+          <button onclick="confirmShipment()" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+            ✅ 确认发货
+          </button>
+        </div>
       </div>
     </div>
 
@@ -858,6 +978,7 @@
       switch(tabName) {
         case 'inventory': loadCategoryCards(); break;
         case 'receiving': break;
+        case 'warehouse-orders': loadWarehouseOrders(); break;
         case 'partners': switchPartnerTab('suppliers'); break;
         case 'reports': loadReports(); break;
       }
@@ -1040,6 +1161,16 @@
         
         debugLog(`分类 "${category}" 的产品数量: ${products.length}`);
         
+        // 调试：检查产品是否包含序列号数据
+        if (products.length > 0) {
+          products.forEach(p => {
+            debugLog(`  产品 "${p.name}": 序列号数组=${p.serialNumbers ? `存在(${p.serialNumbers.length}个)` : '不存在'}`);
+            if (p.serialNumbers && p.serialNumbers.length > 0) {
+              debugLog(`    → 有 ${p.serialNumbers.length} 个序列号`);
+            }
+          });
+        }
+        
         const container = document.getElementById('categoryProductsContainer');
         if (products.length === 0) {
           container.innerHTML = '<div>该分类下暂无产品</div>';
@@ -1063,6 +1194,9 @@
               </thead>
               <tbody>
                 ${products.map(product => {
+                  // 调试：在渲染时输出序列号信息
+                  console.log(`[TABLE渲染] ${product.name}: serialNumbers=${product.serialNumbers ? `[${product.serialNumbers.length}个]` : 'undefined'}`);
+                  
                   const stockQuantity = product.stockQuantity || product.quantity || 0;
                   const hasSerialNumbers = product.serialNumbers && product.serialNumbers.length > 0;
                   const statusBadge = stockQuantity > 0 ? 
@@ -1072,19 +1206,22 @@
                   // 显示位置信息
                   const locationDisplay = product.location?.fullLocation || '未设置';
                   
-                  // 显示序列号信息（隐藏，点击显示）
+                  // 显示序列号信息（隐藏，点击显示）- 只显示可销售的
                   let serialInfo = '';
                   if (hasSerialNumbers) {
-                    const serialNumbers = product.serialNumbers.map(sn => sn.serialNumber);
-                    const serialCount = serialNumbers.length;
+                    // 只显示状态为 available 的序列号
+                    const availableSerialNumbers = product.serialNumbers
+                      .filter(sn => sn.status === 'available')
+                      .map(sn => sn.serialNumber);
+                    const serialCount = availableSerialNumbers.length;
                     serialInfo = `
                       <br>
                       <small style="color: #6b7280; cursor: pointer;" onclick="toggleSerialNumbers('${product._id}')">
-                        📱 序列号 (${serialCount}个)${product.color ? ` - ${product.color}` : ''} 
+                        📱 可销售序列号 (${serialCount}个)${product.color ? ` - ${product.color}` : ''} 
                         <span style="color: #3b82f6;">点击查看</span>
                       </small>
                       <div id="serial-${product._id}" style="display: none; margin-top: 5px; padding: 8px; background: #f8fafc; border-radius: 4px; font-size: 11px;">
-                        ${serialNumbers.map((sn, index) => `
+                        ${availableSerialNumbers.map((sn, index) => `
                           <div style="cursor: pointer; padding: 2px 4px; border-radius: 3px; margin-bottom: 2px; background: #e0f2fe;" 
                                onclick="editProductBySerial('${product._id}', '${sn}', '${product.name.replace(/'/g, "\\'")}')">
                             ${index + 1}. ${sn}${product.color ? ` - ${product.color}` : ''} 
@@ -1231,19 +1368,22 @@
                   // 显示位置信息
                   const locationDisplay = product.location?.fullLocation || '未设置';
                   
-                  // 显示序列号信息（隐藏，点击显示）
+                  // 显示序列号信息（隐藏，点击显示）- 只显示可销售的
                   let serialInfo = '';
                   if (hasSerialNumbers) {
-                    const serialNumbers = product.serialNumbers.map(sn => sn.serialNumber);
-                    const serialCount = serialNumbers.length;
+                    // 只显示状态为 available 的序列号
+                    const availableSerialNumbers = product.serialNumbers
+                      .filter(sn => sn.status === 'available')
+                      .map(sn => sn.serialNumber);
+                    const serialCount = availableSerialNumbers.length;
                     serialInfo = `
                       <br>
                       <small style="color: #6b7280; cursor: pointer;" onclick="toggleSerialNumbers('${product._id}')">
-                        📱 序列号 (${serialCount}个)${product.color ? ` - ${product.color}` : ''} 
+                        📱 可销售序列号 (${serialCount}个)${product.color ? ` - ${product.color}` : ''} 
                         <span style="color: #3b82f6;">点击查看</span>
                       </small>
                       <div id="serial-${product._id}" style="display: none; margin-top: 5px; padding: 8px; background: #f8fafc; border-radius: 4px; font-size: 11px;">
-                        ${serialNumbers.map((sn, index) => `<div>${index + 1}. ${sn}</div>`).join('')}
+                        ${availableSerialNumbers.map((sn, index) => `<div>${index + 1}. ${sn}</div>`).join('')}
                       </div>
                     `;
                   } else if (product.barcode) {
@@ -2428,7 +2568,7 @@
       }
       
       try {
-        const response = await fetch(`${API_BASE}/reports/financial?startDate=${startDate}&endDate=${endDate}&type=${type}`);
+        const response = await fetch(`/api/admin/reports/financial?startDate=${startDate}&endDate=${endDate}&type=${type}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const result = await response.json();
@@ -2588,9 +2728,31 @@
                 </tr>
               </thead>
               <tbody>
-                ${invoices.map(invoice => `
+                ${invoices.map(invoice => {
+                  // 判断是否可点击查看详情
+                  const isClickable = true; // 所有发票都可以点击
+                  
+                  // 根据类型和子类型确定点击处理函数
+                  let clickHandler = '';
+                  if (invoice.subType === 'wholesale') {
+                    clickHandler = `showWarehouseOrderDetails('${invoice._id}')`;
+                  } else if (invoice.type === 'sales') {
+                    clickHandler = `showSalesInvoiceDetails('${invoice._id}')`;
+                  } else {
+                    clickHandler = `showPurchaseInvoiceDetails('${invoice._id}')`;
+                  }
+                  
+                  // 类型标签
+                  let typeLabel = typeLabels[invoice.type];
+                  if (invoice.subType === 'wholesale') {
+                    typeLabel = '📦 Wholesale';
+                  } else if (invoice.subType === 'retail') {
+                    typeLabel = '🛒 Retail';
+                  }
+                  
+                  return `
                   <tr style="cursor: pointer;" 
-                      onclick="${invoice.type === 'sales' ? `showSalesInvoiceDetails('${invoice._id}')` : `showPurchaseInvoiceDetails('${invoice._id}')`}"
+                      onclick="${clickHandler}"
                       onmouseover="this.style.background='#f8fafc'"
                       onmouseout="this.style.background='white'">
                     <td style="padding: 12px; border: 1px solid #e5e7eb;">
@@ -2600,7 +2762,7 @@
                     </td>
                     <td style="padding: 12px; border: 1px solid #e5e7eb;">
                       <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; background: ${invoice.type === 'sales' ? '#d1fae5' : '#fef3c7'}; color: ${invoice.type === 'sales' ? '#065f46' : '#92400e'};">
-                        ${typeLabels[invoice.type]}
+                        ${typeLabel}
                       </span>
                     </td>
                     <td style="padding: 12px; border: 1px solid #e5e7eb;">${invoice.partner}</td>
@@ -2610,7 +2772,8 @@
                       €${invoice.taxAmount.toFixed(2)}
                     </td>
                   </tr>
-                `).join('')}
+                `;
+                }).join('')}
               </tbody>
               <tfoot>
                 <tr style="background: #f8fafc; font-weight: bold;">
@@ -2654,12 +2817,149 @@
       // TODO: 实现CSV导出功能
     }
     
+    // 显示仓库订单详情
+    async function showWarehouseOrderDetails(orderId) {
+      debugLog(`显示仓库订单详情: ${orderId}`);
+      
+      try {
+        const response = await fetch(`/api/warehouse/orders/${orderId}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          const order = result.data;
+          
+          // 状态显示
+          const statusMap = {
+            'pending': '⏳ Pending',
+            'confirmed': '✅ Confirmed',
+            'shipped': '🚚 Shipped',
+            'completed': '✔️ Completed',
+            'cancelled': '❌ Cancelled'
+          };
+          const statusDisplay = statusMap[order.status] || order.status;
+          
+          // 配送方式显示
+          const deliveryDisplay = order.deliveryMethod === 'delivery' ? '🚚 Delivery' : '🏪 Pickup';
+          
+          const title = `📦 Warehouse Order Details - ${order.orderNumber}`;
+          
+          const content = `
+            <div style="max-width: 1200px;">
+              <!-- Order Header -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; padding: 20px; background: #f8fafc; border-radius: 8px;">
+                <div>
+                  <h3 style="margin: 0 0 15px 0; color: #1f2937;">Merchant Information</h3>
+                  <div style="line-height: 1.8;">
+                    <div><strong>${order.merchantName}</strong></div>
+                    <div>Merchant ID: ${order.merchantId}</div>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 style="margin: 0 0 15px 0; color: #1f2937;">Order Information</h3>
+                  <div style="line-height: 1.8;">
+                    <div><strong>Order Number:</strong> ${order.orderNumber}</div>
+                    <div><strong>Date:</strong> ${new Date(order.orderedAt).toLocaleDateString('en-IE')}</div>
+                    <div><strong>Status:</strong> ${statusDisplay}</div>
+                    <div><strong>Delivery:</strong> ${deliveryDisplay}</div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Items Table -->
+              <div style="margin-bottom: 30px;">
+                <h3 style="margin: 0 0 15px 0; color: #1f2937;">Items</h3>
+                <div style="overflow-x: auto;">
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                      <tr style="background: #f8fafc;">
+                        <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Product</th>
+                        <th style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">Quantity</th>
+                        <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">Unit Price</th>
+                        <th style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">Tax Class</th>
+                        <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">Tax Amount</th>
+                        <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${order.items.map(item => {
+                        const taxClassDisplay = item.taxClassification === 'VAT_23' ? 'VAT 23%' : 
+                                               item.taxClassification === 'SERVICE_VAT_135' ? 'Service VAT 13.5%' : 
+                                               item.taxClassification || 'N/A';
+                        return `
+                        <tr>
+                          <td style="padding: 12px; border: 1px solid #e5e7eb;">
+                            <div><strong>${item.productName}</strong></div>
+                            ${item.brand ? `<div style="font-size: 12px; color: #6b7280;">Brand: ${item.brand}</div>` : ''}
+                            ${item.model ? `<div style="font-size: 12px; color: #6b7280;">Model: ${item.model}</div>` : ''}
+                            ${item.sku ? `<div style="font-size: 12px; color: #6b7280;">SKU: ${item.sku}</div>` : ''}
+                          </td>
+                          <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">${item.quantity}</td>
+                          <td style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">€${(item.wholesalePrice || 0).toFixed(2)}</td>
+                          <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">${taxClassDisplay}</td>
+                          <td style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">€${(item.taxAmount || 0).toFixed(2)}</td>
+                          <td style="padding: 12px; text-align: right; border: 1px solid #e5e7eb; font-weight: bold;">€${(item.subtotal || 0).toFixed(2)}</td>
+                        </tr>
+                      `;
+                      }).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              
+              <!-- Totals -->
+              <div style="display: flex; justify-content: flex-end; margin-bottom: 30px;">
+                <div style="width: 400px; background: #f8fafc; padding: 20px; border-radius: 8px;">
+                  <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e5e7eb;">
+                    <span>Subtotal (Excl. VAT):</span>
+                    <span style="font-weight: bold;">€${(order.subtotal || 0).toFixed(2)}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e5e7eb;">
+                    <span>VAT Amount:</span>
+                    <span style="font-weight: bold;">€${(order.taxAmount || 0).toFixed(2)}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; padding: 15px 0; font-size: 20px; font-weight: bold; color: #1f2937;">
+                    <span>Total Amount (Incl. VAT):</span>
+                    <span style="color: #f59e0b;">€${(order.totalAmount || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+              
+              ${order.notes ? `
+              <!-- Notes -->
+              <div style="margin-bottom: 30px; padding: 20px; background: #fef3c7; border-radius: 8px;">
+                <h3 style="margin: 0 0 10px 0; color: #1f2937;">Notes</h3>
+                <p style="margin: 0; color: #92400e;">${order.notes}</p>
+              </div>
+              ` : ''}
+              
+              <!-- Actions -->
+              <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button onclick="closeUniversalModal()" class="btn" style="background: #f3f4f6; padding: 12px 24px;">
+                  Close
+                </button>
+              </div>
+            </div>
+          `;
+          
+          showUniversalModal(title, content);
+        } else {
+          throw new Error('Failed to get order details');
+        }
+      } catch (error) {
+        debugLog(`❌ 获取仓库订单详情失败: ${error.message}`);
+        alert(`❌ Failed to load order details: ${error.message}`);
+      }
+    }
+    
     // 显示采购发票详情
     async function showPurchaseInvoiceDetails(invoiceId) {
       debugLog(`显示采购发票详情: ${invoiceId}`);
       
       try {
-        const response = await fetch(`${API_BASE}/purchase-invoices/${invoiceId}`);
+        const response = await fetch(`/api/admin/purchase-orders/${invoiceId}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const result = await response.json();
@@ -2762,18 +3062,76 @@
 
     // 加载供应商 (保留用于入库管理)
     async function loadSuppliers() {
+      console.log('🔄 loadSuppliers: 开始加载供应商数据');
       debugLog('开始加载供应商数据');
       
       try {
+        console.log('📡 发送请求到 /api/suppliers');
         const response = await fetch('/api/suppliers');
+        console.log('📥 收到响应:', response.status, response.statusText);
+        
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const result = await response.json();
+        console.log('📦 解析JSON结果:', result);
+        console.log(`✅ 供应商数量: ${result.data?.length || 0}`);
+        
         debugLog(`供应商API响应: ${result.data?.length || 0} 个供应商`);
         
         return result.data || [];
       } catch (error) {
+        console.error('❌ 供应商数据加载失败:', error);
         debugLog(`❌ 供应商数据加载失败: ${error.message}`);
+        return [];
+      }
+    }
+
+    // 加载产品分类
+    async function loadCategories() {
+      console.log('🔄 开始加载产品分类数据');
+      debugLog('开始加载产品分类数据');
+      
+      try {
+        const response = await fetch('/api/admin/categories');
+        console.log('📥 分类API响应:', response.status, response.statusText);
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const result = await response.json();
+        console.log('📦 分类数据:', result);
+        console.log(`✅ 分类数量: ${result.data?.length || 0}`);
+        
+        debugLog(`分类API响应: ${result.data?.length || 0} 个分类`);
+        
+        return result.data || [];
+      } catch (error) {
+        console.error('❌ 分类数据加载失败:', error);
+        debugLog(`❌ 分类数据加载失败: ${error.message}`);
+        return [];
+      }
+    }
+
+    // 加载设备成色
+    async function loadConditions() {
+      console.log('🔄 开始加载设备成色数据');
+      debugLog('开始加载设备成色数据');
+      
+      try {
+        const response = await fetch('/api/admin/conditions');
+        console.log('📥 成色API响应:', response.status, response.statusText);
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const result = await response.json();
+        console.log('📦 成色数据:', result);
+        console.log(`✅ 成色数量: ${result.data?.length || 0}`);
+        
+        debugLog(`成色API响应: ${result.data?.length || 0} 个成色`);
+        
+        return result.data || [];
+      } catch (error) {
+        console.error('❌ 成色数据加载失败:', error);
+        debugLog(`❌ 成色数据加载失败: ${error.message}`);
         return [];
       }
     }
@@ -2838,7 +3196,8 @@
     }
 
     // 切换入库模式
-    function switchReceivingMode(mode) {
+    async function switchReceivingMode(mode) {
+      console.log('🔄 切换入库模式:', mode);
       const uploadMode = document.getElementById('uploadMode');
       const manualMode = document.getElementById('manualMode');
       const uploadBtn = document.getElementById('uploadModeBtn');
@@ -2851,6 +3210,7 @@
         uploadBtn.style.background = '';
         manualBtn.classList.remove('btn-primary');
         manualBtn.style.background = '#48bb78';
+        console.log('✅ 切换到发票上传模式');
         debugLog('切换到发票上传模式');
       } else {
         uploadMode.style.display = 'none';
@@ -2859,13 +3219,41 @@
         manualBtn.style.background = '';
         uploadBtn.classList.remove('btn-primary');
         uploadBtn.style.background = '#48bb78';
+        console.log('✅ 切换到手动录入模式');
         debugLog('切换到手动录入模式');
         
         // 加载供应商列表
+        console.log('🔄 准备加载供应商列表...');
         loadSuppliersForManual();
         
-        // 如果没有产品行，添加一个
+        // 加载分类和成色数据（如果还没有加载）
+        if (!window.categoriesData || window.categoriesData.length === 0) {
+          console.log('🔄 加载产品分类数据...');
+          try {
+            const categories = await loadCategories();
+            window.categoriesData = categories;
+            console.log(`✅ 分类数据已加载: ${categories.length} 个分类`);
+          } catch (err) {
+            console.error('❌ 加载分类数据失败:', err);
+            window.categoriesData = [];
+          }
+        }
+        
+        if (!window.conditionsData || window.conditionsData.length === 0) {
+          console.log('🔄 加载设备成色数据...');
+          try {
+            const conditions = await loadConditions();
+            window.conditionsData = conditions;
+            console.log(`✅ 成色数据已加载: ${conditions.length} 个成色`);
+          } catch (err) {
+            console.error('❌ 加载成色数据失败:', err);
+            window.conditionsData = [];
+          }
+        }
+        
+        // 如果没有产品行，添加一个（等待数据加载完成后）
         if (document.getElementById('manualProductsTable').children.length === 0) {
+          console.log('➕ 添加第一个产品行');
           addManualProduct();
         }
       }
@@ -2873,20 +3261,37 @@
 
     // 为手动录入加载供应商
     async function loadSuppliersForManual() {
+      console.log('🔄 开始加载供应商...');
       try {
         const suppliers = await loadSuppliers();
+        console.log('📦 获取到供应商数据:', suppliers);
+        
         const select = document.getElementById('manualSupplier');
+        if (!select) {
+          console.error('❌ 找不到 manualSupplier 元素');
+          return;
+        }
+        
+        console.log('✅ 找到 select 元素:', select);
         select.innerHTML = '<option value="">选择供应商...</option>';
         
-        suppliers.forEach(supplier => {
+        if (!suppliers || suppliers.length === 0) {
+          console.warn('⚠️  没有供应商数据');
+          return;
+        }
+        
+        suppliers.forEach((supplier, index) => {
+          console.log(`  添加供应商 ${index + 1}:`, supplier.name, supplier._id);
           const option = document.createElement('option');
           option.value = supplier._id;
           option.textContent = supplier.name;
           select.appendChild(option);
         });
         
+        console.log(`✅ 成功加载了 ${suppliers.length} 个供应商`);
         debugLog(`加载了 ${suppliers.length} 个供应商`);
       } catch (error) {
+        console.error('❌ 加载供应商失败:', error);
         debugLog(`加载供应商失败: ${error.message}`);
       }
     }
@@ -2895,6 +3300,14 @@
     function addManualProduct() {
       const table = document.getElementById('manualProductsTable');
       const index = table.children.length;
+      
+      // 使用全局变量中的分类和成色数据，如果没有则使用空数组
+      const categories = window.categoriesData || [];
+      const conditions = window.conditionsData || [];
+      
+      console.log(`📝 添加手动产品行 ${index}`);
+      console.log(`   分类数据: ${categories.length} 个`);
+      console.log(`   成色数据: ${conditions.length} 个`);
       
       const row = document.createElement('tr');
       row.innerHTML = `
@@ -2927,15 +3340,7 @@
           <select onchange="updateManualProduct(${index}, 'productType', this.value); updateManualVatRate(${index}); updateManualProductRow(${index})"
                   style="width: 100%; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px;">
             <option value="">选择分类...</option>
-            <option value="手机配件">手机配件</option>
-            <option value="电脑配件">电脑配件</option>
-            <option value="车载配件">车载配件</option>
-            <option value="audio">Audio</option>
-            <option value="数据线">数据线</option>
-            <option value="power supply">Power Supply</option>
-            <option value="全新设备">全新设备</option>
-            <option value="二手设备">二手设备</option>
-            <option value="维修">维修</option>
+            ${generateCategoryOptions(categories, '')}
           </select>
         </td>
         <td style="padding: 8px;">
@@ -2961,9 +3366,7 @@
         <td style="padding: 8px;">
           <select onchange="updateManualProduct(${index}, 'condition', this.value)"
                   style="width: 100%; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px;">
-            <option value="Brand New">全新</option>
-            <option value="Pre-Owned">二手</option>
-            <option value="Refurbished">翻新</option>
+            ${generateConditionOptions(conditions, 'BRAND NEW')}
           </select>
         </td>
         <td style="padding: 8px;">
@@ -2988,7 +3391,7 @@
         retailPrice: 0,
         productType: '',
         vatRate: 'VAT 23%',
-        condition: 'Brand New',
+        condition: 'BRAND NEW',
         barcode: '',
         color: '',
         serialNumbers: []
@@ -3051,47 +3454,76 @@
     // 更新手动录入产品行（处理设备类产品的序列号输入）
     function updateManualProductRow(index) {
       const product = window.manualProducts[index];
-      const isDevice = product?.productType?.includes('设备');
+      // 检查分类名称中是否包含 "Device" 关键字（不区分大小写）
+      const isDevice = product?.productType?.toLowerCase().includes('device');
       const quantity = parseInt(product?.quantity) || 1;
       
       const row = document.getElementById('manualProductsTable').children[index];
       const identifierCell = row.cells[7];
+      const colorCell = row.cells[8];
       const identifierContainer = identifierCell.querySelector(`#manualIdentifier_${index}`);
       
       if (isDevice) {
-        // 设备产品：生成多个序列号输入框
-        let inputs = '';
+        // 设备产品：生成多个序列号和颜色输入框
+        let identifierInputs = '';
+        let colorInputs = '';
+        
         for (let i = 0; i < quantity; i++) {
-          const serialNumber = product.serialNumbers?.[i] || '';
-          inputs += `
+          const serialData = product.serialNumbers?.[i] || {};
+          const serialNumber = typeof serialData === 'object' ? serialData.serialNumber : serialData;
+          const color = typeof serialData === 'object' ? serialData.color : '';
+          
+          identifierInputs += `
             <div style="margin-bottom: 4px;">
-              <input type="text" value="${serialNumber}" 
+              <input type="text" id="manualSerial_${index}_${i}" value="${serialNumber || ''}" 
                      placeholder="SN/IMEI ${i + 1} (必填)"
-                     style="width: 120px; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px; ${serialNumber ? '' : 'border-color: #f56565;'}"
-                     onchange="updateManualSerialNumber(${index}, ${i}, this.value)"
+                     style="width: 120px; padding: 4px; border: 1px solid ${serialNumber ? '#e2e8f0' : '#f56565'}; border-radius: 4px;"
+                     onchange="updateManualSerialNumber(${index}, ${i}, this.value, document.getElementById('manualColor_${index}_${i}').value)"
                      required>
             </div>
           `;
+          
+          colorInputs += `
+            <div style="margin-bottom: 4px;">
+              <input type="text" id="manualColor_${index}_${i}" value="${color || ''}" 
+                     placeholder="颜色 ${i + 1}"
+                     style="width: 80px; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px;"
+                     onchange="updateManualSerialNumber(${index}, ${i}, document.getElementById('manualSerial_${index}_${i}').value, this.value)">
+            </div>
+          `;
         }
-        identifierContainer.innerHTML = inputs;
+        
+        identifierContainer.innerHTML = identifierInputs;
+        colorCell.innerHTML = colorInputs;
       } else {
-        // 配件产品：单个条码输入框
+        // 配件产品：单个条码输入框和颜色输入框
         identifierContainer.innerHTML = `
           <input type="text" value="${product?.barcode || ''}" placeholder="条码（可选）"
                  style="width: 120px; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px;"
                  onchange="updateManualProduct(${index}, 'barcode', this.value)">
         `;
+        
+        colorCell.innerHTML = `
+          <input type="text" value="${product?.color || ''}" placeholder="颜色"
+                 style="width: 80px; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px;"
+                 onchange="updateManualProduct(${index}, 'color', this.value)">
+        `;
       }
     }
 
-    // 更新手动录入序列号
-    function updateManualSerialNumber(productIndex, serialIndex, value) {
+    // 更新手动录入序列号和颜色
+    function updateManualSerialNumber(productIndex, serialIndex, serialNumber, color) {
       if (!window.manualProducts[productIndex].serialNumbers) {
         window.manualProducts[productIndex].serialNumbers = [];
       }
       
-      window.manualProducts[productIndex].serialNumbers[serialIndex] = value;
-      debugLog(`更新手动产品 ${productIndex} 的序列号 ${serialIndex}: ${value}`);
+      // 存储为对象，包含序列号和颜色
+      window.manualProducts[productIndex].serialNumbers[serialIndex] = {
+        serialNumber: serialNumber,
+        color: color
+      };
+      
+      debugLog(`更新手动产品 ${productIndex} 的序列号 ${serialIndex}: ${serialNumber}, 颜色: ${color}`);
     }
 
     // 移除手动录入产品行
@@ -3171,8 +3603,8 @@
           validationErrors.push(`产品 ${index + 1}: 请输入有效的进货价`);
         }
         
-        // 验证设备产品的序列号
-        const isDevice = product.productType?.includes('设备');
+        // 验证设备产品的序列号 - 检查分类名称中是否包含 "Device" 关键字（不区分大小写）
+        const isDevice = product.productType?.toLowerCase().includes('device');
         if (isDevice) {
           const quantity = parseInt(product.quantity) || 1;
           const serialNumbers = product.serialNumbers || [];
@@ -3250,17 +3682,33 @@
             condition: product.condition || 'Brand New'
           };
           
-          // 处理条码和序列号
-          if (product.productType?.includes('设备')) {
+          // 处理条码和序列号 - 检查分类名称中是否包含 "Device" 关键字（不区分大小写）
+          const isDevice = product.productType?.toLowerCase().includes('device');
+          
+          if (isDevice) {
             // 设备产品：处理序列号数组
             if (product.serialNumbers && product.serialNumbers.length > 0) {
               // 为每个序列号创建一个产品记录
-              return product.serialNumbers.filter(sn => sn && sn.trim()).map(serialNumber => ({
-                ...baseProduct,
-                quantity: 1, // 每个序列号对应一个产品
-                serialNumber: serialNumber,
-                totalPrice: baseProduct.unitPrice
-              }));
+              return product.serialNumbers
+                .filter(sn => {
+                  // 支持字符串或对象格式
+                  if (typeof sn === 'string') return sn && sn.trim();
+                  if (typeof sn === 'object') return sn.serialNumber && sn.serialNumber.trim();
+                  return false;
+                })
+                .map(serialData => {
+                  // 处理字符串或对象格式
+                  const serialNumber = typeof serialData === 'string' ? serialData : serialData.serialNumber;
+                  const color = typeof serialData === 'object' ? serialData.color : '';
+                  
+                  return {
+                    ...baseProduct,
+                    quantity: 1, // 每个序列号对应一个产品
+                    serialNumber: serialNumber,
+                    color: color || baseProduct.color, // 使用序列号的颜色或产品的颜色
+                    totalPrice: baseProduct.unitPrice
+                  };
+                });
             } else {
               return [baseProduct];
             }
@@ -3332,6 +3780,48 @@
       return vatRates[productType] || 'VAT 23%';
     }
 
+    // 生成分类选项
+    function generateCategoryOptions(categories, selectedType) {
+      if (!categories || categories.length === 0) {
+        // 如果没有加载到分类，使用默认选项
+        return `
+          <option value="手机配件" ${selectedType === '手机配件' ? 'selected' : ''}>手机配件</option>
+          <option value="电脑配件" ${selectedType === '电脑配件' ? 'selected' : ''}>电脑配件</option>
+          <option value="车载配件" ${selectedType === '车载配件' ? 'selected' : ''}>车载配件</option>
+          <option value="audio" ${selectedType === 'audio' ? 'selected' : ''}>Audio</option>
+          <option value="数据线" ${selectedType === '数据线' ? 'selected' : ''}>数据线</option>
+          <option value="power supply" ${selectedType === 'power supply' ? 'selected' : ''}>Power Supply</option>
+          <option value="全新设备" ${selectedType === '全新设备' ? 'selected' : ''}>全新设备</option>
+          <option value="二手设备" ${selectedType === '二手设备' ? 'selected' : ''}>二手设备</option>
+          <option value="维修" ${selectedType === '维修' ? 'selected' : ''}>维修</option>
+        `;
+      }
+      
+      return categories
+        .filter(cat => cat.isActive)
+        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+        .map(cat => `<option value="${cat.type}" ${cat.type === selectedType ? 'selected' : ''}>${cat.type}</option>`)
+        .join('');
+    }
+
+    // 生成成色选项
+    function generateConditionOptions(conditions, selectedCondition) {
+      if (!conditions || conditions.length === 0) {
+        // 如果没有加载到成色，使用默认选项
+        return `
+          <option value="Brand New" ${selectedCondition === 'Brand New' ? 'selected' : ''}>全新</option>
+          <option value="Pre-Owned" ${selectedCondition === 'Pre-Owned' ? 'selected' : ''}>二手</option>
+          <option value="Refurbished" ${selectedCondition === 'Refurbished' ? 'selected' : ''}>翻新</option>
+        `;
+      }
+      
+      return conditions
+        .filter(cond => cond.isActive)
+        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+        .map(cond => `<option value="${cond.code}" ${cond.code === selectedCondition ? 'selected' : ''}>${cond.name}</option>`)
+        .join('');
+    }
+
     // 更新税率
     function updateVatRate(productIndex) {
       if (!window.recognizedData || !window.recognizedData.products) return;
@@ -3348,7 +3838,8 @@
 
     // 生成条码/序列号输入框
     function generateIdentifierInputs(product, index) {
-      const isDevice = product.productType?.includes('设备');
+      // 检查分类名称中是否包含 "Device" 关键字（不区分大小写）
+      const isDevice = product.productType?.toLowerCase().includes('device');
       const quantity = parseInt(product.quantity) || 1;
       
       if (!isDevice) {
@@ -3409,7 +3900,7 @@
     // 验证设备产品的序列号完整性
     function validateDeviceSerialNumbers(productIndex) {
       const product = window.recognizedData.products[productIndex];
-      const isDevice = product.productType?.includes('设备');
+      const isDevice = product.productType?.toLowerCase().includes('device');
       
       if (isDevice) {
         const quantity = parseInt(product.quantity) || 1;
@@ -3458,6 +3949,32 @@
           debugLog(`加载供应商失败: ${error.message}，将使用空列表`);
           suppliers = [];
         }
+        
+        debugLog('开始加载产品分类...');
+        // 加载产品分类列表
+        let categories = [];
+        try {
+          categories = await loadCategories() || [];
+          debugLog(`加载了 ${categories.length} 个分类`);
+        } catch (error) {
+          debugLog(`加载分类失败: ${error.message}，将使用空列表`);
+          categories = [];
+        }
+        
+        debugLog('开始加载设备成色...');
+        // 加载设备成色列表
+        let conditions = [];
+        try {
+          conditions = await loadConditions() || [];
+          debugLog(`加载了 ${conditions.length} 个成色`);
+        } catch (error) {
+          debugLog(`加载成色失败: ${error.message}，将使用空列表`);
+          conditions = [];
+        }
+        
+        // 保存到全局变量供后续使用
+        window.categoriesData = categories;
+        window.conditionsData = conditions;
         
         const supplierOptions = suppliers.map(s => 
           `<option value="${s._id}" data-name="${s.name}" ${s.name === data.supplier?.name ? 'selected' : ''}>${s.name}</option>`
@@ -3560,15 +4077,7 @@
                       <td>
                         <select onchange="updateProductField(${index}, 'productType', this.value); updateVatRate(${index})"
                                 style="width: 100%; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px;">
-                          <option value="手机配件" ${product.productType === '手机配件' ? 'selected' : ''}>手机配件</option>
-                          <option value="电脑配件" ${product.productType === '电脑配件' ? 'selected' : ''}>电脑配件</option>
-                          <option value="车载配件" ${product.productType === '车载配件' ? 'selected' : ''}>车载配件</option>
-                          <option value="audio" ${product.productType === 'audio' ? 'selected' : ''}>Audio</option>
-                          <option value="数据线" ${product.productType === '数据线' ? 'selected' : ''}>数据线</option>
-                          <option value="power supply" ${product.productType === 'power supply' ? 'selected' : ''}>Power Supply</option>
-                          <option value="全新设备" ${product.productType === '全新设备' ? 'selected' : ''}>全新设备</option>
-                          <option value="二手设备" ${product.productType === '二手设备' ? 'selected' : ''}>二手设备</option>
-                          <option value="维修" ${product.productType === '维修' ? 'selected' : ''}>维修</option>
+                          ${generateCategoryOptions(window.categoriesData, product.productType)}
                         </select>
                       </td>
                       <td>
@@ -3585,9 +4094,7 @@
                       <td>
                         <select onchange="updateProductField(${index}, 'condition', this.value)"
                                 style="width: 100%; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px;">
-                          <option value="Brand New" ${product.condition === 'Brand New' ? 'selected' : ''}>全新</option>
-                          <option value="Pre-Owned" ${product.condition === 'Pre-Owned' ? 'selected' : ''}>二手</option>
-                          <option value="Refurbished" ${product.condition === 'Refurbished' ? 'selected' : ''}>翻新</option>
+                          ${generateConditionOptions(window.conditionsData, product.condition)}
                         </select>
                       </td>
                       <td>
@@ -3643,8 +4150,8 @@
       
       if (field === 'quantity') {
         product.quantity = parseInt(value) || 1;
-        // 如果是设备产品，数量变化时需要重新渲染整个表格
-        if (product.productType?.includes('设备')) {
+        // 如果是设备产品，数量变化时需要重新渲染整个表格 - 检查分类名称中是否包含 "Device" 关键字（不区分大小写）
+        if (product.productType?.toLowerCase().includes('device')) {
           displayRecognitionResult(window.recognizedData);
           return;
         }
@@ -3772,7 +4279,7 @@
         }
         
         // 验证设备产品的序列号
-        const isDevice = product.productType?.includes('设备');
+        const isDevice = product.productType?.toLowerCase().includes('device');
         if (isDevice) {
           const quantity = parseInt(product.quantity) || 1;
           const serialNumbers = product.serialNumbers || [];
@@ -3862,8 +4369,10 @@
               condition: product.condition || 'Brand New'
             };
             
-            // 处理条码和序列号
-            if (product.productType?.includes('设备')) {
+            // 处理条码和序列号 - 检查分类名称中是否包含 "Device" 关键字（不区分大小写）
+            const isDevice = product.productType?.toLowerCase().includes('device');
+            
+            if (isDevice) {
               // 设备产品：处理序列号数组
               if (product.serialNumbers && product.serialNumbers.length > 0) {
                 // 为每个序列号创建一个产品记录
@@ -3974,7 +4483,7 @@
         document.getElementById('supplierTabBtn').className = 'btn btn-primary';
         document.getElementById('supplierTabBtn').style.background = '';
         document.getElementById('supplierTabBtn').style.color = '';
-        loadSuppliers();
+        loadSuppliersForPartners();
       } else if (tabName === 'customers') {
         document.getElementById('customersTab').style.display = 'block';
         document.getElementById('customerTabBtn').className = 'btn btn-primary';
@@ -3989,8 +4498,8 @@
       }
     }
     
-    // 加载供货商列表
-    async function loadSuppliers(searchTerm = '') {
+    // 加载供货商列表（用于供货商管理标签页）
+    async function loadSuppliersForPartners(searchTerm = '') {
       debugLog('开始加载供货商列表');
       const container = document.getElementById('suppliersContainer');
       container.innerHTML = '<div class="loading">正在加载供货商数据...</div>';
@@ -4073,13 +4582,50 @@
     // 搜索供货商
     function searchSuppliers() {
       const searchTerm = document.getElementById('supplierSearchInput').value.trim();
-      loadSuppliers(searchTerm);
+      loadSuppliersForPartners(searchTerm);
     }
     
     // 显示添加供货商模态框
-    function showAddSupplierModal() {
-      // TODO: 实现添加供货商模态框
-      alert('添加供货商功能开发中...');
+    async function showAddSupplierModal() {
+      const name = prompt('请输入供货商名称:');
+      if (!name || !name.trim()) return;
+      
+      const code = prompt('请输入供货商代码 (大写字母):');
+      if (!code || !code.trim()) return;
+      
+      const contactPerson = prompt('请输入联系人姓名 (可选):') || '';
+      const phone = prompt('请输入联系电话 (可选):') || '';
+      const email = prompt('请输入邮箱 (可选):') || '';
+      
+      try {
+        const response = await fetch(`${API_BASE}/suppliers`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: name.trim(),
+            code: code.trim().toUpperCase(),
+            contact: {
+              person: contactPerson.trim(),
+              phone: phone.trim(),
+              email: email.trim()
+            }
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert('✅ 供货商添加成功！');
+          loadSuppliers(); // 刷新列表
+        } else {
+          throw new Error(result.error || '添加失败');
+        }
+      } catch (error) {
+        console.error('添加供货商失败:', error);
+        alert(`❌ 添加供货商失败: ${error.message}`);
+      }
     }
     
     // 编辑供货商
@@ -5051,7 +5597,7 @@
       debugLog(`显示销售发票详情: ${invoiceId}`);
       
       try {
-        const response = await fetch(`${API_BASE}/sales-invoices/${invoiceId}`);
+        const response = await fetch(`/api/admin/sales-invoices/${invoiceId}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const result = await response.json();
@@ -5757,7 +6303,8 @@
     // 显示分类下的产品 - 第二步（销售流程）
     function showSaleCategoryProducts(categoryType) {
       const products = window.allProducts.filter(p => p.productType === categoryType);
-      const isDevice = categoryType === '全新设备' || categoryType === '二手设备';
+      // 检查分类名称中是否包含 "Device" 关键字（不区分大小写）
+      const isDevice = categoryType?.toLowerCase().includes('device');
       
       const container = document.getElementById('categoryProductsContainer');
       
@@ -5855,6 +6402,9 @@
     
     // 更新设备选择（序列号）
     function updateDeviceSelection(productId, productName, price, serialNumber, isChecked) {
+      console.log(`[updateDeviceSelection] productId=${productId}, serialNumber=${serialNumber}, isChecked=${isChecked}`);
+      console.log(`[updateDeviceSelection] 当前 selectedProducts.length=${selectedProducts.length}`);
+      
       if (isChecked) {
         // 添加选择
         selectedProducts.push({
@@ -5865,11 +6415,13 @@
           serialNumbers: [serialNumber],
           code: serialNumber // 使用序列号作为Code
         });
+        console.log(`[updateDeviceSelection] 添加后 selectedProducts.length=${selectedProducts.length}`);
       } else {
         // 移除选择
         selectedProducts = selectedProducts.filter(p => 
           !(p.productId === productId && p.serialNumbers && p.serialNumbers.includes(serialNumber))
         );
+        console.log(`[updateDeviceSelection] 移除后 selectedProducts.length=${selectedProducts.length}`);
       }
       
       updateSelectedCount();
@@ -5907,6 +6459,9 @@
     
     // 确认销售
     async function confirmSale() {
+      console.log(`[confirmSale] selectedProducts.length=${selectedProducts.length}`);
+      console.log(`[confirmSale] selectedProducts=`, JSON.stringify(selectedProducts, null, 2));
+      
       if (selectedProducts.length === 0) {
         alert('请至少选择一个产品');
         return;
@@ -6275,6 +6830,615 @@
         debugLog(`❌ 保存公司信息失败: ${error.message}`);
         alert(`❌ 保存公司信息失败: ${error.message}`);
       }
+    }
+
+    // ==================== 仓库订单管理 ====================
+    
+    // 加载仓库订单列表
+    async function loadWarehouseOrders() {
+      debugLog('开始加载仓库订单列表');
+      const container = document.getElementById('warehouseOrdersList');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        // 获取筛选条件
+        const status = document.getElementById('warehouseOrderStatusFilter').value;
+        const merchantFilter = document.getElementById('warehouseOrderMerchantFilter').value;
+        
+        // 构建查询参数
+        const params = new URLSearchParams();
+        if (status) params.append('status', status);
+        if (merchantFilter) params.append('merchantId', merchantFilter);
+        
+        const response = await fetch(`/api/warehouse/orders?${params.toString()}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const result = await response.json();
+        debugLog(`订单API响应: ${result.data?.length || 0} 个订单`);
+        
+        if (result.success && result.data && result.data.length > 0) {
+          renderWarehouseOrders(result.data);
+          debugLog('✅ 订单列表加载成功');
+        } else {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">📦</div>
+              <h3>暂无订单</h3>
+              <p>还没有商户下单</p>
+            </div>
+          `;
+          debugLog('⚠️ 没有订单数据');
+        }
+      } catch (error) {
+        container.innerHTML = `<div class="error">加载失败: ${error.message}</div>`;
+        debugLog(`❌ 订单列表加载失败: ${error.message}`);
+      }
+    }
+    
+    // 渲染订单列表
+    function renderWarehouseOrders(orders) {
+      const container = document.getElementById('warehouseOrdersList');
+      
+      const statusBadges = {
+        'pending': '<span class="status-badge" style="background: #fef3c7; color: #92400e;">待确认</span>',
+        'confirmed': '<span class="status-badge" style="background: #dbeafe; color: #1e40af;">已确认</span>',
+        'shipped': '<span class="status-badge" style="background: #e0e7ff; color: #4338ca;">已发货</span>',
+        'completed': '<span class="status-badge" style="background: #d1fae5; color: #065f46;">已完成</span>',
+        'cancelled': '<span class="status-badge" style="background: #fee2e2; color: #991b1b;">已取消</span>'
+      };
+      
+      const deliveryMethods = {
+        'delivery': '🚚 物流配送',
+        'pickup': '🏪 到店自取'
+      };
+      
+      const html = `
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="background: #f9fafb;">
+              <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">订单号</th>
+              <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">商户</th>
+              <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">下单时间</th>
+              <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb;">总金额</th>
+              <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">配送方式</th>
+              <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">状态</th>
+              <th style="padding: 12px; text-align: center; border-bottom: 2px solid #e5e7eb;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${orders.map(order => `
+              <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 12px; font-weight: 600;">${order.orderNumber}</td>
+                <td style="padding: 12px;">${order.merchantId}</td>
+                <td style="padding: 12px;">${new Date(order.orderedAt).toLocaleString('zh-CN')}</td>
+                <td style="padding: 12px; text-align: right; font-weight: 600;">€${order.totalAmount.toFixed(2)}</td>
+                <td style="padding: 12px;">${deliveryMethods[order.deliveryMethod] || order.deliveryMethod}</td>
+                <td style="padding: 12px;">${statusBadges[order.status] || order.status}</td>
+                <td style="padding: 12px; text-align: center;">
+                  <button onclick="viewWarehouseOrderDetail('${order._id}')" style="padding: 6px 12px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                    查看详情
+                  </button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+      
+      container.innerHTML = html;
+    }
+    
+    // 查看订单详情
+    async function viewWarehouseOrderDetail(orderId) {
+      debugLog(`查看订单详情: ${orderId}`);
+      
+      try {
+        const response = await fetch(`/api/warehouse/orders/${orderId}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          renderWarehouseOrderDetail(result.data);
+          document.getElementById('warehouseOrderDetailModal').style.display = 'flex';
+        } else {
+          throw new Error('获取订单详情失败');
+        }
+      } catch (error) {
+        debugLog(`❌ 获取订单详情失败: ${error.message}`);
+        alert(`❌ 获取订单详情失败: ${error.message}`);
+      }
+    }
+    
+    // 渲染订单详情
+    function renderWarehouseOrderDetail(order) {
+      const container = document.getElementById('warehouseOrderDetailContent');
+      
+      const statusBadges = {
+        'pending': '<span class="status-badge" style="background: #fef3c7; color: #92400e;">待确认</span>',
+        'confirmed': '<span class="status-badge" style="background: #dbeafe; color: #1e40af;">已确认</span>',
+        'shipped': '<span class="status-badge" style="background: #e0e7ff; color: #4338ca;">已发货</span>',
+        'completed': '<span class="status-badge" style="background: #d1fae5; color: #065f46;">已完成</span>',
+        'cancelled': '<span class="status-badge" style="background: #fee2e2; color: #991b1b;">已取消</span>'
+      };
+      
+      const deliveryMethods = {
+        'delivery': '🚚 物流配送',
+        'pickup': '🏪 到店自取'
+      };
+      
+      // 构建操作按钮
+      let actionButtons = '';
+      if (order.status === 'pending') {
+        actionButtons = `
+          <button onclick="confirmWarehouseOrder('${order._id}')" style="padding: 10px 20px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+            ✅ 确认订单
+          </button>
+          <button onclick="cancelWarehouseOrder('${order._id}')" style="padding: 10px 20px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+            ❌ 取消订单
+          </button>
+        `;
+      } else if (order.status === 'confirmed') {
+        actionButtons = `
+          <button onclick="shipWarehouseOrder('${order._id}')" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+            🚚 标记发货
+          </button>
+          <button onclick="cancelWarehouseOrder('${order._id}')" style="padding: 10px 20px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+            ❌ 取消订单
+          </button>
+        `;
+      } else if (order.status === 'shipped') {
+        actionButtons = `
+          <button onclick="completeWarehouseOrder('${order._id}')" style="padding: 10px 20px; background: #8b5cf6; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+            ✅ 完成订单
+          </button>
+        `;
+      }
+      
+      const html = `
+        <div style="background: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div>
+              <div style="color: #6b7280; font-size: 14px; margin-bottom: 5px;">订单号</div>
+              <div style="font-weight: 600; font-size: 16px;">${order.orderNumber}</div>
+            </div>
+            <div>
+              <div style="color: #6b7280; font-size: 14px; margin-bottom: 5px;">商户</div>
+              <div style="font-weight: 600; font-size: 16px;">${order.merchantName || order.merchantId}</div>
+            </div>
+            <div>
+              <div style="color: #6b7280; font-size: 14px; margin-bottom: 5px;">下单时间</div>
+              <div style="font-weight: 600;">${new Date(order.orderedAt).toLocaleString('zh-CN')}</div>
+            </div>
+            <div>
+              <div style="color: #6b7280; font-size: 14px; margin-bottom: 5px;">配送方式</div>
+              <div style="font-weight: 600;">${deliveryMethods[order.deliveryMethod] || order.deliveryMethod}</div>
+            </div>
+            ${order.deliveryAddress ? `
+              <div style="grid-column: 1 / -1;">
+                <div style="color: #6b7280; font-size: 14px; margin-bottom: 5px;">配送地址</div>
+                <div style="font-weight: 600;">${order.deliveryAddress}</div>
+              </div>
+            ` : ''}
+            ${order.pickupLocation ? `
+              <div style="grid-column: 1 / -1;">
+                <div style="color: #6b7280; font-size: 14px; margin-bottom: 5px;">自取地点</div>
+                <div style="font-weight: 600;">${order.pickupLocation}</div>
+              </div>
+            ` : ''}
+            <div>
+              <div style="color: #6b7280; font-size: 14px; margin-bottom: 5px;">订单状态</div>
+              <div>${statusBadges[order.status] || order.status}</div>
+            </div>
+            <div>
+              <div style="color: #6b7280; font-size: 14px; margin-bottom: 5px;">总金额</div>
+              <div style="font-weight: 700; font-size: 18px; color: #6366f1;">€${order.totalAmount.toFixed(2)}</div>
+            </div>
+          </div>
+          ${order.notes ? `
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+              <div style="color: #6b7280; font-size: 14px; margin-bottom: 5px;">备注</div>
+              <div>${order.notes}</div>
+            </div>
+          ` : ''}
+        </div>
+        
+        <h3 style="margin-bottom: 15px;">订单产品</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <thead>
+            <tr style="background: #f9fafb;">
+              <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">产品名称</th>
+              <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">SKU</th>
+              <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb;">数量</th>
+              <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb;">批发价</th>
+              <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb;">小计</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${order.items.map(item => `
+              <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 12px;">${item.productName}</td>
+                <td style="padding: 12px; color: #6b7280;">${item.sku || 'N/A'}</td>
+                <td style="padding: 12px; text-align: right;">${item.quantity}</td>
+                <td style="padding: 12px; text-align: right;">€${item.wholesalePrice.toFixed(2)}</td>
+                <td style="padding: 12px; text-align: right; font-weight: 600;">€${item.subtotal.toFixed(2)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+          <tfoot>
+            <tr style="background: #f9fafb; font-weight: 700;">
+              <td colspan="4" style="padding: 12px; text-align: right; border-top: 2px solid #e5e7eb;">总计:</td>
+              <td style="padding: 12px; text-align: right; border-top: 2px solid #e5e7eb; color: #6366f1; font-size: 18px;">€${order.totalAmount.toFixed(2)}</td>
+            </tr>
+          </tfoot>
+        </table>
+        
+        ${order.confirmedAt ? `
+          <div style="background: #dbeafe; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+            <div style="font-weight: 600; margin-bottom: 5px;">✅ 确认信息</div>
+            <div style="font-size: 14px;">确认时间: ${new Date(order.confirmedAt).toLocaleString('zh-CN')}</div>
+            ${order.confirmedBy ? `<div style="font-size: 14px;">确认人: ${order.confirmedBy}</div>` : ''}
+          </div>
+        ` : ''}
+        
+        ${order.shippedAt ? `
+          <div style="background: #e0e7ff; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+            <div style="font-weight: 600; margin-bottom: 5px;">🚚 发货信息</div>
+            <div style="font-size: 14px;">发货时间: ${new Date(order.shippedAt).toLocaleString('zh-CN')}</div>
+            ${order.shippedBy ? `<div style="font-size: 14px;">发货人: ${order.shippedBy}</div>` : ''}
+          </div>
+        ` : ''}
+        
+        ${order.completedAt ? `
+          <div style="background: #d1fae5; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+            <div style="font-weight: 600; margin-bottom: 5px;">✅ 完成信息</div>
+            <div style="font-size: 14px;">完成时间: ${new Date(order.completedAt).toLocaleString('zh-CN')}</div>
+          </div>
+        ` : ''}
+        
+        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+          ${actionButtons}
+          <button onclick="closeWarehouseOrderDetail()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+            关闭
+          </button>
+        </div>
+      `;
+      
+      container.innerHTML = html;
+    }
+    
+    // 确认订单
+    async function confirmWarehouseOrder(orderId) {
+      if (!confirm('确认此订单？确认后将无法修改订单内容。')) {
+        return;
+      }
+      
+      debugLog(`确认订单: ${orderId}`);
+      
+      try {
+        const response = await fetch(`/api/warehouse/orders/${orderId}/confirm`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert('✅ 订单确认成功！');
+          closeWarehouseOrderDetail();
+          loadWarehouseOrders();
+        } else {
+          throw new Error(result.error || '确认订单失败');
+        }
+      } catch (error) {
+        debugLog(`❌ 确认订单失败: ${error.message}`);
+        alert(`❌ 确认订单失败: ${error.message}`);
+      }
+    }
+    
+    // 标记发货 - 打开发货对话框
+    async function shipWarehouseOrder(orderId) {
+      debugLog(`准备发货: ${orderId}`);
+      
+      try {
+        // 获取订单详情
+        const response = await fetch(`/api/warehouse/orders/${orderId}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const result = await response.json();
+        if (!result.success || !result.data) {
+          throw new Error('获取订单详情失败');
+        }
+        
+        const order = result.data;
+        
+        // 打开发货对话框
+        await openShipmentDialog(order);
+        
+      } catch (error) {
+        debugLog(`❌ 准备发货失败: ${error.message}`);
+        alert(`❌ 准备发货失败: ${error.message}`);
+      }
+    }
+    
+    // 打开发货对话框
+    async function openShipmentDialog(order) {
+      const modal = document.getElementById('shipmentModal');
+      const container = document.getElementById('shipmentItemsList');
+      
+      // 为每个订单项目加载可用的产品
+      let itemsHtml = '';
+      
+      for (let i = 0; i < order.items.length; i++) {
+        const item = order.items[i];
+        
+        // 确保 productId 是字符串
+        const productId = typeof item.productId === 'object' ? item.productId._id || item.productId.toString() : item.productId;
+        
+        debugLog(`🔍 加载产品 ${item.productName} 的可用库存...`);
+        debugLog(`📡 请求: /api/warehouse/products/${productId}/available`);
+        
+        // 获取该产品的所有可用库存（带 IMEI/SN）
+        const productsResponse = await fetch(`/api/warehouse/products/${productId}/available`);
+        const productsResult = await productsResponse.json();
+        
+        debugLog(`📦 API 响应:`, productsResult);
+        
+        const availableProducts = productsResult.success ? productsResult.data : [];
+        debugLog(`📊 可用产品数量: ${availableProducts.length}`);
+        
+        if (availableProducts.length > 0) {
+          debugLog(`📋 第一个产品:`, availableProducts[0]);
+        }
+        
+        const isDevice = availableProducts.some(p => p.imei || p.serialNumber);
+        debugLog(`🔧 是否为设备: ${isDevice}`);
+        
+        itemsHtml += `
+          <div style="background: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 15px;" data-item-index="${i}">
+            <h4 style="margin-bottom: 15px; color: #1f2937;">
+              ${item.productName}
+              <span style="color: #6b7280; font-size: 14px; font-weight: normal;">
+                (订购数量: ${item.quantity})
+              </span>
+            </h4>
+            
+            ${isDevice ? `
+              <!-- 设备：选择 IMEI/SN -->
+              <div>
+                <label style="display: block; margin-bottom: 10px; font-weight: 600;">选择设备 (需选择 ${item.quantity} 台):</label>
+                <div id="deviceList_${i}" style="max-height: 300px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px; background: white;">
+                  ${availableProducts.map(product => `
+                    <label style="display: flex; align-items: center; padding: 10px; border-bottom: 1px solid #f3f4f6; cursor: pointer; hover:background: #f9fafb;">
+                      <input type="checkbox" 
+                        name="device_${i}" 
+                        value="${product._id}" 
+                        data-imei="${product.imei || ''}"
+                        data-sn="${product.serialNumber || ''}"
+                        onchange="updateWarehouseDeviceSelection(${i}, ${item.quantity})"
+                        style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer;">
+                      <div style="flex: 1;">
+                        <div style="font-weight: 600; color: #1f2937;">
+                          ${product.imei ? `IMEI: ${product.imei}` : `SN: ${product.serialNumber}`}
+                        </div>
+                        <div style="font-size: 13px; color: #6b7280;">
+                          ${product.brand || ''} ${product.model || ''} - ${product.color || ''} - ${product.condition || ''}
+                        </div>
+                      </div>
+                    </label>
+                  `).join('')}
+                </div>
+                <div id="deviceCount_${i}" style="margin-top: 10px; font-size: 14px; color: #6b7280;">
+                  已选择: <span id="selectedCount_${i}">0</span> / ${item.quantity}
+                </div>
+              </div>
+            ` : `
+              <!-- 配件：填写数量 -->
+              <div>
+                <label style="display: block; margin-bottom: 10px; font-weight: 600;">发货数量:</label>
+                <input type="number" 
+                  id="quantity_${i}" 
+                  value="${item.quantity}" 
+                  min="1" 
+                  max="${item.quantity}"
+                  style="width: 150px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
+                <span style="margin-left: 10px; color: #6b7280; font-size: 14px;">
+                  (最多 ${item.quantity} 件)
+                </span>
+              </div>
+            `}
+            
+            <input type="hidden" id="productId_${i}" value="${productId}">
+            <input type="hidden" id="isDevice_${i}" value="${isDevice}">
+          </div>
+        `;
+      }
+      
+      container.innerHTML = itemsHtml;
+      
+      // 保存订单信息到对话框
+      modal.dataset.orderId = order._id;
+      modal.dataset.itemCount = order.items.length;
+      
+      // 显示对话框
+      modal.style.display = 'flex';
+    }
+    
+    // 更新仓库发货设备选择计数
+    function updateWarehouseDeviceSelection(itemIndex, requiredCount) {
+      const checkboxes = document.querySelectorAll(`input[name="device_${itemIndex}"]:checked`);
+      const selectedCount = checkboxes.length;
+      const countElement = document.getElementById(`selectedCount_${itemIndex}`);
+      if (countElement) {
+        countElement.textContent = selectedCount;
+      }
+      
+      // 如果已选够，禁用其他复选框
+      const allCheckboxes = document.querySelectorAll(`input[name="device_${itemIndex}"]`);
+      allCheckboxes.forEach(cb => {
+        if (!cb.checked && selectedCount >= requiredCount) {
+          cb.disabled = true;
+          cb.parentElement.style.opacity = '0.5';
+        } else {
+          cb.disabled = false;
+          cb.parentElement.style.opacity = '1';
+        }
+      });
+    }
+    
+    // 确认发货
+    async function confirmShipment() {
+      const modal = document.getElementById('shipmentModal');
+      const orderId = modal.dataset.orderId;
+      const itemCount = parseInt(modal.dataset.itemCount);
+      
+      // 收集发货信息
+      const shipmentItems = [];
+      
+      for (let i = 0; i < itemCount; i++) {
+        const productId = document.getElementById(`productId_${i}`).value;
+        const isDevice = document.getElementById(`isDevice_${i}`).value === 'true';
+        
+        if (isDevice) {
+          // 设备：收集选中的 IMEI/SN
+          const checkboxes = document.querySelectorAll(`input[name="device_${i}"]:checked`);
+          const selectedProducts = Array.from(checkboxes).map(cb => cb.value);
+          
+          if (selectedProducts.length === 0) {
+            alert('请为所有设备选择 IMEI/SN');
+            return;
+          }
+          
+          shipmentItems.push({
+            productId,
+            isDevice: true,
+            selectedProducts
+          });
+        } else {
+          // 配件：获取数量
+          const quantity = parseInt(document.getElementById(`quantity_${i}`).value);
+          
+          if (!quantity || quantity < 1) {
+            alert('请输入有效的发货数量');
+            return;
+          }
+          
+          shipmentItems.push({
+            productId,
+            isDevice: false,
+            quantity
+          });
+        }
+      }
+      
+      // 发送发货请求
+      try {
+        const response = await fetch(`/api/warehouse/orders/${orderId}/ship`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ shipmentItems })
+        });
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert('✅ 发货成功！库存已转移到商户。');
+          closeShipmentModal();
+          closeWarehouseOrderDetail();
+          loadWarehouseOrders();
+        } else {
+          throw new Error(result.error || '发货失败');
+        }
+      } catch (error) {
+        debugLog(`❌ 发货失败: ${error.message}`);
+        alert(`❌ 发货失败: ${error.message}`);
+      }
+    }
+    
+    // 关闭发货对话框
+    function closeShipmentModal() {
+      document.getElementById('shipmentModal').style.display = 'none';
+    }
+    
+    // 完成订单
+    async function completeWarehouseOrder(orderId) {
+      if (!confirm('确认完成此订单？')) {
+        return;
+      }
+      
+      debugLog(`完成订单: ${orderId}`);
+      
+      try {
+        const response = await fetch(`/api/warehouse/orders/${orderId}/complete`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert('✅ 订单已完成！');
+          closeWarehouseOrderDetail();
+          loadWarehouseOrders();
+        } else {
+          throw new Error(result.error || '完成订单失败');
+        }
+      } catch (error) {
+        debugLog(`❌ 完成订单失败: ${error.message}`);
+        alert(`❌ 完成订单失败: ${error.message}`);
+      }
+    }
+    
+    // 取消订单
+    async function cancelWarehouseOrder(orderId) {
+      const reason = prompt('请输入取消原因：');
+      if (!reason) {
+        return;
+      }
+      
+      debugLog(`取消订单: ${orderId}, 原因: ${reason}`);
+      
+      try {
+        const response = await fetch(`/api/warehouse/orders/${orderId}/cancel`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ reason })
+        });
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert('✅ 订单已取消！');
+          closeWarehouseOrderDetail();
+          loadWarehouseOrders();
+        } else {
+          throw new Error(result.error || '取消订单失败');
+        }
+      } catch (error) {
+        debugLog(`❌ 取消订单失败: ${error.message}`);
+        alert(`❌ 取消订单失败: ${error.message}`);
+      }
+    }
+    
+    // 关闭订单详情对话框
+    function closeWarehouseOrderDetail() {
+      document.getElementById('warehouseOrderDetailModal').style.display = 'none';
     }
 
     // 登出功能

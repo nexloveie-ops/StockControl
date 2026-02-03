@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>系统设置 - 3C产品管理系统</title>
+  <script src="/auth-guard.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+      background: #f5f5f5;
+      color: #333;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    
+    .header h1 {
+      font-size: 24px;
+      margin-bottom: 5px;
+    }
+    
+    .back-btn {
+      padding: 10px 20px;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: 2px solid white;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-block;
+    }
+    
+    .back-btn:hover {
+      background: rgba(255,255,255,0.3);
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #e0e0e0;
+      flex-wrap: wrap;
+    }
+    
+    .tab {
+      padding: 12px 24px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      color: #666;
+      border-bottom: 3px solid transparent;
+      transition: all 0.3s;
+    }
+    
+    .tab:hover {
+      color: #667eea;
+    }
+    
+    .tab.active {
+      color: #667eea;
+      border-bottom-color: #667eea;
+      font-weight: 600;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    
+    .card h2 {
+      font-size: 20px;
+      margin-bottom: 15px;
+      color: #333;
+    }
+    
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+    
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #5568d3;
+    }
+    
+    .btn-success {
+      background: #10b981;
+      color: white;
+    }
+    
+    .btn-success:hover {
+      background: #059669;
+    }
+    
+    .btn-danger {
+      background: #ef4444;
+      color: white;
+    }
+    
+    .btn-danger:hover {
+      background: #dc2626;
+    }
+    
+    .btn-secondary {
+      background: #6b7280;
+      color: white;
+    }
+    
+    .btn-secondary:hover {
+      background: #4b5563;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    th {
+      background: #f8f9fa;
+      font-weight: 600;
+      color: #666;
+      font-size: 14px;
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    
+    .badge-success { background: #d4edda; color: #155724; }
+    .badge-warning { background: #fff3cd; color: #856404; }
+    .badge-info { background: #d1ecf1; color: #0c5460; }
+    .badge-danger { background: #f8d7da; color: #721c24; }
+    
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+    
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .form-group label {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #555;
+    }
+    
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    
+    .form-group textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal.active {
+      display: flex;
+    }
+    
+    .modal-content {
+      background: white;
+      border-radius: 10px;
+      padding: 30px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .modal-header h3 {
+      font-size: 20px;
+      color: #333;
+    }
+    
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #999;
+    }
+    
+    .close-btn:hover {
+      color: #333;
+    }
+    
+    .modal-footer {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
+    
+    .action-buttons {
+      display: flex;
+      gap: 5px;
+    }
+    
+    .icon-btn {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+    
+    .alert {
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+    
+    .alert-info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border-left: 4px solid #17a2b8;
+    }
+    
+    .alert-warning {
+      background: #fff3cd;
+      color: #856404;
+      border-left: 4px solid #ffc107;
+    }
+    
+    .alert-danger {
+      background: #f8d7da;
+      color: #721c24;
+      border-left: 4px solid #dc3545;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-content">
+      <div>
+        <h1>⚙️ 系统设置</h1>
+        <p>管理产品分类、设备成色等系统基础信息</p>
+      </div>
+      <a href="/admin.html" class="back-btn">返回管理后台</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- 标签页 -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('categories')">产品分类</button>
+      <button class="tab" onclick="switchTab('conditions')">设备成色</button>
+      <button class="tab" onclick="switchTab('vat-rates')">税率设置</button>
+      <button class="tab" onclick="switchTab('system-info')">系统信息</button>
+    </div>
+
+    <!-- 产品分类管理 -->
+    <div id="categories" class="tab-content active">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h2>产品分类管理</h2>
+          <button class="btn btn-success" onclick="showAddCategoryModal()">+ 添加分类</button>
+        </div>
+        
+        <div class="alert alert-info">
+          <strong>💡 提示：</strong>产品分类用于组织和管理不同类型的产品。删除分类前，请确保将该分类下的产品移动到其他分类。
+        </div>
+        
+        <div id="categoriesTable">
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 设备成色管理 -->
+    <div id="conditions" class="tab-content">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h2>设备成色管理</h2>
+          <button class="btn btn-success" onclick="showAddConditionModal()">+ 添加成色</button>
+        </div>
+        
+        <div class="alert alert-info">
+          <strong>💡 说明：</strong>设备成色用于标识产品的新旧程度。可以根据业务需要添加、修改或删除成色。
+        </div>
+        
+        <div id="conditionsTable">
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 税率设置 -->
+    <div id="vat-rates" class="tab-content">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h2>税率管理</h2>
+          <button class="btn btn-success" onclick="showAddVatRateModal()">+ 添加税率</button>
+        </div>
+        
+        <div class="alert alert-info">
+          <strong>💡 说明：</strong>根据爱尔兰税法，不同类型的产品适用不同的增值税率。可以根据需要添加、修改或删除税率。
+        </div>
+        
+        <div class="alert alert-warning">
+          <strong>⚠️ 注意：</strong>税率设置涉及财务合规，修改前请咨询税务顾问。删除税率前，请确保没有产品或分类使用该税率。
+        </div>
+        
+        <div id="vatRatesTable">
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 系统信息 -->
+    <div id="system-info" class="tab-content">
+      <div class="card">
+        <h2>系统信息</h2>
+        
+        <table>
+          <tr>
+            <th style="width: 200px;">系统名称</th>
+            <td>3C产品库存管理系统</td>
+          </tr>
+          <tr>
+            <th>版本</th>
+            <td>v2.0.0</td>
+          </tr>
+          <tr>
+            <th>数据库</th>
+            <td>MongoDB Atlas</td>
+          </tr>
+          <tr>
+            <th>服务器状态</th>
+            <td><span class="badge badge-success">运行中</span></td>
+          </tr>
+          <tr>
+            <th>最后更新</th>
+            <td id="lastUpdate">2026-02-02</td>
+          </tr>
+        </table>
+      </div>
+      
+      <div class="card">
+        <h2>数据统计</h2>
+        <div id="systemStats">
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加/编辑分类模态框 -->
+  <div id="categoryModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalTitle">添加产品分类</h3>
+        <button class="close-btn" onclick="closeCategoryModal()">&times;</button>
+      </div>
+      
+      <form id="categoryForm">
+        <input type="hidden" id="categoryId">
+        
+        <div class="form-group">
+          <label>分类类型 *</label>
+          <input type="text" id="categoryType" required placeholder="例如：手机配件、电脑配件、车载配件">
+          <small style="color: #666; font-size: 12px;">这是产品的分类类型，如：手机配件、电脑配件等</small>
+        </div>
+        
+        <div class="form-group">
+          <label>描述</label>
+          <textarea id="categoryDescription" placeholder="分类描述（可选）"></textarea>
+        </div>
+        
+        <div class="form-group">
+          <label>默认税率</label>
+          <select id="categoryVatRate">
+            <!-- 动态加载 -->
+          </select>
+          <small style="color: #666; font-size: 12px;">新产品默认使用此税率</small>
+        </div>
+        
+        <div class="form-group">
+          <label>默认成色</label>
+          <select id="categoryCondition">
+            <!-- 动态加载 -->
+          </select>
+          <small style="color: #666; font-size: 12px;">新产品默认使用此成色</small>
+        </div>
+        
+        <div class="form-group">
+          <label>排序权重</label>
+          <input type="number" id="categorySortOrder" value="0" placeholder="数字越大越靠前">
+        </div>
+        
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeCategoryModal()">取消</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 添加/编辑成色模态框 -->
+  <div id="conditionModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="conditionModalTitle">添加设备成色</h3>
+        <button class="close-btn" onclick="closeConditionModal()">&times;</button>
+      </div>
+      
+      <form id="conditionForm">
+        <input type="hidden" id="conditionId">
+        
+        <div class="form-group">
+          <label>成色代码 *</label>
+          <input type="text" id="conditionCode" required placeholder="例如：BRAND_NEW" style="text-transform: uppercase;">
+          <small style="color: #666; font-size: 12px;">建议使用大写字母和下划线，如：BRAND_NEW</small>
+        </div>
+        
+        <div class="form-group">
+          <label>显示名称 *</label>
+          <input type="text" id="conditionName" required placeholder="例如：全新">
+        </div>
+        
+        <div class="form-group">
+          <label>描述</label>
+          <textarea id="conditionDescription" placeholder="成色描述（可选）"></textarea>
+        </div>
+        
+        <div class="form-group">
+          <label>排序权重</label>
+          <input type="number" id="conditionSortOrder" value="0" placeholder="数字越小越靠前">
+        </div>
+        
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeConditionModal()">取消</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 添加/编辑税率模态框 -->
+  <div id="vatRateModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="vatRateModalTitle">添加税率</h3>
+        <button class="close-btn" onclick="closeVatRateModal()">&times;</button>
+      </div>
+      
+      <form id="vatRateForm">
+        <input type="hidden" id="vatRateId">
+        
+        <div class="form-group">
+          <label>税率代码 *</label>
+          <input type="text" id="vatRateCode" required placeholder="例如：VAT 23%">
+          <small style="color: #666; font-size: 12px;">建议格式：VAT XX%</small>
+        </div>
+        
+        <div class="form-group">
+          <label>显示名称 *</label>
+          <input type="text" id="vatRateName" required placeholder="例如：VAT 23%">
+        </div>
+        
+        <div class="form-group">
+          <label>税率 (%) *</label>
+          <input type="number" id="vatRateValue" required min="0" max="100" step="0.1" placeholder="例如：23">
+        </div>
+        
+        <div class="form-group">
+          <label>描述</label>
+          <textarea id="vatRateDescription" placeholder="税率描述（可选）"></textarea>
+        </div>
+        
+        <div class="form-group">
+          <label>适用范围</label>
+          <textarea id="vatRateScope" placeholder="适用范围说明（可选）"></textarea>
+        </div>
+        
+        <div class="form-group">
+          <label>排序权重</label>
+          <input type="number" id="vatRateSortOrder" value="0" placeholder="数字越小越靠前">
+        </div>
+        
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeVatRateModal()">取消</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '/api/admin';
+    let allCategories = [];
+    let allConditions = [];
+    let allVatRates = [];
+
+    // 切换标签页
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      
+      event.target.classList.add('active');
+      document.getElementById(tabName).classList.add('active');
+      
+      // 加载对应数据
+      if (tabName === 'categories') {
+        loadCategories();
+      } else if (tabName === 'conditions') {
+        loadConditions();
+      } else if (tabName === 'vat-rates') {
+        loadVatRates();
+      } else if (tabName === 'system-info') {
+        loadSystemStats();
+      }
+    }
+
+    // 加载产品分类
+    async function loadCategories() {
+      const container = document.getElementById('categoriesTable');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/categories`);
+        const result = await response.json();
+        
+        if (result.success && result.data.length > 0) {
+          allCategories = result.data;
+          
+          const html = `
+            <table>
+              <thead>
+                <tr>
+                  <th>分类类型</th>
+                  <th>描述</th>
+                  <th>默认税率</th>
+                  <th>默认成色</th>
+                  <th>排序</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${result.data.map(cat => `
+                  <tr>
+                    <td><strong>${cat.type}</strong></td>
+                    <td>${cat.description || '-'}</td>
+                    <td>${cat.defaultVatRate || 'VAT 23%'}</td>
+                    <td>${cat.defaultCondition || 'BRAND_NEW'}</td>
+                    <td>${cat.sortOrder || 0}</td>
+                    <td>${cat.isActive ? '<span class="badge badge-success">启用</span>' : '<span class="badge badge-danger">禁用</span>'}</td>
+                    <td>
+                      <div class="action-buttons">
+                        <button class="btn btn-primary icon-btn" onclick="editCategory('${cat._id}')">编辑</button>
+                        <button class="btn btn-danger icon-btn" onclick="deleteCategory('${cat._id}', '${cat.type}')">删除</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">暂无分类数据</p>';
+        }
+      } catch (error) {
+        container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+      }
+    }
+
+    // 显示添加分类模态框
+    async function showAddCategoryModal() {
+      document.getElementById('modalTitle').textContent = '添加产品分类';
+      document.getElementById('categoryForm').reset();
+      document.getElementById('categoryId').value = '';
+      
+      // 加载税率和成色选项
+      await loadModalOptions();
+      
+      document.getElementById('categoryModal').classList.add('active');
+    }
+
+    // 加载模态框的下拉选项
+    async function loadModalOptions() {
+      // 加载税率选项
+      if (allVatRates.length === 0) {
+        await loadVatRatesData();
+      }
+      const vatRateSelect = document.getElementById('categoryVatRate');
+      vatRateSelect.innerHTML = allVatRates.map(vat => 
+        `<option value="${vat.code}">${vat.name}</option>`
+      ).join('');
+      
+      // 加载成色选项
+      if (allConditions.length === 0) {
+        await loadConditionsData();
+      }
+      const conditionSelect = document.getElementById('categoryCondition');
+      conditionSelect.innerHTML = allConditions.map(cond => 
+        `<option value="${cond.code}">${cond.name}</option>`
+      ).join('');
+    }
+
+    // 加载税率数据（不显示在页面上，只用于下拉选项）
+    async function loadVatRatesData() {
+      try {
+        const response = await fetch(`${API_BASE}/vat-rates`);
+        const result = await response.json();
+        if (result.success && result.data.length > 0) {
+          allVatRates = result.data;
+        } else {
+          // 使用默认值
+          allVatRates = [
+            { code: 'VAT 23%', name: 'VAT 23%', rate: 23 },
+            { code: 'VAT 13.5%', name: 'VAT 13.5%', rate: 13.5 },
+            { code: 'VAT 0%', name: 'VAT 0%', rate: 0 }
+          ];
+        }
+      } catch (error) {
+        console.error('加载税率失败:', error);
+        allVatRates = [
+          { code: 'VAT 23%', name: 'VAT 23%', rate: 23 },
+          { code: 'VAT 13.5%', name: 'VAT 13.5%', rate: 13.5 },
+          { code: 'VAT 0%', name: 'VAT 0%', rate: 0 }
+        ];
+      }
+    }
+
+    // 加载成色数据（不显示在页面上，只用于下拉选项）
+    async function loadConditionsData() {
+      try {
+        const response = await fetch(`${API_BASE}/conditions`);
+        const result = await response.json();
+        if (result.success && result.data.length > 0) {
+          allConditions = result.data;
+        } else {
+          // 使用默认值
+          allConditions = [
+            { code: 'BRAND_NEW', name: '全新' },
+            { code: 'PRE_OWNED', name: '二手' },
+            { code: 'REFURBISHED', name: '翻新' }
+          ];
+        }
+      } catch (error) {
+        console.error('加载成色失败:', error);
+        allConditions = [
+          { code: 'BRAND_NEW', name: '全新' },
+          { code: 'PRE_OWNED', name: '二手' },
+          { code: 'REFURBISHED', name: '翻新' }
+        ];
+      }
+    }
+
+    // 编辑分类
+    async function editCategory(categoryId) {
+      const category = allCategories.find(c => c._id === categoryId);
+      if (!category) {
+        alert('分类不存在');
+        return;
+      }
+      
+      document.getElementById('modalTitle').textContent = '编辑产品分类';
+      document.getElementById('categoryId').value = category._id;
+      document.getElementById('categoryType').value = category.type;
+      document.getElementById('categoryDescription').value = category.description || '';
+      document.getElementById('categorySortOrder').value = category.sortOrder || 0;
+      
+      // 加载下拉选项
+      await loadModalOptions();
+      
+      // 设置选中的值
+      document.getElementById('categoryVatRate').value = category.defaultVatRate || 'VAT 23%';
+      document.getElementById('categoryCondition').value = category.defaultCondition || 'BRAND_NEW';
+      
+      document.getElementById('categoryModal').classList.add('active');
+    }
+
+    // 关闭模态框
+    function closeCategoryModal() {
+      document.getElementById('categoryModal').classList.remove('active');
+    }
+
+    // 保存分类
+    document.getElementById('categoryForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const categoryId = document.getElementById('categoryId').value;
+      const data = {
+        type: document.getElementById('categoryType').value,
+        description: document.getElementById('categoryDescription').value,
+        defaultVatRate: document.getElementById('categoryVatRate').value,
+        defaultCondition: document.getElementById('categoryCondition').value,
+        sortOrder: parseInt(document.getElementById('categorySortOrder').value) || 0,
+        isActive: true
+      };
+      
+      try {
+        const url = categoryId ? `${API_BASE}/categories/${categoryId}` : `${API_BASE}/categories`;
+        const method = categoryId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+          method: method,
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert(categoryId ? '分类更新成功' : '分类添加成功');
+          closeCategoryModal();
+          loadCategories();
+        } else {
+          alert('操作失败: ' + result.error);
+        }
+      } catch (error) {
+        alert('操作失败: ' + error.message);
+      }
+    });
+
+    // 删除分类
+    async function deleteCategory(categoryId, categoryType) {
+      if (!confirm(`确定要删除分类"${categoryType}"吗？\n\n⚠️ 注意：删除前请确保该分类下没有产品，或已将产品移动到其他分类。`)) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${API_BASE}/categories/${categoryId}`, {
+          method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert('分类删除成功');
+          loadCategories();
+        } else {
+          alert('删除失败: ' + result.error);
+        }
+      } catch (error) {
+        alert('删除失败: ' + error.message);
+      }
+    }
+
+    // 加载系统统计
+    async function loadSystemStats() {
+      const container = document.getElementById('systemStats');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/stats`);
+        const result = await response.json();
+        
+        if (result.success) {
+          const stats = result.data;
+          const html = `
+            <table>
+              <tr>
+                <th style="width: 200px;">产品总数</th>
+                <td>${stats.totalProducts || 0}</td>
+              </tr>
+              <tr>
+                <th>有库存产品</th>
+                <td>${stats.availableProducts || 0}</td>
+              </tr>
+              <tr>
+                <th>用户总数</th>
+                <td>${stats.totalUsers || 0}</td>
+              </tr>
+              <tr>
+                <th>供应商总数</th>
+                <td>${stats.totalSuppliers || 0}</td>
+              </tr>
+              <tr>
+                <th>采购发票</th>
+                <td>${stats.totalInvoices || 0}</td>
+              </tr>
+            </table>
+          `;
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">加载失败</p>';
+        }
+      } catch (error) {
+        container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+      }
+    }
+
+    // 页面加载时初始化
+    window.addEventListener('DOMContentLoaded', () => {
+      loadCategories();
+      document.getElementById('lastUpdate').textContent = new Date().toLocaleDateString('zh-CN');
+    });
+
+    // ==================== 设备成色管理 ====================
+    
+    // 加载设备成色
+    async function loadConditions() {
+      const container = document.getElementById('conditionsTable');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/conditions`);
+        const result = await response.json();
+        
+        if (result.success && result.data.length > 0) {
+          allConditions = result.data;
+          
+          const html = `
+            <table>
+              <thead>
+                <tr>
+                  <th>成色代码</th>
+                  <th>显示名称</th>
+                  <th>描述</th>
+                  <th>排序</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${result.data.map(cond => `
+                  <tr>
+                    <td><code>${cond.code}</code></td>
+                    <td><strong>${cond.name}</strong></td>
+                    <td>${cond.description || '-'}</td>
+                    <td>${cond.sortOrder || 0}</td>
+                    <td>${cond.isActive ? '<span class="badge badge-success">启用</span>' : '<span class="badge badge-danger">禁用</span>'}</td>
+                    <td>
+                      <div class="action-buttons">
+                        <button class="btn btn-primary icon-btn" onclick="editCondition('${cond._id}')">编辑</button>
+                        <button class="btn btn-danger icon-btn" onclick="deleteCondition('${cond._id}', '${cond.name}')">删除</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">暂无成色数据</p>';
+        }
+      } catch (error) {
+        container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+      }
+    }
+
+    // 显示添加成色模态框
+    function showAddConditionModal() {
+      document.getElementById('conditionModalTitle').textContent = '添加设备成色';
+      document.getElementById('conditionForm').reset();
+      document.getElementById('conditionId').value = '';
+      document.getElementById('conditionModal').classList.add('active');
+    }
+
+    // 编辑成色
+    function editCondition(conditionId) {
+      const condition = allConditions.find(c => c._id === conditionId);
+      if (!condition) {
+        alert('成色不存在');
+        return;
+      }
+      
+      document.getElementById('conditionModalTitle').textContent = '编辑设备成色';
+      document.getElementById('conditionId').value = condition._id;
+      document.getElementById('conditionCode').value = condition.code;
+      document.getElementById('conditionName').value = condition.name;
+      document.getElementById('conditionDescription').value = condition.description || '';
+      document.getElementById('conditionSortOrder').value = condition.sortOrder || 0;
+      
+      document.getElementById('conditionModal').classList.add('active');
+    }
+
+    // 关闭成色模态框
+    function closeConditionModal() {
+      document.getElementById('conditionModal').classList.remove('active');
+    }
+
+    // 保存成色
+    document.getElementById('conditionForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const conditionId = document.getElementById('conditionId').value;
+      const data = {
+        code: document.getElementById('conditionCode').value.toUpperCase(),
+        name: document.getElementById('conditionName').value,
+        description: document.getElementById('conditionDescription').value,
+        sortOrder: parseInt(document.getElementById('conditionSortOrder').value) || 0,
+        isActive: true
+      };
+      
+      try {
+        const url = conditionId ? `${API_BASE}/conditions/${conditionId}` : `${API_BASE}/conditions`;
+        const method = conditionId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+          method: method,
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert(conditionId ? '成色更新成功' : '成色添加成功');
+          closeConditionModal();
+          loadConditions();
+        } else {
+          alert('操作失败: ' + result.error);
+        }
+      } catch (error) {
+        alert('操作失败: ' + error.message);
+      }
+    });
+
+    // 删除成色
+    async function deleteCondition(conditionId, conditionName) {
+      if (!confirm(`确定要删除成色"${conditionName}"吗？\n\n⚠️ 注意：删除前请确保没有产品使用此成色。`)) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${API_BASE}/conditions/${conditionId}`, {
+          method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert('成色删除成功');
+          loadConditions();
+        } else {
+          alert('删除失败: ' + result.error);
+        }
+      } catch (error) {
+        alert('删除失败: ' + error.message);
+      }
+    }
+
+    // ==================== 税率管理 ====================
+    
+    // 加载税率
+    async function loadVatRates() {
+      const container = document.getElementById('vatRatesTable');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/vat-rates`);
+        const result = await response.json();
+        
+        if (result.success && result.data.length > 0) {
+          allVatRates = result.data;
+          
+          const html = `
+            <table>
+              <thead>
+                <tr>
+                  <th>税率代码</th>
+                  <th>显示名称</th>
+                  <th>税率</th>
+                  <th>描述</th>
+                  <th>适用范围</th>
+                  <th>排序</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${result.data.map(vat => `
+                  <tr>
+                    <td><code>${vat.code}</code></td>
+                    <td><strong>${vat.name}</strong></td>
+                    <td>${vat.rate}%</td>
+                    <td>${vat.description || '-'}</td>
+                    <td>${vat.applicableScope || '-'}</td>
+                    <td>${vat.sortOrder || 0}</td>
+                    <td>${vat.isActive ? '<span class="badge badge-success">启用</span>' : '<span class="badge badge-danger">禁用</span>'}</td>
+                    <td>
+                      <div class="action-buttons">
+                        <button class="btn btn-primary icon-btn" onclick="editVatRate('${vat._id}')">编辑</button>
+                        <button class="btn btn-danger icon-btn" onclick="deleteVatRate('${vat._id}', '${vat.name}')">删除</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">暂无税率数据</p>';
+        }
+      } catch (error) {
+        container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+      }
+    }
+
+    // 显示添加税率模态框
+    function showAddVatRateModal() {
+      document.getElementById('vatRateModalTitle').textContent = '添加税率';
+      document.getElementById('vatRateForm').reset();
+      document.getElementById('vatRateId').value = '';
+      document.getElementById('vatRateModal').classList.add('active');
+    }
+
+    // 编辑税率
+    function editVatRate(vatRateId) {
+      const vatRate = allVatRates.find(v => v._id === vatRateId);
+      if (!vatRate) {
+        alert('税率不存在');
+        return;
+      }
+      
+      document.getElementById('vatRateModalTitle').textContent = '编辑税率';
+      document.getElementById('vatRateId').value = vatRate._id;
+      document.getElementById('vatRateCode').value = vatRate.code;
+      document.getElementById('vatRateName').value = vatRate.name;
+      document.getElementById('vatRateValue').value = vatRate.rate;
+      document.getElementById('vatRateDescription').value = vatRate.description || '';
+      document.getElementById('vatRateScope').value = vatRate.applicableScope || '';
+      document.getElementById('vatRateSortOrder').value = vatRate.sortOrder || 0;
+      
+      document.getElementById('vatRateModal').classList.add('active');
+    }
+
+    // 关闭税率模态框
+    function closeVatRateModal() {
+      document.getElementById('vatRateModal').classList.remove('active');
+    }
+
+    // 保存税率
+    document.getElementById('vatRateForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const vatRateId = document.getElementById('vatRateId').value;
+      const data = {
+        code: document.getElementById('vatRateCode').value,
+        name: document.getElementById('vatRateName').value,
+        rate: parseFloat(document.getElementById('vatRateValue').value),
+        description: document.getElementById('vatRateDescription').value,
+        applicableScope: document.getElementById('vatRateScope').value,
+        sortOrder: parseInt(document.getElementById('vatRateSortOrder').value) || 0,
+        isActive: true
+      };
+      
+      try {
+        const url = vatRateId ? `${API_BASE}/vat-rates/${vatRateId}` : `${API_BASE}/vat-rates`;
+        const method = vatRateId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+          method: method,
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert(vatRateId ? '税率更新成功' : '税率添加成功');
+          closeVatRateModal();
+          loadVatRates();
+        } else {
+          alert('操作失败: ' + result.error);
+        }
+      } catch (error) {
+        alert('操作失败: ' + error.message);
+      }
+    });
+
+    // 删除税率
+    async function deleteVatRate(vatRateId, vatRateName) {
+      if (!confirm(`确定要删除税率"${vatRateName}"吗？\n\n⚠️ 注意：删除前请确保没有产品或分类使用此税率。`)) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${API_BASE}/vat-rates/${vatRateId}`, {
+          method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert('税率删除成功');
+          loadVatRates();
+        } else {
+          alert('删除失败: ' + result.error);
+        }
+      } catch (error) {
+        alert('删除失败: ' + error.message);
+      }
+    }
+  </script>
+</body>
+</html>

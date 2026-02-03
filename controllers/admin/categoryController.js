@@ -4,7 +4,7 @@ const ProductCategory = require('../../models/ProductCategory');
 exports.getCategories = async (req, res) => {
   try {
     const categories = await ProductCategory.find({ isActive: true })
-      .sort({ sortOrder: 1, name: 1 });
+      .sort({ sortOrder: 1, type: 1 });
     
     res.json({
       success: true,
@@ -80,7 +80,10 @@ exports.deleteCategory = async (req, res) => {
     
     // 检查是否有产品使用此分类
     const ProductNew = require('../../models/ProductNew');
-    const productCount = await ProductNew.countDocuments({ category: req.params.id });
+    const productCount = await ProductNew.countDocuments({ 
+      productType: category.type,
+      isActive: true 
+    });
     
     if (productCount > 0) {
       return res.status(400).json({

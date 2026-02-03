@@ -1,36 +1,27 @@
 const mongoose = require('mongoose');
 
 const productCategorySchema = new mongoose.Schema({
-  name: {
+  // 分类类型名称（唯一标识）
+  type: {
     type: String,
     required: true,
     unique: true,
     trim: true
   },
+  // 分类描述
   description: {
     type: String,
     trim: true
   },
-  // 大分类：手机配件，电脑配件，车载配件，audio，数据线，power supply，全新设备，二手设备，维修等
-  type: {
-    type: String,
-    enum: [
-      '手机配件', '电脑配件', '车载配件', 'Audio', '数据线', 
-      'Power Supply', '全新设备', '二手设备', '维修服务'
-    ],
-    required: true
-  },
-  // 默认税务分类
+  // 默认税率 - 从税率表中选择
   defaultVatRate: {
     type: String,
-    enum: ['VAT 23%', 'VAT 13.5%', 'VAT 0%'],
     default: 'VAT 23%'
   },
-  // 默认成色
+  // 默认成色 - 从成色表中选择
   defaultCondition: {
     type: String,
-    enum: ['Brand New', 'Pre-Owned', 'Refurbished'],
-    default: 'Brand New'
+    default: 'BRAND_NEW'
   },
   isActive: {
     type: Boolean,

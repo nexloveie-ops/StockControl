@@ -6,6 +6,9 @@ const multer = require('multer');
 const OpenAI = require('openai');
 require('dotenv').config();
 
+// 导入数据隔离中间件
+const { applyDataIsolation, applyGroupDataFilter, getUserInfo } = require('./middleware/dataIsolation');
+
 const app = express();
 
 // OpenAI配置
@@ -88,17 +91,40 @@ app.get('/api/stats', async (req, res) => {
     const UserNew = require('./models/UserNew');
     const SupplierNew = require('./models/SupplierNew');
     
+    // 查询所有激活的产品
+    const allProducts = await ProductNew.find({ isActive: true });
+    
+    // 统计可销售的产品（有库存或有可用序列号）
+    const availableProducts = allProducts.filter(product => {
+      // 如果有可用序列号，就算可销售
+      const hasAvailableSerials = product.serialNumbers && 
+        product.serialNumbers.some(sn => sn.status === 'available');
+      
+      // 如果库存大于0，也算可销售
+      const hasStock = product.stockQuantity > 0;
+      
+      return hasAvailableSerials || hasStock;
+    });
+    
     const stats = {
-      totalProducts: await ProductNew.countDocuments({ isActive: true, stockQuantity: { $gt: 0 } }), // 只统计有库存的
-      availableProducts: await ProductNew.countDocuments({ isActive: true, stockQuantity: { $gt: 0 } }),
+      totalProducts: availableProducts.length, // 可销售的产品总数
+      availableProducts: availableProducts.length, // 可销售的产品数
       totalUsers: await UserNew.countDocuments({ isActive: true }),
       totalSuppliers: await SupplierNew.countDocuments({ isActive: true }),
       totalInvoices: 0, // 暂时设为0，因为还没有销售发票模型
       totalOrders: 0, // 暂时设为0
       productsByCategory: {
-        accessories: await ProductNew.countDocuments({ isActive: true, stockQuantity: { $gt: 0 }, condition: 'Brand New' }),
-        newDevices: await ProductNew.countDocuments({ isActive: true, stockQuantity: { $gt: 0 }, condition: 'Brand New' }),
-        usedDevices: await ProductNew.countDocuments({ isActive: true, stockQuantity: { $gt: 0 }, condition: 'Pre-Owned' })
+        accessories: availableProducts.filter(p => 
+          p.productType && !p.productType.toLowerCase().includes('device')
+        ).length,
+        newDevices: availableProducts.filter(p => 
+          p.productType && p.productType.toLowerCase().includes('device') && 
+          p.condition === 'Brand New'
+        ).length,
+        usedDevices: availableProducts.filter(p => 
+          p.productType && p.productType.toLowerCase().includes('device') && 
+          p.condition === 'Pre-Owned'
+        ).length
       }
     };
     res.json({ success: true, data: stats });
@@ -882,9 +908,13 @@ app.post('/api/admin/receiving/confirm', async (req, res) => {
             if (!existingSerial) {
               productDoc.serialNumbers.push({
                 serialNumber: product.serialNumber,
+                color: product.color || '',
                 status: 'available',
                 purchaseInvoice: null // 稍后会更新
               });
+              console.log(`  ✅ 添加序列号: ${product.serialNumber}${product.color ? ` (${product.color})` : ''}`);
+            } else {
+              console.log(`  ⚠️  序列号已存在: ${product.serialNumber}`);
             }
           }
           
@@ -943,6 +973,7 @@ app.post('/api/admin/receiving/confirm', async (req, res) => {
             barcode: product.barcode || undefined,
             serialNumbers: product.serialNumber ? [{
               serialNumber: product.serialNumber,
+              color: product.color || '',
               status: 'available',
               purchaseInvoice: null // 稍后会更新
             }] : [],
@@ -1209,6 +1240,823 @@ app.get('/api/admin/purchase-orders/:invoiceId', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+// 别名路径（兼容旧代码）- 采购发票详情
+app.get('/api/purchase-invoices/:invoiceId', async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+    
+    const invoice = await PurchaseInvoice.findById(invoiceId)
+      .populate('supplier', 'name contact.email contact.phone contact.address')
+      .populate('items.product', 'name barcode serialNumbers');
+    
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        error: '发票不存在'
+      });
+    }
+    
+    const formattedInvoice = {
+      _id: invoice._id,
+      invoiceNumber: invoice.invoiceNumber,
+      supplier: invoice.supplier ? {
+        name: invoice.supplier.name,
+        email: invoice.supplier.contact?.email || '',
+        phone: invoice.supplier.contact?.phone || '',
+        address: invoice.supplier.contact?.address || ''
+      } : { name: '未知供应商', email: '', phone: '', address: '' },
+      invoiceDate: invoice.invoiceDate,
+      dueDate: invoice.dueDate,
+      currency: invoice.currency,
+      status: invoice.status,
+      paymentStatus: invoice.paymentStatus,
+      receivingStatus: invoice.receivingStatus,
+      totalAmount: invoice.totalAmount,
+      subtotal: invoice.subtotal,
+      taxAmount: invoice.taxAmount,
+      paidAmount: invoice.paidAmount,
+      notes: invoice.notes,
+      items: invoice.items.map(item => {
+        // 计算含税价格
+        const vatRate = item.vatRate || 'VAT 23%';
+        let taxMultiplier = 1.0;
+        
+        if (vatRate === 'VAT 23%') {
+          taxMultiplier = 1.23;
+        } else if (vatRate === 'VAT 13.5%') {
+          taxMultiplier = 1.135;
+        } else if (vatRate === 'VAT 0%') {
+          taxMultiplier = 1.0;
+        }
+        
+        const unitCostIncludingTax = (item.unitCost || 0) * taxMultiplier;
+        const totalCostIncludingTax = (item.totalCost || 0) * taxMultiplier;
+        
+        return {
+          _id: item._id,
+          product: item.product ? item.product._id : null,
+          productName: item.product ? item.product.name : '未知产品',
+          description: item.description,
+          quantity: item.quantity,
+          unitCost: unitCostIncludingTax, // 含税单价
+          totalCost: totalCostIncludingTax, // 含税总价
+          unitCostExcludingTax: item.unitCost, // 不含税单价（备用）
+          totalCostExcludingTax: item.totalCost, // 不含税总价（备用）
+          vatRate: vatRate,
+          taxAmount: item.taxAmount || 0,
+          serialNumbers: item.serialNumbers || [],
+          barcode: item.product ? item.product.barcode : ''
+        };
+      }),
+      payments: invoice.payments || [],
+      attachments: invoice.attachments || [],
+      createdAt: invoice.createdAt,
+      updatedAt: invoice.updatedAt
+    };
+    
+    res.json({
+      success: true,
+      data: formattedInvoice
+    });
+  } catch (error) {
+    console.error('获取采购发票详情失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ==================== 仓库订单API (Warehouse Order APIs) ====================
+
+// 生成订单号
+function generateOrderNumber() {
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const randomStr = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+  return `WO-${dateStr}-${randomStr}`;
+}
+
+// 商户端：获取仓库产品列表（可订购的产品）
+app.get('/api/warehouse/products', applyDataIsolation, async (req, res) => {
+  try {
+    const ProductNew = require('./models/ProductNew');
+    const { category, search } = req.query;
+    
+    let query = { 
+      isActive: true,
+      quantity: { $gt: 0 }  // 只显示有库存的产品
+    };
+    
+    if (category) {
+      query.category = category;
+    }
+    
+    if (search) {
+      query.$or = [
+        { name: new RegExp(search, 'i') },
+        { sku: new RegExp(search, 'i') },
+        { brand: new RegExp(search, 'i') },
+        { model: new RegExp(search, 'i') }
+      ];
+    }
+    
+    const products = await ProductNew.find(query)
+      .select('name sku brand model category quantity costPrice wholesalePrice retailPrice')
+      .sort({ category: 1, name: 1 });
+    
+    res.json({
+      success: true,
+      data: products
+    });
+  } catch (error) {
+    console.error('获取仓库产品失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 仓管员：获取某个产品的所有可用库存（用于发货时选择具体设备）
+app.get('/api/warehouse/products/:productId/available', async (req, res) => {
+  try {
+    const ProductNew = require('./models/ProductNew');
+    const { productId } = req.params;
+    
+    // 获取该产品
+    const baseProduct = await ProductNew.findById(productId);
+    
+    if (!baseProduct) {
+      return res.status(404).json({ success: false, error: '产品不存在' });
+    }
+    
+    // 检查产品是否有序列号（设备）
+    if (baseProduct.serialNumbers && baseProduct.serialNumbers.length > 0) {
+      // 设备：返回每个可用的序列号作为单独的产品
+      const availableDevices = baseProduct.serialNumbers
+        .filter(sn => sn.status === 'available')
+        .map(sn => ({
+          _id: sn._id,
+          name: baseProduct.name,
+          brand: baseProduct.brand,
+          model: baseProduct.model,
+          serialNumber: sn.serialNumber,
+          imei: sn.imei || null,
+          color: baseProduct.color,
+          condition: baseProduct.condition,
+          quantity: 1
+        }));
+      
+      return res.json({
+        success: true,
+        data: availableDevices
+      });
+    }
+    
+    // 配件：返回产品本身（按 stockQuantity）
+    const availableQuantity = baseProduct.stockQuantity || 0;
+    
+    if (availableQuantity > 0) {
+      return res.json({
+        success: true,
+        data: [{
+          _id: baseProduct._id,
+          name: baseProduct.name,
+          brand: baseProduct.brand,
+          model: baseProduct.model,
+          color: baseProduct.color,
+          condition: baseProduct.condition,
+          quantity: availableQuantity
+        }]
+      });
+    }
+    
+    // 没有可用库存
+    res.json({
+      success: true,
+      data: []
+    });
+    
+  } catch (error) {
+    console.error('获取可用产品失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 商户端：创建仓库订单
+app.post('/api/warehouse/orders', applyDataIsolation, async (req, res) => {
+  try {
+    const WarehouseOrder = require('./models/WarehouseOrder');
+    const ProductNew = require('./models/ProductNew');
+    const UserNew = require('./models/UserNew');
+    
+    const { items, deliveryMethod, deliveryAddress, pickupLocation, notes } = req.body;
+    const merchantId = req.currentUsername;
+    
+    // 获取商户信息
+    const user = await UserNew.findOne({ username: merchantId });
+    const merchantName = user?.profile?.firstName || merchantId;
+    
+    // 验证并计算订单项目
+    const orderItems = [];
+    let totalAmount = 0;
+    let subtotalAmount = 0;
+    let totalTaxAmount = 0;
+    
+    for (const item of items) {
+      const product = await ProductNew.findById(item.productId);
+      
+      if (!product) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `产品不存在: ${item.productId}` 
+        });
+      }
+      
+      if (product.quantity < item.quantity) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `${product.name} 库存不足，当前库存: ${product.quantity}` 
+        });
+      }
+      
+      // 批发价是含税价格
+      const itemTotal = product.wholesalePrice * item.quantity;
+      
+      // 从 vatRate 获取税务分类
+      let taxClassification = 'VAT_23';
+      if (product.vatRate === 'VAT 23%') {
+        taxClassification = 'VAT_23';
+      } else if (product.vatRate === 'VAT 13.5%' || product.vatRate === 'Service VAT 13.5%') {
+        taxClassification = 'SERVICE_VAT_13_5';
+      } else if (product.vatRate === 'VAT 0%' || product.vatRate === 'Margin VAT') {
+        taxClassification = 'MARGIN_VAT_0';
+      }
+      
+      // 计算税额
+      let itemTaxAmount = 0;
+      let itemSubtotal = 0;
+      
+      if (taxClassification === 'VAT_23') {
+        // VAT 23%: 税额 = 总价 × 23/123
+        itemTaxAmount = itemTotal * (23 / 123);
+        itemSubtotal = itemTotal - itemTaxAmount;
+      } else if (taxClassification === 'SERVICE_VAT_13_5') {
+        // Service VAT 13.5%: 税额 = 总价 × 13.5/113.5
+        itemTaxAmount = itemTotal * (13.5 / 113.5);
+        itemSubtotal = itemTotal - itemTaxAmount;
+      } else if (taxClassification === 'MARGIN_VAT_0') {
+        // Margin VAT: 税额 = (卖价 - 成本价) × 23/123
+        const costPrice = product.costPrice || 0;
+        const margin = itemTotal - (costPrice * item.quantity);
+        itemTaxAmount = margin * (23 / 123);
+        itemSubtotal = itemTotal - itemTaxAmount;
+      } else {
+        // VAT_0 或其他
+        itemTaxAmount = 0;
+        itemSubtotal = itemTotal;
+      }
+      
+      totalAmount += itemTotal;
+      subtotalAmount += itemSubtotal;
+      totalTaxAmount += itemTaxAmount;
+      
+      orderItems.push({
+        productId: product._id,
+        productName: product.name,
+        sku: product.sku,
+        brand: product.brand,
+        model: product.model,
+        quantity: item.quantity,
+        wholesalePrice: product.wholesalePrice,
+        subtotal: itemTotal,
+        taxClassification: taxClassification,
+        taxAmount: itemTaxAmount
+      });
+    }
+    
+    // 创建订单并预留库存
+    const order = new WarehouseOrder({
+      orderNumber: generateOrderNumber(),
+      merchantId,
+      merchantName,
+      items: orderItems,
+      totalAmount,
+      subtotal: subtotalAmount,
+      taxAmount: totalTaxAmount,
+      deliveryMethod,
+      deliveryAddress: deliveryMethod === 'delivery' ? deliveryAddress : '',
+      pickupLocation: deliveryMethod === 'pickup' ? pickupLocation : '',
+      notes,
+      status: 'pending'
+    });
+    
+    await order.save();
+    
+    // 预留库存：扣减仓库产品数量
+    for (const item of items) {
+      const product = await ProductNew.findById(item.productId);
+      if (product) {
+        product.quantity -= item.quantity;
+        await product.save();
+      }
+    }
+    
+    res.json({
+      success: true,
+      data: order,
+      message: '订单创建成功，库存已预留'
+    });
+  } catch (error) {
+    console.error('创建订单失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 商户端：获取我的订单列表
+app.get('/api/warehouse/orders/my', applyDataIsolation, async (req, res) => {
+  try {
+    const WarehouseOrder = require('./models/WarehouseOrder');
+    const { status } = req.query;
+    
+    let query = { merchantId: req.currentUsername };
+    
+    if (status) {
+      query.status = status;
+    }
+    
+    const orders = await WarehouseOrder.find(query)
+      .sort({ orderedAt: -1 })
+      .limit(100);
+    
+    res.json({
+      success: true,
+      data: orders
+    });
+  } catch (error) {
+    console.error('获取订单列表失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 商户端/仓管员：获取订单详情
+app.get('/api/warehouse/orders/:id', async (req, res) => {
+  try {
+    const WarehouseOrder = require('./models/WarehouseOrder');
+    
+    const order = await WarehouseOrder.findById(req.params.id)
+      .populate('items.productId');
+    
+    if (!order) {
+      return res.status(404).json({ 
+        success: false, 
+        error: '订单不存在' 
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: order
+    });
+  } catch (error) {
+    console.error('获取订单详情失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 仓管员：获取所有订单
+app.get('/api/warehouse/orders', async (req, res) => {
+  try {
+    const WarehouseOrder = require('./models/WarehouseOrder');
+    const { status, merchantId } = req.query;
+    
+    let query = {};
+    
+    if (status) {
+      query.status = status;
+    }
+    
+    if (merchantId) {
+      query.merchantId = merchantId;
+    }
+    
+    const orders = await WarehouseOrder.find(query)
+      .sort({ orderedAt: -1 })
+      .limit(200);
+    
+    res.json({
+      success: true,
+      data: orders
+    });
+  } catch (error) {
+    console.error('获取订单列表失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 仓管员：确认订单
+app.put('/api/warehouse/orders/:id/confirm', async (req, res) => {
+  try {
+    const WarehouseOrder = require('./models/WarehouseOrder');
+    const ProductNew = require('./models/ProductNew');
+    
+    const order = await WarehouseOrder.findById(req.params.id);
+    
+    if (!order) {
+      return res.status(404).json({ success: false, error: '订单不存在' });
+    }
+    
+    if (order.status !== 'pending') {
+      return res.status(400).json({ success: false, error: '订单状态不正确' });
+    }
+    
+    // 检查库存
+    for (const item of order.items) {
+      const product = await ProductNew.findById(item.productId);
+      if (!product || product.quantity < item.quantity) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `${item.productName} 库存不足` 
+        });
+      }
+    }
+    
+    // 更新订单状态
+    order.status = 'confirmed';
+    order.confirmedAt = new Date();
+    order.confirmedBy = req.body.confirmedBy || 'warehouse';
+    
+    await order.save();
+    
+    res.json({
+      success: true,
+      data: order,
+      message: '订单已确认'
+    });
+  } catch (error) {
+    console.error('确认订单失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 仓管员：标记发货（只更新状态，不转移库存）
+app.put('/api/warehouse/orders/:id/ship', async (req, res) => {
+  try {
+    const WarehouseOrder = require('./models/WarehouseOrder');
+    
+    const order = await WarehouseOrder.findById(req.params.id);
+    const { shipmentItems } = req.body;
+    
+    if (!order) {
+      return res.status(404).json({ success: false, error: '订单不存在' });
+    }
+    
+    if (order.status !== 'confirmed') {
+      return res.status(400).json({ success: false, error: '订单必须先确认' });
+    }
+    
+    if (!shipmentItems || shipmentItems.length === 0) {
+      return res.status(400).json({ success: false, error: '缺少发货信息' });
+    }
+    
+    // 保存发货信息到订单（用于后续商户确认收货时使用）
+    order.shipmentDetails = shipmentItems;
+    
+    // 更新订单状态为已发货
+    order.status = 'shipped';
+    order.shippedAt = new Date();
+    order.shippedBy = req.body.shippedBy || 'warehouse';
+    
+    await order.save();
+    
+    res.json({
+      success: true,
+      data: order,
+      message: '订单已标记为发货，等待商户确认收货'
+    });
+  } catch (error) {
+    console.error('发货失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 商户：确认收货（转移库存到商户）
+app.put('/api/warehouse/orders/:id/complete', applyDataIsolation, async (req, res) => {
+  try {
+    const WarehouseOrder = require('./models/WarehouseOrder');
+    const ProductNew = require('./models/ProductNew');
+    const MerchantInventory = require('./models/MerchantInventory');
+    
+    const order = await WarehouseOrder.findById(req.params.id);
+    
+    if (!order) {
+      return res.status(404).json({ success: false, error: '订单不存在' });
+    }
+    
+    if (order.status !== 'shipped') {
+      return res.status(400).json({ success: false, error: '订单必须先发货' });
+    }
+    
+    // 验证是否是订单的商户
+    if (order.merchantId !== req.currentUsername) {
+      return res.status(403).json({ success: false, error: '无权操作此订单' });
+    }
+    
+    let shipmentItems = order.shipmentDetails || [];
+    
+    // 兼容性处理：如果是旧订单（没有 shipmentDetails），生成默认的发货信息
+    if (shipmentItems.length === 0) {
+      console.log(`⚠️  旧订单 ${order.orderNumber} 没有 shipmentDetails，生成默认发货信息`);
+      
+      // 为每个订单项目生成默认的发货信息
+      for (const item of order.items) {
+        const product = await ProductNew.findById(item.productId).populate('category', 'name type');
+        
+        if (!product) {
+          return res.status(400).json({ 
+            success: false, 
+            error: `产品不存在: ${item.productName}` 
+          });
+        }
+        
+        // 判断是设备还是配件
+        const isDevice = product.serialNumbers && product.serialNumbers.length > 0;
+        
+        if (isDevice) {
+          // 设备：选择可用的序列号
+          const availableSerialNumbers = product.serialNumbers
+            .filter(sn => sn.status === 'available')
+            .slice(0, item.quantity);
+          
+          if (availableSerialNumbers.length < item.quantity) {
+            return res.status(400).json({ 
+              success: false, 
+              error: `${item.productName} 可用库存不足，需要 ${item.quantity} 台，只有 ${availableSerialNumbers.length} 台可用` 
+            });
+          }
+          
+          shipmentItems.push({
+            isDevice: true,
+            selectedProducts: availableSerialNumbers.map(sn => sn._id)
+          });
+        } else {
+          // 配件：使用订单数量
+          if (product.stockQuantity < item.quantity) {
+            return res.status(400).json({ 
+              success: false, 
+              error: `${item.productName} 库存不足，需要 ${item.quantity} 件，只有 ${product.stockQuantity} 件可用` 
+            });
+          }
+          
+          shipmentItems.push({
+            isDevice: false,
+            quantity: item.quantity
+          });
+        }
+      }
+      
+      console.log(`✅ 为旧订单生成了 ${shipmentItems.length} 个发货项目`);
+    }
+    
+    if (shipmentItems.length === 0) {
+      return res.status(400).json({ success: false, error: '缺少发货信息' });
+    }
+    
+    // 处理每个订单项目的库存转移
+    for (let i = 0; i < order.items.length; i++) {
+      const orderItem = order.items[i];
+      const shipmentItem = shipmentItems[i];
+      
+      if (!shipmentItem) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `缺少 ${orderItem.productName} 的发货信息` 
+        });
+      }
+      
+      if (shipmentItem.isDevice) {
+        // 设备：处理选中的序列号
+        const selectedSerialNumberIds = shipmentItem.selectedProducts;
+        
+        if (!selectedSerialNumberIds || selectedSerialNumberIds.length !== orderItem.quantity) {
+          return res.status(400).json({ 
+            success: false, 
+            error: `${orderItem.productName} 需要选择 ${orderItem.quantity} 台设备` 
+          });
+        }
+        
+        const product = await ProductNew.findById(orderItem.productId).populate('category', 'name type');
+        
+        if (!product) {
+          return res.status(400).json({ 
+            success: false, 
+            error: `产品不存在: ${orderItem.productName}` 
+          });
+        }
+        
+        // 获取分类名称
+        const categoryName = product.category?.type || product.category?.name || '未分类';
+        
+        // 转换 vatRate 为 taxClassification
+        let taxClassification = 'VAT_23';
+        if (product.vatRate === 'VAT 23%') {
+          taxClassification = 'VAT_23';
+        } else if (product.vatRate === 'VAT 13.5%') {
+          taxClassification = 'SERVICE_VAT_13_5';
+        } else if (product.vatRate === 'VAT 0%') {
+          taxClassification = 'MARGIN_VAT_0';
+        }
+        
+        // 为每个选中的序列号创建商户库存
+        for (const snId of selectedSerialNumberIds) {
+          // 在 serialNumbers 数组中找到对应的序列号
+          const serialNumberObj = product.serialNumbers.find(sn => sn._id.toString() === snId.toString());
+          
+          if (!serialNumberObj || serialNumberObj.status !== 'available') {
+            return res.status(400).json({ 
+              success: false, 
+              error: `序列号不可用: ${snId}` 
+            });
+          }
+          
+          // 创建商户库存记录（继承序列号信息）
+          const merchantInventory = new MerchantInventory({
+            merchantId: order.merchantId,
+            merchantName: order.merchantName,
+            productId: product._id,
+            productName: product.name,
+            brand: product.brand,
+            model: product.model,
+            category: categoryName,
+            imei: serialNumberObj.imei || null,
+            serialNumber: serialNumberObj.serialNumber,
+            color: product.color,
+            condition: product.condition,
+            quantity: 1,
+            costPrice: product.costPrice,
+            wholesalePrice: product.wholesalePrice,
+            retailPrice: product.retailPrice,
+            taxClassification: taxClassification,
+            source: 'warehouse',
+            sourceOrderId: order._id,
+            status: 'active',
+            isActive: true,
+            notes: `从仓库订货 - 订单号: ${order.orderNumber} - SN: ${serialNumberObj.serialNumber}${serialNumberObj.imei ? ` - IMEI: ${serialNumberObj.imei}` : ''}`
+          });
+          
+          await merchantInventory.save();
+          
+          // 标记序列号为已售出
+          serialNumberObj.status = 'sold';
+          serialNumberObj.soldTo = order.merchantId;
+          serialNumberObj.soldAt = new Date();
+        }
+        
+        // 更新 stockQuantity（可用序列号数量）
+        const availableCount = product.serialNumbers.filter(sn => sn.status === 'available').length;
+        product.stockQuantity = availableCount;
+        
+        // 如果没有可用序列号，标记产品为不活跃
+        if (availableCount === 0) {
+          product.isActive = false;
+        }
+        
+        // 保存产品（更新 serialNumbers 状态和 stockQuantity）
+        await product.save();
+        
+      } else {
+        // 配件：按数量创建商户库存
+        const quantity = shipmentItem.quantity;
+        
+        if (!quantity || quantity < 1 || quantity > orderItem.quantity) {
+          return res.status(400).json({ 
+            success: false, 
+            error: `${orderItem.productName} 的发货数量无效` 
+          });
+        }
+        
+        const product = await ProductNew.findById(orderItem.productId).populate('category', 'name type');
+        
+        if (!product) {
+          return res.status(400).json({ 
+            success: false, 
+            error: `产品不存在: ${orderItem.productName}` 
+          });
+        }
+        
+        // 获取分类名称
+        const categoryName = product.category?.type || product.category?.name || '未分类';
+        
+        // 转换 vatRate 为 taxClassification
+        let taxClassification = 'VAT_23';
+        if (product.vatRate === 'VAT 23%') {
+          taxClassification = 'VAT_23';
+        } else if (product.vatRate === 'VAT 13.5%') {
+          taxClassification = 'SERVICE_VAT_13_5';
+        } else if (product.vatRate === 'VAT 0%') {
+          taxClassification = 'MARGIN_VAT_0';
+        }
+        
+        // 创建商户库存记录
+        for (let j = 0; j < quantity; j++) {
+          const merchantInventory = new MerchantInventory({
+            merchantId: order.merchantId,
+            merchantName: order.merchantName,
+            productId: product._id,
+            productName: product.name,
+            brand: product.brand,
+            model: product.model,
+            category: categoryName,
+            quantity: 1,
+            costPrice: product.costPrice,
+            wholesalePrice: product.wholesalePrice,
+            retailPrice: product.retailPrice,
+            taxClassification: taxClassification,
+            source: 'warehouse',
+            sourceOrderId: order._id,
+            status: 'active',
+            isActive: true,
+            notes: `从仓库订货 - 订单号: ${order.orderNumber}`
+          });
+          
+          await merchantInventory.save();
+        }
+        
+        // 扣减配件库存
+        product.stockQuantity -= quantity;
+        
+        // 如果库存为 0，标记为不活跃
+        if (product.stockQuantity <= 0) {
+          product.stockQuantity = 0;
+          product.isActive = false;
+        }
+        
+        await product.save();
+      }
+    }
+    
+    // 更新订单状态为已完成
+    order.status = 'completed';
+    order.completedAt = new Date();
+    order.completedBy = req.currentUsername;
+    
+    await order.save();
+    
+    res.json({
+      success: true,
+      data: order,
+      message: '收货确认成功，库存已入库'
+    });
+  } catch (error) {
+    console.error('完成订单失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 仓管员：取消订单
+app.put('/api/warehouse/orders/:id/cancel', async (req, res) => {
+  try {
+    const WarehouseOrder = require('./models/WarehouseOrder');
+    const ProductNew = require('./models/ProductNew');
+    
+    const order = await WarehouseOrder.findById(req.params.id);
+    
+    if (!order) {
+      return res.status(404).json({ success: false, error: '订单不存在' });
+    }
+    
+    if (order.status === 'completed' || order.status === 'cancelled') {
+      return res.status(400).json({ success: false, error: '订单无法取消' });
+    }
+    
+    if (order.status === 'shipped') {
+      return res.status(400).json({ success: false, error: '已发货的订单无法取消' });
+    }
+    
+    // 恢复预留的库存
+    for (const item of order.items) {
+      const product = await ProductNew.findById(item.productId);
+      if (product) {
+        product.quantity += item.quantity;
+        await product.save();
+      }
+    }
+    
+    order.status = 'cancelled';
+    order.cancelledAt = new Date();
+    order.cancelReason = req.body.reason || '';
+    
+    await order.save();
+    
+    res.json({
+      success: true,
+      data: order,
+      message: '订单已取消，库存已恢复'
+    });
+  } catch (error) {
+    console.error('取消订单失败:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -2636,6 +3484,63 @@ app.get('/api/admin/sales-invoices/:invoiceId', checkDbConnection, async (req, r
   }
 });
 
+// 别名路径（兼容旧代码）
+app.get('/api/sales-invoices/:invoiceId', checkDbConnection, async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+    const SalesInvoice = require('./models/SalesInvoice');
+    const CompanyInfo = require('./models/CompanyInfo');
+    
+    const invoice = await SalesInvoice.findById(invoiceId)
+      .populate('customer', 'name code contact taxNumber')
+      .populate('items.product', 'name sku barcode vatRate');
+    
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        error: '发票不存在'
+      });
+    }
+    
+    // 获取公司信息
+    const companyInfo = await CompanyInfo.findOne({ isDefault: true });
+    
+    // 格式化发票数据（计算含税价格）
+    const formattedInvoice = {
+      ...invoice.toObject(),
+      items: invoice.items.map(item => {
+        const product = item.product;
+        const vatRate = product?.vatRate || item.vatRate || 'VAT 23%';
+        const taxMultiplier = vatRate === 'VAT 23%' ? 1.23 : 
+                             vatRate === 'VAT 13.5%' ? 1.135 : 1.0;
+        
+        // 确保价格字段存在
+        const unitPrice = item.unitPrice || 0;
+        const totalPrice = item.totalPrice || 0;
+        
+        return {
+          ...item.toObject ? item.toObject() : item,
+          unitPriceIncludingTax: unitPrice * taxMultiplier,
+          totalPriceIncludingTax: totalPrice * taxMultiplier,
+          vatRate: vatRate
+        };
+      }),
+      companyInfo: companyInfo
+    };
+    
+    res.json({
+      success: true,
+      data: formattedInvoice
+    });
+  } catch (error) {
+    console.error('获取销售发票详情失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // 确认销售发票付款
 app.post('/api/admin/sales-invoices/:invoiceId/payment', checkDbConnection, async (req, res) => {
   try {
@@ -2704,6 +3609,7 @@ app.get('/api/admin/reports/financial', checkDbConnection, async (req, res) => {
     
     const SalesInvoice = require('./models/SalesInvoice');
     const PurchaseInvoice = require('./models/PurchaseInvoice');
+    const WarehouseOrder = require('./models/WarehouseOrder');
     
     const start = startDate ? new Date(startDate) : new Date(0);
     const end = endDate ? new Date(endDate) : new Date();
@@ -2717,18 +3623,67 @@ app.get('/api/admin/reports/financial', checkDbConnection, async (req, res) => {
         invoiceDate: { $gte: start, $lte: end }
       })
       .populate('customer', 'name')
+      .populate('items.product')
       .sort({ invoiceDate: -1 });
       
       salesInvoices.forEach(invoice => {
+        // 重新计算税额（基于产品的 vatRate 和 costPrice）
+        let recalculatedTax = 0;
+        
+        invoice.items.forEach(item => {
+          const product = item.product;
+          if (!product) {
+            // 如果产品不存在，使用发票中的税额
+            recalculatedTax += item.taxAmount || 0;
+            return;
+          }
+          
+          // 对于 Margin VAT 产品，需要重新计算税额
+          if (product.vatRate === 'VAT 0%') {
+            // Margin VAT: 税额 = (含税卖价 - 成本价) × 23/123
+            const totalPriceWithTax = item.totalPrice + item.taxAmount; // 含税价格
+            const costPrice = product.costPrice * item.quantity;
+            
+            if (costPrice > 0) {
+              recalculatedTax += (totalPriceWithTax - costPrice) * (23 / 123);
+            }
+          } else {
+            // 对于 VAT 23% 和 VAT 13.5%，使用发票中已计算的税额
+            recalculatedTax += item.taxAmount || 0;
+          }
+        });
+        
         results.push({
           _id: invoice._id,
           invoiceNumber: invoice.invoiceNumber,
           type: 'sales',
+          subType: 'retail', // 零售
           partner: invoice.customer?.name || 'Unknown',
           date: invoice.invoiceDate,
           totalAmount: invoice.totalAmount, // 含税金额
-          taxAmount: invoice.taxAmount, // 税额（正数）
+          taxAmount: recalculatedTax, // 重新计算的税额（正数）
           subtotal: invoice.subtotal // 不含税金额
+        });
+      });
+      
+      // 获取已完成的仓库订单（批发销售）
+      const warehouseOrders = await WarehouseOrder.find({
+        status: 'completed',
+        completedAt: { $gte: start, $lte: end }
+      })
+      .sort({ completedAt: -1 });
+      
+      warehouseOrders.forEach(order => {
+        results.push({
+          _id: order._id,
+          invoiceNumber: order.orderNumber,
+          type: 'sales',
+          subType: 'wholesale', // 批发
+          partner: order.merchantName || order.merchantId,
+          date: order.completedAt,
+          totalAmount: order.totalAmount, // 批发价（含税）
+          taxAmount: order.taxAmount || 0, // 税额
+          subtotal: order.subtotal || order.totalAmount // 不含税金额
         });
       });
     }
@@ -2746,6 +3701,7 @@ app.get('/api/admin/reports/financial', checkDbConnection, async (req, res) => {
           _id: invoice._id,
           invoiceNumber: invoice.invoiceNumber,
           type: 'purchase',
+          subType: 'external', // 外部采购
           partner: invoice.supplier?.name || 'Unknown',
           date: invoice.invoiceDate,
           totalAmount: invoice.totalAmount, // 含税金额
@@ -2764,13 +3720,17 @@ app.get('/api/admin/reports/financial', checkDbConnection, async (req, res) => {
       totalSalesTax: 0,          // 总计销售税额
       totalPurchaseAmount: 0,    // 总计税后采购金额
       totalPurchaseTax: 0,       // 总计采购税额（负数）
-      totalTaxPayable: 0         // 总计应缴税额
+      totalTaxPayable: 0,        // 总计应缴税额
+      totalWholesaleAmount: 0    // 总计批发金额（新增）
     };
     
     results.forEach(item => {
       if (item.type === 'sales') {
         summary.totalSalesAmount += item.totalAmount;
         summary.totalSalesTax += item.taxAmount;
+        if (item.subType === 'wholesale') {
+          summary.totalWholesaleAmount += item.totalAmount;
+        }
       } else if (item.type === 'purchase') {
         summary.totalPurchaseAmount += item.totalAmount;
         summary.totalPurchaseTax += item.taxAmount; // 已经是负数
@@ -2778,11 +3738,8 @@ app.get('/api/admin/reports/financial', checkDbConnection, async (req, res) => {
     });
     
     // 计算应缴税额
-    // Net VAT Payable = 销售税额 - 采购税额 + (盈利部分 × 23/123)
-    const profit = summary.totalSalesAmount - summary.totalPurchaseAmount; // 盈利部分（含税）
-    const profitVAT = profit * (23 / 123); // 盈利部分的增值税
-    
-    summary.totalTaxPayable = summary.totalSalesTax - Math.abs(summary.totalPurchaseTax) + profitVAT;
+    // Net VAT Payable = 销售税额 - 采购税额（可抵扣）
+    summary.totalTaxPayable = summary.totalSalesTax - Math.abs(summary.totalPurchaseTax);
     
     // 获取库存资产数据（可销售的产品）
     const ProductNew = require('./models/ProductNew');
@@ -2852,6 +3809,207 @@ app.get('/api/admin/reports/financial', checkDbConnection, async (req, res) => {
   }
 });
 
+// 别名路径（兼容旧代码）- 财务报表
+app.get('/api/reports/financial', checkDbConnection, async (req, res) => {
+  try {
+    const { startDate, endDate, type } = req.query;
+    
+    const SalesInvoice = require('./models/SalesInvoice');
+    const PurchaseInvoice = require('./models/PurchaseInvoice');
+    const WarehouseOrder = require('./models/WarehouseOrder');
+    
+    const start = startDate ? new Date(startDate) : new Date(0);
+    const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
+    
+    const results = [];
+    
+    // 获取销售发票
+    if (type === 'sales' || type === 'all') {
+      const salesInvoices = await SalesInvoice.find({
+        invoiceDate: { $gte: start, $lte: end }
+      })
+      .populate('customer', 'name')
+      .populate('items.product')
+      .sort({ invoiceDate: -1 });
+      
+      salesInvoices.forEach(invoice => {
+        // 重新计算税额（基于产品的 vatRate 和 costPrice）
+        let recalculatedTax = 0;
+        
+        invoice.items.forEach(item => {
+          const product = item.product;
+          if (!product) {
+            // 如果产品不存在，使用发票中的税额
+            recalculatedTax += item.taxAmount || 0;
+            return;
+          }
+          
+          // 对于 Margin VAT 产品，需要重新计算税额
+          if (product.vatRate === 'VAT 0%') {
+            // Margin VAT: 税额 = (含税卖价 - 成本价) × 23/123
+            const totalPriceWithTax = item.totalPrice + item.taxAmount; // 含税价格
+            const costPrice = product.costPrice * item.quantity;
+            
+            if (costPrice > 0) {
+              recalculatedTax += (totalPriceWithTax - costPrice) * (23 / 123);
+            }
+          } else {
+            // 对于 VAT 23% 和 VAT 13.5%，使用发票中已计算的税额
+            recalculatedTax += item.taxAmount || 0;
+          }
+        });
+        
+        results.push({
+          _id: invoice._id,
+          invoiceNumber: invoice.invoiceNumber,
+          type: 'sales',
+          subType: 'retail',
+          partner: invoice.customer?.name || 'Unknown',
+          date: invoice.invoiceDate,
+          totalAmount: invoice.totalAmount,
+          taxAmount: recalculatedTax, // 重新计算的税额
+          subtotal: invoice.subtotal
+        });
+      });
+      
+      // 获取已完成的仓库订单（批发销售）
+      const warehouseOrders = await WarehouseOrder.find({
+        status: 'completed',
+        completedAt: { $gte: start, $lte: end }
+      })
+      .sort({ completedAt: -1 });
+      
+      warehouseOrders.forEach(order => {
+        results.push({
+          _id: order._id,
+          invoiceNumber: order.orderNumber,
+          type: 'sales',
+          subType: 'wholesale',
+          partner: order.merchantName || order.merchantId,
+          date: order.completedAt,
+          totalAmount: order.totalAmount,
+          taxAmount: order.taxAmount || 0,
+          subtotal: order.subtotal || order.totalAmount
+        });
+      });
+    }
+    
+    // 获取采购发票
+    if (type === 'purchase' || type === 'all') {
+      const purchaseInvoices = await PurchaseInvoice.find({
+        invoiceDate: { $gte: start, $lte: end }
+      })
+      .populate('supplier', 'name')
+      .sort({ invoiceDate: -1 });
+      
+      purchaseInvoices.forEach(invoice => {
+        results.push({
+          _id: invoice._id,
+          invoiceNumber: invoice.invoiceNumber,
+          type: 'purchase',
+          subType: 'external',
+          partner: invoice.supplier?.name || 'Unknown',
+          date: invoice.invoiceDate,
+          totalAmount: invoice.totalAmount,
+          taxAmount: -invoice.taxAmount,
+          subtotal: invoice.subtotal
+        });
+      });
+    }
+    
+    results.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    const summary = {
+      totalSalesAmount: 0,
+      totalSalesTax: 0,
+      totalPurchaseAmount: 0,
+      totalPurchaseTax: 0,
+      totalTaxPayable: 0,
+      totalWholesaleAmount: 0
+    };
+    
+    results.forEach(item => {
+      if (item.type === 'sales') {
+        summary.totalSalesAmount += item.totalAmount;
+        summary.totalSalesTax += item.taxAmount;
+        if (item.subType === 'wholesale') {
+          summary.totalWholesaleAmount += item.totalAmount;
+        }
+      } else if (item.type === 'purchase') {
+        summary.totalPurchaseAmount += item.totalAmount;
+        summary.totalPurchaseTax += item.taxAmount;
+      }
+    });
+    
+    // 计算应缴税额
+    // Net VAT Payable = 销售税额 - 采购税额（可抵扣）
+    summary.totalTaxPayable = summary.totalSalesTax - Math.abs(summary.totalPurchaseTax);
+    
+    // 获取库存资产数据
+    const ProductNew = require('./models/ProductNew');
+    
+    const availableProducts = await ProductNew.find({
+      isActive: true,
+      stockQuantity: { $gt: 0 }
+    }).populate('category', 'name type');
+    
+    const assetsByCategory = {};
+    let totalAssetValue = 0;
+    
+    availableProducts.forEach(product => {
+      const categoryName = product.category?.type || 'Uncategorized';
+      
+      if (!assetsByCategory[categoryName]) {
+        assetsByCategory[categoryName] = {
+          category: categoryName,
+          products: [],
+          totalQuantity: 0,
+          totalValue: 0
+        };
+      }
+      
+      const productValue = product.costPrice * product.stockQuantity;
+      
+      assetsByCategory[categoryName].products.push({
+        _id: product._id,
+        name: product.name,
+        brand: product.brand,
+        model: product.model,
+        condition: product.condition,
+        quantity: product.stockQuantity,
+        costPrice: product.costPrice,
+        totalValue: productValue
+      });
+      
+      assetsByCategory[categoryName].totalQuantity += product.stockQuantity;
+      assetsByCategory[categoryName].totalValue += productValue;
+      totalAssetValue += productValue;
+    });
+    
+    const assets = Object.values(assetsByCategory).sort((a, b) => b.totalValue - a.totalValue);
+    
+    res.json({
+      success: true,
+      data: {
+        invoices: results,
+        summary: summary,
+        assets: {
+          categories: assets,
+          totalAssetValue: totalAssetValue,
+          totalProducts: availableProducts.length
+        }
+      }
+    });
+  } catch (error) {
+    console.error('获取财务报表失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // 清除数据库数据（保留客户、供货商、公司信息）
 app.post('/api/admin/clear-data', checkDbConnection, async (req, res) => {
   try {
@@ -2884,6 +4042,2016 @@ app.post('/api/admin/clear-data', checkDbConnection, async (req, res) => {
     });
   } catch (error) {
     console.error('清除数据失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ==================== 用户管理API ====================
+
+// 获取所有用户（包括群组信息）
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    const UserNew = require('./models/UserNew');
+    const users = await UserNew.find()
+      .populate('retailInfo.storeGroup', 'name code')
+      .populate('retailInfo.store', 'name code')
+      .select('-password')
+      .sort({ createdAt: -1 });
+    
+    res.json({ success: true, data: users });
+  } catch (error) {
+    console.error('获取用户列表失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 创建新用户
+app.post('/api/admin/users', async (req, res) => {
+  try {
+    const UserNew = require('./models/UserNew');
+    const { username, email, password, role, profile, retailInfo } = req.body;
+    
+    // 检查用户名是否已存在
+    const existingUser = await UserNew.findOne({ 
+      $or: [{ username }, { email }] 
+    });
+    
+    if (existingUser) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '用户名或邮箱已存在' 
+      });
+    }
+    
+    // 创建新用户
+    const user = new UserNew({
+      username,
+      email,
+      password,
+      role,
+      profile: profile || {},
+      retailInfo: retailInfo || {},
+      isActive: true
+    });
+    
+    // 设置默认权限
+    user.setDefaultPermissions();
+    
+    await user.save();
+    
+    // 返回用户信息（不包含密码）
+    const userObj = user.toObject();
+    delete userObj.password;
+    
+    res.json({ 
+      success: true, 
+      data: userObj,
+      message: '用户创建成功' 
+    });
+  } catch (error) {
+    console.error('创建用户失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 更新用户信息
+app.put('/api/admin/users/:id', async (req, res) => {
+  try {
+    const UserNew = require('./models/UserNew');
+    const { id } = req.params;
+    const { username, email, role, profile, retailInfo, isActive, password } = req.body;
+    
+    const user = await UserNew.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, error: '用户不存在' });
+    }
+    
+    // 更新基本信息
+    if (username) user.username = username;
+    if (email) user.email = email;
+    if (role) {
+      user.role = role;
+      user.setDefaultPermissions(); // 重新设置权限
+    }
+    if (profile) user.profile = { ...user.profile, ...profile };
+    if (retailInfo) user.retailInfo = { ...user.retailInfo, ...retailInfo };
+    if (typeof isActive !== 'undefined') user.isActive = isActive;
+    
+    // 如果提供了新密码，更新密码
+    if (password && password.trim()) {
+      user.password = password;
+    }
+    
+    await user.save();
+    
+    // 返回更新后的用户信息（不包含密码）
+    const userObj = user.toObject();
+    delete userObj.password;
+    
+    res.json({ 
+      success: true, 
+      data: userObj,
+      message: '用户更新成功' 
+    });
+  } catch (error) {
+    console.error('更新用户失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 删除用户（软删除）
+app.delete('/api/admin/users/:id', async (req, res) => {
+  try {
+    const UserNew = require('./models/UserNew');
+    const { id } = req.params;
+    
+    const user = await UserNew.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, error: '用户不存在' });
+    }
+    
+    // 软删除：设置为不活跃
+    user.isActive = false;
+    await user.save();
+    
+    res.json({ 
+      success: true, 
+      message: '用户已停用' 
+    });
+  } catch (error) {
+    console.error('删除用户失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==================== 登录认证API ====================
+
+// 用户登录
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const UserNew = require('./models/UserNew');
+    const { username, password } = req.body;
+    
+    // 验证输入
+    if (!username || !password) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '用户名和密码不能为空' 
+      });
+    }
+    
+    // 查找用户（支持用户名或邮箱登录）
+    const user = await UserNew.findOne({
+      $or: [
+        { username: username },
+        { email: username }
+      ]
+    }).populate('retailInfo.storeGroup', 'name code');
+    
+    // 用户不存在
+    if (!user) {
+      return res.status(401).json({ 
+        success: false, 
+        error: '用户名或密码错误' 
+      });
+    }
+    
+    // 检查账户是否激活
+    if (!user.isActive) {
+      return res.status(403).json({ 
+        success: false, 
+        error: '账户已被停用，请联系管理员' 
+      });
+    }
+    
+    // 验证密码
+    const isPasswordValid = await user.comparePassword(password);
+    
+    if (!isPasswordValid) {
+      return res.status(401).json({ 
+        success: false, 
+        error: '用户名或密码错误' 
+      });
+    }
+    
+    // 更新登录信息
+    user.lastLoginAt = new Date();
+    user.loginCount = (user.loginCount || 0) + 1;
+    await user.save();
+    
+    // 返回用户信息（不包含密码）
+    const userObj = user.toObject();
+    delete userObj.password;
+    delete userObj.passwordResetToken;
+    delete userObj.passwordResetExpires;
+    delete userObj.emailVerificationToken;
+    
+    res.json({ 
+      success: true, 
+      data: {
+        user: userObj,
+        message: '登录成功'
+      }
+    });
+  } catch (error) {
+    console.error('登录失败:', error);
+    res.status(500).json({ success: false, error: '登录失败，请稍后重试' });
+  }
+});
+
+// ==================== 群组管理API ====================
+
+// 获取所有群组
+app.get('/api/admin/store-groups', async (req, res) => {
+  try {
+    const StoreGroup = require('./models/StoreGroup');
+    const groups = await StoreGroup.find()
+      .populate('createdBy', 'username email')
+      .sort({ createdAt: -1 });
+    
+    // 统计每个群组的用户数量
+    const UserNew = require('./models/UserNew');
+    const groupsWithStats = await Promise.all(groups.map(async (group) => {
+      const userCount = await UserNew.countDocuments({ 
+        'retailInfo.storeGroup': group._id,
+        isActive: true 
+      });
+      
+      return {
+        ...group.toObject(),
+        userCount
+      };
+    }));
+    
+    res.json({ success: true, data: groupsWithStats });
+  } catch (error) {
+    console.error('获取群组列表失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 创建新群组
+app.post('/api/admin/store-groups', async (req, res) => {
+  try {
+    const StoreGroup = require('./models/StoreGroup');
+    const { name, code, description, headquarters, settings } = req.body;
+    
+    // 检查群组代码是否已存在
+    const existingGroup = await StoreGroup.findOne({ 
+      $or: [{ code }, { name }] 
+    });
+    
+    if (existingGroup) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '群组代码或名称已存在' 
+      });
+    }
+    
+    // 创建新群组
+    const group = new StoreGroup({
+      name,
+      code: code.toUpperCase(),
+      description,
+      headquarters: headquarters || {},
+      settings: settings || {},
+      isActive: true,
+      createdBy: req.user?._id || null // 如果有认证系统，使用当前用户ID
+    });
+    
+    await group.save();
+    
+    res.json({ 
+      success: true, 
+      data: group,
+      message: '群组创建成功' 
+    });
+  } catch (error) {
+    console.error('创建群组失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 更新群组信息
+app.put('/api/admin/store-groups/:id', async (req, res) => {
+  try {
+    const StoreGroup = require('./models/StoreGroup');
+    const { id } = req.params;
+    const { name, code, description, headquarters, settings, isActive } = req.body;
+    
+    const group = await StoreGroup.findById(id);
+    if (!group) {
+      return res.status(404).json({ success: false, error: '群组不存在' });
+    }
+    
+    // 更新信息
+    if (name) group.name = name;
+    if (code) group.code = code.toUpperCase();
+    if (description !== undefined) group.description = description;
+    if (headquarters) group.headquarters = { ...group.headquarters, ...headquarters };
+    if (settings) group.settings = { ...group.settings, ...settings };
+    if (typeof isActive !== 'undefined') group.isActive = isActive;
+    
+    await group.save();
+    
+    res.json({ 
+      success: true, 
+      data: group,
+      message: '群组更新成功' 
+    });
+  } catch (error) {
+    console.error('更新群组失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 删除群组（软删除）
+app.delete('/api/admin/store-groups/:id', async (req, res) => {
+  try {
+    const StoreGroup = require('./models/StoreGroup');
+    const UserNew = require('./models/UserNew');
+    const { id } = req.params;
+    
+    const group = await StoreGroup.findById(id);
+    if (!group) {
+      return res.status(404).json({ success: false, error: '群组不存在' });
+    }
+    
+    // 检查是否有用户属于该群组
+    const userCount = await UserNew.countDocuments({ 
+      'retailInfo.storeGroup': id,
+      isActive: true 
+    });
+    
+    if (userCount > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `该群组还有 ${userCount} 个活跃用户，无法删除` 
+      });
+    }
+    
+    // 软删除：设置为不活跃
+    group.isActive = false;
+    await group.save();
+    
+    res.json({ 
+      success: true, 
+      message: '群组已停用' 
+    });
+  } catch (error) {
+    console.error('删除群组失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 获取群组的用户列表
+app.get('/api/admin/store-groups/:id/users', async (req, res) => {
+  try {
+    const UserNew = require('./models/UserNew');
+    const { id } = req.params;
+    
+    const users = await UserNew.find({ 
+      'retailInfo.storeGroup': id 
+    })
+    .select('-password')
+    .sort({ createdAt: -1 });
+    
+    res.json({ success: true, data: users });
+  } catch (error) {
+    console.error('获取群组用户失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==================== 批发商户API (Merchant APIs) ====================
+// 批发商户统计数据
+app.get('/api/merchant/stats', applyDataIsolation, async (req, res) => {
+  try {
+    const MerchantInventory = require('./models/MerchantInventory');
+    const MerchantSale = require('./models/MerchantSale');
+    const RepairOrder = require('./models/RepairOrder');
+    
+    // 基础过滤条件（来自中间件）
+    const baseFilter = req.dataFilter;
+    
+    // 获取今天的日期范围
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // 获取本月的日期范围
+    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+    
+    // 1. 我的库存总数
+    const inventoryCount = await MerchantInventory.countDocuments({
+      ...baseFilter,
+      status: 'active',
+      isActive: true,
+      quantity: { $gt: 0 }
+    });
+    
+    // 2. 本日销售额
+    const dailySales = await MerchantSale.aggregate([
+      {
+        $match: {
+          ...baseFilter,
+          saleDate: { $gte: today, $lt: tomorrow },
+          status: 'completed'
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$totalAmount' }
+        }
+      }
+    ]);
+    
+    // 3. 本日维修收入（已销售的维修订单）
+    const dailyRepairs = await RepairOrder.aggregate([
+      {
+        $match: {
+          ...baseFilter,
+          soldDate: { $gte: today, $lt: tomorrow },
+          status: 'sold'
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$salePrice' }
+        }
+      }
+    ]);
+    
+    // 4. 本月应缴税额
+    const monthlyTax = await MerchantSale.aggregate([
+      {
+        $match: {
+          ...baseFilter,
+          saleDate: { $gte: firstDayOfMonth, $lte: lastDayOfMonth },
+          status: 'completed'
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$totalTax' }
+        }
+      }
+    ]);
+    
+    res.json({
+      success: true,
+      data: {
+        myInventory: inventoryCount,
+        dailySales: dailySales.length > 0 ? dailySales[0].total : 0,
+        dailyRepairs: dailyRepairs.length > 0 ? dailyRepairs[0].total : 0,
+        taxDue: monthlyTax.length > 0 ? monthlyTax[0].total : 0
+      }
+    });
+  } catch (error) {
+    console.error('获取统计数据失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 获取批发商库存列表
+app.get('/api/merchant/inventory', applyDataIsolation, async (req, res) => {
+  try {
+    const MerchantInventory = require('./models/MerchantInventory');
+    const { category, search } = req.query;
+    
+    // 基础过滤条件（来自中间件）
+    let query = { 
+      ...req.dataFilter, 
+      status: 'active',
+      isActive: true 
+    };
+    
+    // 添加分类过滤
+    if (category) {
+      query.category = category;
+    }
+    
+    // 添加搜索过滤
+    if (search) {
+      query.$or = [
+        { serialNumber: new RegExp(search, 'i') },
+        { barcode: new RegExp(search, 'i') },
+        { productName: new RegExp(search, 'i') },
+        { notes: new RegExp(search, 'i') }
+      ];
+    }
+    
+    // 查询商户的库存（category 是字符串，不需要 populate）
+    const inventory = await MerchantInventory.find(query)
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      success: true,
+      data: inventory
+    });
+  } catch (error) {
+    console.error('获取库存失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 获取群组库存列表（群组页面专用）
+app.get('/api/merchant/group-inventory', applyGroupDataFilter, async (req, res) => {
+  try {
+    const MerchantInventory = require('./models/MerchantInventory');
+    const { category, search } = req.query;
+    
+    // 基础过滤条件（来自中间件，查询群组数据）
+    let query = { 
+      ...req.dataFilter, 
+      status: 'active',
+      isActive: true,
+      quantity: { $gt: 0 } // 只显示有库存的产品
+    };
+    
+    // 排除当前用户自己的库存（只显示群组内其他商户的库存）
+    if (req.currentUsername) {
+      query.merchantId = { $ne: req.currentUsername };
+    }
+    
+    // 添加分类过滤
+    if (category) {
+      query.category = category;
+    }
+    
+    // 添加搜索过滤
+    if (search) {
+      query.$or = [
+        { serialNumber: new RegExp(search, 'i') },
+        { barcode: new RegExp(search, 'i') },
+        { productName: new RegExp(search, 'i') },
+        { notes: new RegExp(search, 'i') }
+      ];
+    }
+    
+    // 查询群组的库存
+    const inventory = await MerchantInventory.find(query)
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      success: true,
+      data: inventory
+    });
+  } catch (error) {
+    console.error('获取群组库存失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 获取产品时间线
+app.get('/api/merchant/inventory/:id/timeline', async (req, res) => {
+  try {
+    const MerchantInventory = require('./models/MerchantInventory');
+    const MerchantSale = require('./models/MerchantSale');
+    const InventoryTransfer = require('./models/InventoryTransfer');
+    
+    const inventoryId = req.params.id;
+    
+    // 获取库存记录
+    const inventory = await MerchantInventory.findById(inventoryId);
+    
+    if (!inventory) {
+      return res.status(404).json({ success: false, error: '库存记录不存在' });
+    }
+    
+    const timeline = [];
+    
+    // 1. 入库记录（创建时间）
+    timeline.push({
+      type: 'created',
+      icon: '📥',
+      title: '产品入库',
+      date: inventory.createdAt,
+      description: `产品入库到商户库存`,
+      details: `来源: ${inventory.source === 'warehouse' ? '仓库调货' : inventory.source === 'transfer' ? '商户调货' : '手动入库'}<br>
+                成本价: €${inventory.costPrice.toFixed(2)}<br>
+                零售价: €${inventory.retailPrice.toFixed(2)}<br>
+                数量: ${inventory.quantity}`
+    });
+    
+    // 2. 查找销售记录
+    const sales = await MerchantSale.find({
+      'items.inventoryId': inventoryId,
+      status: 'completed'
+    }).sort({ saleDate: 1 });
+    
+    sales.forEach(sale => {
+      const saleItem = sale.items.find(item => item.inventoryId && item.inventoryId.toString() === inventoryId);
+      if (saleItem) {
+        timeline.push({
+          type: 'sold',
+          icon: '💰',
+          title: '产品销售',
+          date: sale.saleDate,
+          description: `产品已售出`,
+          details: `销售价格: €${saleItem.price.toFixed(2)}<br>
+                    数量: ${saleItem.quantity}<br>
+                    支付方式: ${sale.paymentMethod === 'CASH' ? '现金' : sale.paymentMethod === 'CARD' ? '刷卡' : '混合支付'}<br>
+                    ${sale.customerPhone ? `客户电话: ${sale.customerPhone}` : ''}`
+        });
+      }
+    });
+    
+    // 3. 查找调货记录（调出）
+    const transfersOut = await InventoryTransfer.find({
+      'items.inventoryId': inventoryId,
+      fromMerchant: inventory.merchantId,
+      status: { $in: ['completed', 'shipped'] }
+    }).sort({ completedAt: 1 });
+    
+    transfersOut.forEach(transfer => {
+      const transferItem = transfer.items.find(item => item.inventoryId && item.inventoryId.toString() === inventoryId);
+      if (transferItem) {
+        timeline.push({
+          type: 'transferred_out',
+          icon: '📤',
+          title: '调货出库',
+          date: transfer.completedAt || transfer.shippedAt,
+          description: `产品调出到其他商户`,
+          details: `调货单号: ${transfer.transferNumber}<br>
+                    调入商户: ${transfer.toMerchantName}<br>
+                    数量: ${transferItem.quantity}<br>
+                    调货价格: €${transferItem.transferPrice.toFixed(2)}`
+        });
+      }
+    });
+    
+    // 4. 查找调货记录（调入）
+    if (inventory.source === 'transfer' && inventory.sourceTransferId) {
+      const transferIn = await InventoryTransfer.findById(inventory.sourceTransferId);
+      if (transferIn) {
+        timeline.push({
+          type: 'transferred_in',
+          icon: '📥',
+          title: '调货入库',
+          date: transferIn.completedAt,
+          description: `从其他商户调入`,
+          details: `调货单号: ${transferIn.transferNumber}<br>
+                    调出商户: ${transferIn.fromMerchantName}<br>
+                    调货价格: €${inventory.costPrice.toFixed(2)}`
+        });
+      }
+    }
+    
+    // 按时间倒序排序
+    timeline.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    res.json({
+      success: true,
+      data: timeline
+    });
+  } catch (error) {
+    console.error('获取产品时间线失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 获取销售记录
+app.get('/api/merchant/sales', applyDataIsolation, async (req, res) => {
+  try {
+    const MerchantSale = require('./models/MerchantSale');
+    const { startDate, endDate } = req.query;
+    
+    // 基础过滤条件（来自中间件）
+    const query = { ...req.dataFilter };
+    
+    // 如果提供了日期范围，添加日期过滤
+    if (startDate || endDate) {
+      query.saleDate = {};
+      if (startDate) {
+        query.saleDate.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999); // 包含结束日期的全天
+        query.saleDate.$lte = endDateTime;
+      }
+    }
+    
+    // 查询销售记录
+    const sales = await MerchantSale.find(query)
+      .sort({ saleDate: -1 })
+      .limit(100)
+      .lean();
+    
+    // 格式化返回数据
+    const formattedSales = sales.map(sale => ({
+      _id: sale._id,
+      date: sale.saleDate,
+      customerPhone: sale.customerPhone,
+      paymentMethod: sale.paymentMethod,
+      cashAmount: sale.cashAmount,
+      cardAmount: sale.cardAmount,
+      totalAmount: sale.totalAmount,
+      totalTax: sale.totalTax,
+      items: sale.items.map(item => ({
+        productName: item.productName,
+        quantity: item.quantity,
+        price: item.price,
+        costPrice: item.costPrice,
+        taxClassification: item.taxClassification,
+        taxAmount: item.taxAmount,
+        serialNumber: item.serialNumber
+      })),
+      status: sale.status
+    }));
+    
+    res.json({ 
+      success: true, 
+      data: formattedSales 
+    });
+  } catch (error) {
+    console.error('获取销售记录失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 获取维修记录
+// ==================== 维修业务 API ====================
+
+// 创建维修订单
+app.post('/api/merchant/repairs', async (req, res) => {
+  try {
+    const RepairOrder = require('./models/RepairOrder');
+    
+    const {
+      merchantId,
+      customerPhone,
+      customerName,
+      deviceName,
+      deviceIMEI,
+      deviceSN,
+      problemDescription,
+      notes,
+      repairLocation,
+      estimatedCompletionDate,
+      repairCost,
+      salePrice
+    } = req.body;
+    
+    // 验证必填字段
+    if (!merchantId || !customerPhone || !deviceName || !problemDescription) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少必要参数'
+      });
+    }
+    
+    // 验证销售价格
+    if (!salePrice || salePrice <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: '销售价格必须大于0'
+      });
+    }
+    
+    // 确定初始状态
+    const isOutsourced = repairLocation && repairLocation.trim() !== '';
+    const initialStatus = isOutsourced ? 'sent_out' : 'pending';
+    
+    // 创建维修订单
+    const repairOrder = new RepairOrder({
+      merchantId,
+      customerPhone,
+      customerName: customerName || '',
+      deviceName,
+      deviceIMEI: deviceIMEI || '',
+      deviceSN: deviceSN || '',
+      problemDescription,
+      notes: notes || '',
+      repairLocation: repairLocation || '',
+      estimatedCompletionDate: estimatedCompletionDate || null,
+      repairCost: repairCost || 0,
+      salePrice: salePrice,
+      status: initialStatus,
+      sentOutDate: isOutsourced ? new Date() : null
+    });
+    
+    await repairOrder.save();
+    
+    res.json({
+      success: true,
+      data: {
+        repairOrderId: repairOrder._id,
+        status: repairOrder.status,
+        isOutsourced: isOutsourced,
+        message: '维修订单创建成功'
+      }
+    });
+  } catch (error) {
+    console.error('创建维修订单失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 获取维修记录列表
+app.get('/api/merchant/repairs', applyDataIsolation, async (req, res) => {
+  try {
+    const RepairOrder = require('./models/RepairOrder');
+    const { status, startDate, endDate } = req.query;
+    
+    // 基础过滤条件（来自中间件）
+    const query = { ...req.dataFilter };
+    
+    if (status) {
+      query.status = status;
+    }
+    
+    if (startDate || endDate) {
+      query.receivedDate = {};
+      if (startDate) {
+        query.receivedDate.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        query.receivedDate.$lte = endDateTime;
+      }
+    }
+    
+    // 查询维修记录
+    const repairs = await RepairOrder.find(query)
+      .sort({ receivedDate: -1 })
+      .limit(100)
+      .lean();
+    
+    res.json({ 
+      success: true, 
+      data: repairs 
+    });
+  } catch (error) {
+    console.error('获取维修记录失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 获取等待销售的维修订单
+app.get('/api/merchant/repairs/ready-for-sale', applyDataIsolation, async (req, res) => {
+  try {
+    const RepairOrder = require('./models/RepairOrder');
+    
+    // 基础过滤条件（来自中间件）
+    const query = {
+      ...req.dataFilter,
+      status: { $in: ['completed', 'retrieved', 'ready_for_sale'] }
+    };
+    
+    // 查询已完成或已取回的维修订单
+    const repairs = await RepairOrder.find(query)
+      .sort({ completedDate: -1, retrievedDate: -1 })
+      .lean();
+    
+    res.json({
+      success: true,
+      data: repairs
+    });
+  } catch (error) {
+    console.error('获取待销售维修订单失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 更新维修订单状态
+app.put('/api/merchant/repairs/:id/status', async (req, res) => {
+  try {
+    const RepairOrder = require('./models/RepairOrder');
+    const { id } = req.params;
+    const { status, repairCost } = req.body;
+    
+    const repairOrder = await RepairOrder.findById(id);
+    
+    if (!repairOrder) {
+      return res.status(404).json({
+        success: false,
+        error: '维修订单不存在'
+      });
+    }
+    
+    // 更新状态
+    repairOrder.status = status;
+    
+    // 根据状态更新时间戳
+    switch (status) {
+      case 'sent_out':
+        repairOrder.sentOutDate = new Date();
+        break;
+      case 'retrieved':
+        repairOrder.retrievedDate = new Date();
+        break;
+      case 'completed':
+        repairOrder.completedDate = new Date();
+        break;
+      case 'ready_for_sale':
+        if (!repairOrder.completedDate) {
+          repairOrder.completedDate = new Date();
+        }
+        break;
+    }
+    
+    // 更新维修费用
+    if (repairCost !== undefined) {
+      repairOrder.repairCost = repairCost;
+    }
+    
+    await repairOrder.save();
+    
+    res.json({
+      success: true,
+      data: repairOrder
+    });
+  } catch (error) {
+    console.error('更新维修订单状态失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 删除维修订单
+app.delete('/api/merchant/repairs/:id', async (req, res) => {
+  try {
+    const RepairOrder = require('./models/RepairOrder');
+    const { id } = req.params;
+    
+    const result = await RepairOrder.findByIdAndDelete(id);
+    
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        error: '维修订单不存在'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: '维修订单已删除'
+    });
+  } catch (error) {
+    console.error('删除维修订单失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 获取单个维修订单详情
+app.get('/api/merchant/repairs/:id', async (req, res) => {
+  try {
+    const RepairOrder = require('./models/RepairOrder');
+    const { id } = req.params;
+    
+    const repairOrder = await RepairOrder.findById(id);
+    
+    if (!repairOrder) {
+      return res.status(404).json({
+        success: false,
+        error: '维修订单不存在'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: repairOrder
+    });
+  } catch (error) {
+    console.error('获取维修订单详情失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 更新维修订单信息
+app.put('/api/merchant/repairs/:id', async (req, res) => {
+  try {
+    const RepairOrder = require('./models/RepairOrder');
+    const { id } = req.params;
+    const {
+      customerPhone,
+      customerName,
+      deviceName,
+      deviceIMEI,
+      deviceSN,
+      problemDescription,
+      notes,
+      repairLocation,
+      estimatedCompletionDate,
+      repairCost,
+      salePrice
+    } = req.body;
+    
+    const repairOrder = await RepairOrder.findById(id);
+    
+    if (!repairOrder) {
+      return res.status(404).json({
+        success: false,
+        error: '维修订单不存在'
+      });
+    }
+    
+    // 更新字段
+    if (customerPhone) repairOrder.customerPhone = customerPhone;
+    if (customerName !== undefined) repairOrder.customerName = customerName;
+    if (deviceName) repairOrder.deviceName = deviceName;
+    if (deviceIMEI !== undefined) repairOrder.deviceIMEI = deviceIMEI;
+    if (deviceSN !== undefined) repairOrder.deviceSN = deviceSN;
+    if (problemDescription) repairOrder.problemDescription = problemDescription;
+    if (notes !== undefined) repairOrder.notes = notes;
+    if (repairLocation !== undefined) repairOrder.repairLocation = repairLocation;
+    if (estimatedCompletionDate !== undefined) repairOrder.estimatedCompletionDate = estimatedCompletionDate;
+    if (repairCost !== undefined) repairOrder.repairCost = repairCost;
+    if (salePrice !== undefined) repairOrder.salePrice = salePrice;
+    
+    await repairOrder.save();
+    
+    res.json({
+      success: true,
+      data: repairOrder
+    });
+  } catch (error) {
+    console.error('更新维修订单失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ==================== 原有API ====================
+
+app.get('/api/merchant/repairs-old', async (req, res) => {
+  try {
+    const merchantId = req.query.merchantId || 'merchant_001';
+    const { startDate, endDate } = req.query;
+    
+    // 返回空维修记录
+    res.json({ 
+      success: true, 
+      data: [] 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 生成税务报表
+app.get('/api/merchant/tax-report', async (req, res) => {
+  try {
+    const merchantId = req.query.merchantId || 'merchant_001';
+    const { startDate, endDate } = req.query;
+    
+    if (!startDate || !endDate) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '需要提供开始日期和结束日期' 
+      });
+    }
+    
+    // 返回空报表数据
+    res.json({
+      success: true,
+      data: {
+        period: { startDate, endDate },
+        dailySales: [],
+        summary: {
+          totalSales: 0,
+          totalCashIncome: 0,
+          totalCardIncome: 0,
+          totalTaxDue: 0
+        },
+        taxByClassification: {
+          VAT_23: { sales: 0, cost: 0, outputTax: 0, inputTax: 0, due: 0 },
+          MARGIN_VAT_0: { sales: 0, cost: 0, due: 0 },
+          SERVICE_VAT_13_5: { sales: 0, due: 0 }
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 获取仓库可订购产品列表（批发商订货用）
+app.get('/api/merchant/warehouse-products', async (req, res) => {
+  try {
+    // 获取仓库中可销售的产品
+    const products = await ProductNew.find({ 
+      isActive: true,
+      stockQuantity: { $gt: 0 }
+    })
+    .populate('category', 'name type')
+    .sort({ createdAt: -1 });
+    
+    // 按产品类型、品牌、型号、颜色分组
+    const groupedProducts = {};
+    
+    products.forEach(product => {
+      // 创建更详细的分组 key，包含品牌、型号和颜色
+      const key = `${product.category?.type || 'Unknown'}_${product.brand || ''}_${product.model || ''}_${product.color || ''}_${product.condition}`;
+      
+      if (!groupedProducts[key]) {
+        groupedProducts[key] = {
+          productType: product.category?.type || 'Unknown',
+          category: product.condition,
+          brand: product.brand || '',
+          model: product.model || '',
+          color: product.color || '',
+          products: [],
+          totalAvailable: 0,
+          wholesalePrice: product.wholesalePrice || product.costPrice,
+          suggestedRetailPrice: product.retailPrice,
+          taxClassification: product.vatRate === 'VAT 23%' ? 'VAT_23' : 
+                            product.vatRate === 'VAT 13.5%' ? 'SERVICE_VAT_13_5' : 'MARGIN_VAT_0'
+        };
+      }
+      
+      groupedProducts[key].products.push(product);
+      groupedProducts[key].totalAvailable += product.stockQuantity;
+    });
+    
+    res.json({
+      success: true,
+      data: Object.values(groupedProducts)
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 批发商下订单（从仓库订货）
+app.post('/api/merchant/orders', async (req, res) => {
+  try {
+    const { merchantId, merchantName, items } = req.body;
+    
+    if (!merchantId || !items || items.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '缺少必要参数' 
+      });
+    }
+    
+    // 简化实现：返回成功但不实际处理
+    res.json({
+      success: true,
+      message: '订货功能开发中，请使用仓库管理员页面进行库存管理',
+      data: {
+        orderNumber: `MO-${Date.now()}`,
+        status: 'PENDING'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 获取批发商订单列表
+app.get('/api/merchant/orders', async (req, res) => {
+  try {
+    const merchantId = req.query.merchantId || 'merchant_001';
+    
+    // 返回空订单列表
+    res.json({
+      success: true,
+      data: []
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 批发商销售产品（从自己的库存） - 购物车模式
+app.post('/api/merchant/sales/complete', async (req, res) => {
+  try {
+    const MerchantInventory = require('./models/MerchantInventory');
+    const MerchantSale = require('./models/MerchantSale');
+    const RepairOrder = require('./models/RepairOrder');
+    
+    const {
+      merchantId,
+      customerPhone,
+      paymentMethod,
+      items,
+      totalAmount,
+      cashAmount,
+      cardAmount
+    } = req.body;
+    
+    if (!merchantId || !paymentMethod || !items || items.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '缺少必要参数' 
+      });
+    }
+    
+    // 验证混合支付
+    if (paymentMethod === 'MIXED') {
+      if (!cashAmount || !cardAmount) {
+        return res.status(400).json({ 
+          success: false, 
+          error: '混合支付需要提供现金和刷卡金额' 
+        });
+      }
+      if (Math.abs((cashAmount + cardAmount) - totalAmount) > 0.01) {
+        return res.status(400).json({ 
+          success: false, 
+          error: '支付金额不匹配' 
+        });
+      }
+    }
+    
+    // 开始事务处理
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    
+    try {
+      const saleItems = [];
+      
+      // 处理每个销售项目
+      for (const item of items) {
+        // 检查是否为维修订单
+        if (item.repairId) {
+          // 处理维修订单
+          const repairOrder = await RepairOrder.findById(item.repairId).session(session);
+          
+          if (!repairOrder) {
+            throw new Error(`维修订单不存在: ${item.productName}`);
+          }
+          
+          if (repairOrder.status === 'sold') {
+            throw new Error(`维修订单已销售: ${item.productName}`);
+          }
+          
+          // 计算税额（维修服务使用 Service VAT 13.5%）
+          const itemTotal = item.price * item.quantity;
+          const taxAmount = itemTotal * 13.5 / 113.5;
+          
+          // 更新维修订单状态
+          repairOrder.status = 'sold';
+          repairOrder.soldDate = new Date();
+          repairOrder.salePrice = item.price;
+          await repairOrder.save({ session });
+          
+          saleItems.push({
+            inventoryId: null,
+            repairOrderId: item.repairId,
+            productName: item.productName,
+            quantity: item.quantity,
+            price: item.price,
+            costPrice: repairOrder.repairCost, // 维修成本
+            taxClassification: 'SERVICE_VAT_13_5',
+            taxAmount: taxAmount,
+            serialNumber: repairOrder.deviceIMEI || repairOrder.deviceSN || null
+          });
+        } else {
+          // 处理库存产品
+          const inventory = await MerchantInventory.findById(item.inventoryId).session(session);
+          
+          if (!inventory) {
+            throw new Error(`库存不存在: ${item.productName}`);
+          }
+          
+          if (inventory.quantity < item.quantity) {
+            throw new Error(`库存不足: ${item.productName} (可用: ${inventory.quantity}, 需要: ${item.quantity})`);
+          }
+          
+          // 减少库存
+          inventory.quantity -= item.quantity;
+          await inventory.save({ session });
+          
+          // 标准化税分类
+          let taxClassification = item.taxClassification || 'VAT_23';
+          
+          // 将各种格式的税分类标准化
+          if (taxClassification === 'VAT 23%' || taxClassification === 'VAT_23') {
+            taxClassification = 'VAT_23';
+          } else if (taxClassification === 'VAT 13.5%' || taxClassification === 'Service VAT 13.5%' || taxClassification === 'SERVICE_VAT_13_5') {
+            taxClassification = 'SERVICE_VAT_13_5';
+          } else if (taxClassification === 'VAT 0%' || taxClassification === 'Margin VAT' || taxClassification === 'MARGIN_VAT_0') {
+            taxClassification = 'MARGIN_VAT_0';
+          } else {
+            // 默认使用 VAT 23%
+            taxClassification = 'VAT_23';
+          }
+          
+          // 计算税额
+          let taxAmount = 0;
+          const itemTotal = item.price * item.quantity;
+          
+          // 使用批发价作为成本价（批发价就是商户的采购成本）
+          const costPrice = inventory.wholesalePrice || inventory.costPrice;
+          
+          switch (taxClassification) {
+            case 'VAT_23':
+              // 销项税 = 销售额 × 23/123
+              taxAmount = itemTotal * 23 / 123;
+              break;
+            case 'SERVICE_VAT_13_5':
+              // 服务税 = 金额 × 13.5/113.5
+              taxAmount = itemTotal * 13.5 / 113.5;
+              break;
+            case 'MARGIN_VAT_0':
+              // Margin VAT = (销售额 - 成本) × 23/123
+              const margin = itemTotal - (costPrice * item.quantity);
+              taxAmount = margin * 23 / 123;
+              break;
+            default:
+              taxAmount = itemTotal * 23 / 123;
+          }
+          
+          saleItems.push({
+            inventoryId: item.inventoryId,
+            repairOrderId: null,
+            productName: item.productName,
+            quantity: item.quantity,
+            price: item.price,
+            costPrice: costPrice, // 使用批发价作为成本
+            taxClassification: taxClassification, // 使用标准化的税分类
+            taxAmount: taxAmount,
+            serialNumber: item.serialNumber || null
+          });
+        }
+      }
+      
+      // 创建销售记录
+      const sale = new MerchantSale({
+        merchantId,
+        customerPhone: customerPhone || null,
+        paymentMethod,
+        cashAmount: paymentMethod === 'MIXED' ? cashAmount : (paymentMethod === 'CASH' ? totalAmount : 0),
+        cardAmount: paymentMethod === 'MIXED' ? cardAmount : (paymentMethod === 'CARD' ? totalAmount : 0),
+        items: saleItems,
+        totalAmount,
+        totalTax: saleItems.reduce((sum, item) => sum + item.taxAmount, 0),
+        saleDate: new Date()
+      });
+      
+      await sale.save({ session });
+      
+      // 提交事务
+      await session.commitTransaction();
+      
+      res.json({
+        success: true,
+        data: {
+          saleId: sale._id,
+          totalAmount: sale.totalAmount,
+          totalTax: sale.totalTax
+        }
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  } catch (error) {
+    console.error('销售失败:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// 旧的单个产品销售API（保留兼容性）
+app.post('/api/merchant/sell', async (req, res) => {
+  try {
+    const { merchantId, inventoryId, quantity, paymentMethod } = req.body;
+    
+    if (!merchantId || !inventoryId || !quantity) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '缺少必要参数' 
+      });
+    }
+    
+    // 简化实现：返回成功但不实际处理
+    res.json({
+      success: true,
+      message: '请使用新的购物车销售功能',
+      data: {
+        remainingStock: 0
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==================== 商户库存管理 API ====================
+
+// 手动入库 - 添加产品到商户库存
+app.post('/api/merchant/inventory/add', async (req, res) => {
+  try {
+    const MerchantInventory = require('./models/MerchantInventory');
+    const UserNew = require('./models/UserNew');
+    const ProductCategory = require('./models/ProductCategory');
+    
+    const {
+      merchantId,
+      productName,
+      brand,
+      model,
+      category,
+      quantity,
+      costPrice,
+      wholesalePrice,
+      retailPrice,
+      barcode,
+      serialNumber,
+      color,
+      condition,
+      notes
+    } = req.body;
+    
+    // 验证必填字段
+    if (!merchantId || !productName || !category || !quantity || !costPrice || !wholesalePrice || !retailPrice) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少必要参数'
+      });
+    }
+    
+    // 尝试获取商户信息（可选）
+    let merchantName = merchantId;
+    let storeGroup = null;
+    let store = null;
+    
+    try {
+      const user = await UserNew.findOne({ username: merchantId });
+      if (user) {
+        merchantName = user.fullName || merchantId;
+        storeGroup = user.retailInfo?.storeGroup;
+        store = user.retailInfo?.store;
+      }
+    } catch (userError) {
+      console.log('获取用户信息失败，使用默认值:', userError.message);
+    }
+    
+    // 从分类获取默认税率
+    let taxClassification = 'VAT_23'; // 默认值
+    try {
+      const categoryDoc = await ProductCategory.findOne({ type: category, isActive: true });
+      if (categoryDoc && categoryDoc.defaultVatRate) {
+        // 将税率格式转换为税务分类代码
+        const vatRate = categoryDoc.defaultVatRate.toLowerCase();
+        
+        if (vatRate.includes('margin') || vatRate.includes('0%')) {
+          // Margin VAT 或 VAT 0% (二手商品差价税制)
+          taxClassification = 'MARGIN_VAT_0';
+        } else if (vatRate.includes('23')) {
+          // VAT 23% (标准税率)
+          taxClassification = 'VAT_23';
+        } else if (vatRate.includes('13.5')) {
+          // Service VAT 13.5% (服务税率)
+          taxClassification = 'SERVICE_VAT_13_5';
+        } else {
+          // 其他情况，根据成色判断
+          // 二手或翻新设备使用 Margin VAT
+          if (condition === 'PRE_OWNED' || condition === 'REFURBISHED') {
+            taxClassification = 'MARGIN_VAT_0';
+          }
+        }
+      } else {
+        // 如果没有找到分类配置，根据成色判断
+        if (condition === 'PRE_OWNED' || condition === 'REFURBISHED') {
+          taxClassification = 'MARGIN_VAT_0';
+        }
+      }
+    } catch (categoryError) {
+      console.log('获取分类税率失败，使用默认值:', categoryError.message);
+      // 根据成色判断
+      if (condition === 'PRE_OWNED' || condition === 'REFURBISHED') {
+        taxClassification = 'MARGIN_VAT_0';
+      }
+    }
+    
+    // 创建库存记录
+    const inventory = new MerchantInventory({
+      merchantId,
+      merchantName,
+      storeGroup,
+      store,
+      productName,
+      brand: brand || '',
+      model: model || '',
+      category,
+      taxClassification,
+      quantity: parseInt(quantity),
+      costPrice: parseFloat(costPrice),
+      wholesalePrice: parseFloat(wholesalePrice),
+      retailPrice: parseFloat(retailPrice),
+      barcode: barcode || '',
+      serialNumber: serialNumber || '',
+      color: color || '',
+      condition: condition || 'BRAND_NEW',
+      source: 'manual',
+      notes: notes || '',
+      status: 'active'
+    });
+    
+    await inventory.save();
+    
+    res.json({
+      success: true,
+      data: {
+        inventoryId: inventory._id,
+        taxClassification: inventory.taxClassification,
+        message: '入库成功'
+      }
+    });
+  } catch (error) {
+    console.error('入库失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 获取群组库存 - 查看群组内所有商户的库存
+app.get('/api/merchant/inventory/group', async (req, res) => {
+  try {
+    const MerchantInventory = require('./models/MerchantInventory');
+    const UserNew = require('./models/UserNew');
+    
+    const { merchantId } = req.query;
+    
+    if (!merchantId) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少商户ID'
+      });
+    }
+    
+    // 获取当前商户信息
+    const currentUser = await UserNew.findOne({ username: merchantId });
+    if (!currentUser) {
+      return res.status(404).json({
+        success: false,
+        error: '商户不存在'
+      });
+    }
+    
+    // 检查权限
+    if (!currentUser.retailInfo?.canViewGroupInventory) {
+      return res.status(403).json({
+        success: false,
+        error: '没有查看群组库存的权限'
+      });
+    }
+    
+    const storeGroupId = currentUser.retailInfo?.storeGroup;
+    if (!storeGroupId) {
+      return res.status(400).json({
+        success: false,
+        error: '您不属于任何店面组'
+      });
+    }
+    
+    // 获取自己的库存
+    const myInventory = await MerchantInventory.find({
+      merchantId,
+      status: 'active',
+      isActive: true
+    }).sort({ createdAt: -1 });
+    
+    // 获取群组内其他商户的库存
+    const groupUsers = await UserNew.find({
+      'retailInfo.storeGroup': storeGroupId,
+      username: { $ne: merchantId },
+      isActive: true
+    });
+    
+    const groupInventory = [];
+    for (const user of groupUsers) {
+      const inventory = await MerchantInventory.find({
+        merchantId: user.username,
+        status: 'active',
+        isActive: true
+      }).sort({ createdAt: -1 });
+      
+      if (inventory.length > 0) {
+        groupInventory.push({
+          merchantId: user.username,
+          merchantName: user.fullName || user.username,
+          storeName: user.retailInfo?.store?.name || '未知店面',
+          products: inventory
+        });
+      }
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        myInventory,
+        groupInventory
+      }
+    });
+  } catch (error) {
+    console.error('获取群组库存失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 发起调货请求
+app.post('/api/merchant/inventory/transfer/request', async (req, res) => {
+  try {
+    const InventoryTransfer = require('./models/InventoryTransfer');
+    const MerchantInventory = require('./models/MerchantInventory');
+    const UserNew = require('./models/UserNew');
+    
+    const {
+      fromMerchantId,
+      toMerchantId,
+      items,
+      notes
+    } = req.body;
+    
+    // 验证参数
+    if (!fromMerchantId || !toMerchantId || !items || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少必要参数'
+      });
+    }
+    
+    // 获取双方商户信息
+    const fromUser = await UserNew.findOne({ username: fromMerchantId });
+    const toUser = await UserNew.findOne({ username: toMerchantId });
+    
+    if (!fromUser || !toUser) {
+      return res.status(404).json({
+        success: false,
+        error: '商户不存在'
+      });
+    }
+    
+    // 检查是否在同一店面组
+    if (!fromUser.retailInfo?.storeGroup || !toUser.retailInfo?.storeGroup ||
+        fromUser.retailInfo.storeGroup.toString() !== toUser.retailInfo.storeGroup.toString()) {
+      return res.status(403).json({
+        success: false,
+        error: '只能在同一店面组内调货'
+      });
+    }
+    
+    // 检查调入方权限
+    if (!toUser.retailInfo?.canTransferFromGroup) {
+      return res.status(403).json({
+        success: false,
+        error: '没有调货权限'
+      });
+    }
+    
+    // 验证库存并计算总金额
+    let totalAmount = 0;
+    const transferItems = [];
+    
+    for (const item of items) {
+      const inventory = await MerchantInventory.findById(item.inventoryId);
+      
+      if (!inventory) {
+        return res.status(404).json({
+          success: false,
+          error: `库存记录不存在: ${item.inventoryId}`
+        });
+      }
+      
+      if (inventory.merchantId !== fromMerchantId) {
+        return res.status(403).json({
+          success: false,
+          error: '无权调货此产品'
+        });
+      }
+      
+      if (inventory.quantity < item.quantity) {
+        return res.status(400).json({
+          success: false,
+          error: `${inventory.productName} 库存不足`
+        });
+      }
+      
+      transferItems.push({
+        inventoryId: inventory._id,
+        productName: inventory.productName,
+        brand: inventory.brand,
+        model: inventory.model,
+        category: inventory.category,
+        quantity: item.quantity,
+        transferPrice: item.transferPrice || inventory.wholesalePrice,
+        barcode: inventory.barcode,
+        serialNumber: inventory.serialNumber,
+        color: inventory.color,
+        condition: inventory.condition
+      });
+      
+      totalAmount += item.quantity * (item.transferPrice || inventory.wholesalePrice);
+    }
+    
+    // 生成调货单号
+    const transferNumber = await InventoryTransfer.generateTransferNumber();
+    
+    // 创建调货记录
+    const transfer = new InventoryTransfer({
+      transferNumber,
+      fromMerchant: fromMerchantId,
+      fromMerchantName: fromUser.fullName || fromMerchantId,
+      fromStore: fromUser.retailInfo?.store,
+      toMerchant: toMerchantId,
+      toMerchantName: toUser.fullName || toMerchantId,
+      toStore: toUser.retailInfo?.store,
+      storeGroup: fromUser.retailInfo.storeGroup,
+      items: transferItems,
+      totalAmount,
+      notes: notes || '',
+      status: 'pending',
+      requestedBy: toUser._id,
+      requestedAt: new Date()
+    });
+    
+    await transfer.save();
+    
+    res.json({
+      success: true,
+      data: {
+        transferId: transfer._id,
+        transferNumber: transfer.transferNumber,
+        status: transfer.status,
+        message: '调货申请已提交，等待对方审批'
+      }
+    });
+  } catch (error) {
+    console.error('发起调货失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 获取调货记录列表
+app.get('/api/merchant/inventory/transfer/list', async (req, res) => {
+  try {
+    const InventoryTransfer = require('./models/InventoryTransfer');
+    
+    const { merchantId, type, status } = req.query;
+    
+    if (!merchantId) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少商户ID'
+      });
+    }
+    
+    let query = { isActive: true };
+    
+    // 根据类型筛选
+    if (type === 'sent') {
+      query.fromMerchant = merchantId;
+    } else if (type === 'received') {
+      query.toMerchant = merchantId;
+    } else {
+      query.$or = [
+        { fromMerchant: merchantId },
+        { toMerchant: merchantId }
+      ];
+    }
+    
+    // 根据状态筛选
+    if (status) {
+      query.status = status;
+    }
+    
+    const transfers = await InventoryTransfer.find(query)
+      .sort({ createdAt: -1 })
+      .limit(100);
+    
+    res.json({
+      success: true,
+      data: transfers
+    });
+  } catch (error) {
+    console.error('获取调货记录失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 审批调货请求
+app.post('/api/merchant/inventory/transfer/approve', async (req, res) => {
+  try {
+    const InventoryTransfer = require('./models/InventoryTransfer');
+    const UserNew = require('./models/UserNew');
+    
+    const { transferId, action, notes, merchantId } = req.body;
+    
+    if (!transferId || !action || !merchantId) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少必要参数'
+      });
+    }
+    
+    const transfer = await InventoryTransfer.findById(transferId);
+    if (!transfer) {
+      return res.status(404).json({
+        success: false,
+        error: '调货记录不存在'
+      });
+    }
+    
+    // 验证权限（必须是调出方）
+    if (transfer.fromMerchant !== merchantId) {
+      return res.status(403).json({
+        success: false,
+        error: '只有调出方可以审批'
+      });
+    }
+    
+    // 验证状态
+    if (transfer.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        error: '该调货申请已处理'
+      });
+    }
+    
+    const user = await UserNew.findOne({ username: merchantId });
+    
+    if (action === 'approve') {
+      transfer.status = 'approved';
+      transfer.approvedBy = user._id;
+      transfer.approvedAt = new Date();
+      transfer.approvalNotes = notes || '';
+    } else if (action === 'reject') {
+      transfer.status = 'rejected';
+      transfer.approvedBy = user._id;
+      transfer.rejectedAt = new Date();
+      transfer.rejectionReason = notes || '';
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: '无效的操作'
+      });
+    }
+    
+    await transfer.save();
+    
+    res.json({
+      success: true,
+      data: {
+        transferId: transfer._id,
+        status: transfer.status,
+        message: action === 'approve' ? '已批准调货申请' : '已拒绝调货申请'
+      }
+    });
+  } catch (error) {
+    console.error('审批调货失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 完成调货（确认收货）
+app.post('/api/merchant/inventory/transfer/complete', async (req, res) => {
+  try {
+    const InventoryTransfer = require('./models/InventoryTransfer');
+    const MerchantInventory = require('./models/MerchantInventory');
+    const UserNew = require('./models/UserNew');
+    const mongoose = require('mongoose');
+    
+    const { transferId, merchantId } = req.body;
+    
+    if (!transferId || !merchantId) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少必要参数'
+      });
+    }
+    
+    const transfer = await InventoryTransfer.findById(transferId);
+    if (!transfer) {
+      return res.status(404).json({
+        success: false,
+        error: '调货记录不存在'
+      });
+    }
+    
+    // 验证权限（必须是调入方）
+    if (transfer.toMerchant !== merchantId) {
+      return res.status(403).json({
+        success: false,
+        error: '只有调入方可以确认收货'
+      });
+    }
+    
+    // 验证状态
+    if (transfer.status !== 'approved' && transfer.status !== 'shipped') {
+      return res.status(400).json({
+        success: false,
+        error: '该调货申请状态不正确'
+      });
+    }
+    
+    // 使用事务处理库存变更
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    
+    try {
+      const user = await UserNew.findOne({ username: merchantId });
+      
+      // 处理每个产品
+      for (const item of transfer.items) {
+        // 减少调出方库存
+        const fromInventory = await MerchantInventory.findById(item.inventoryId).session(session);
+        if (!fromInventory) {
+          throw new Error(`库存记录不存在: ${item.inventoryId}`);
+        }
+        
+        if (fromInventory.quantity < item.quantity) {
+          throw new Error(`${fromInventory.productName} 库存不足`);
+        }
+        
+        fromInventory.quantity -= item.quantity;
+        await fromInventory.save({ session });
+        
+        // 增加调入方库存
+        const toInventory = new MerchantInventory({
+          merchantId: transfer.toMerchant,
+          merchantName: transfer.toMerchantName,
+          storeGroup: transfer.storeGroup,
+          store: transfer.toStore,
+          productName: item.productName,
+          brand: item.brand,
+          model: item.model,
+          category: item.category,
+          quantity: item.quantity,
+          costPrice: item.transferPrice,
+          wholesalePrice: item.transferPrice * 1.1,
+          retailPrice: item.transferPrice * 1.3,
+          barcode: item.barcode,
+          serialNumber: item.serialNumber,
+          color: item.color,
+          condition: item.condition,
+          source: 'transfer',
+          sourceTransferId: transfer._id,
+          status: 'active'
+        });
+        
+        await toInventory.save({ session });
+      }
+      
+      // 更新调货记录状态
+      transfer.status = 'completed';
+      transfer.completedBy = user._id;
+      transfer.completedAt = new Date();
+      await transfer.save({ session });
+      
+      await session.commitTransaction();
+      
+      res.json({
+        success: true,
+        data: {
+          transferId: transfer._id,
+          status: transfer.status,
+          message: '调货完成，库存已更新'
+        }
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  } catch (error) {
+    console.error('完成调货失败:', error);
     res.status(500).json({
       success: false,
       error: error.message

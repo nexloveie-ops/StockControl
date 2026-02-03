@@ -22,7 +22,7 @@ const productSchema = new mongoose.Schema({
   // 产品类型（用于快速分类，冗余字段）
   productType: {
     type: String,
-    enum: ['手机配件', '电脑配件', '车载配件', 'audio', '数据线', 'power supply', '全新设备', '二手设备', '维修'],
+    // 不使用枚举限制，允许动态分类
     required: true
   },
   // 产品图片
@@ -66,7 +66,7 @@ const productSchema = new mongoose.Schema({
   // 成色
   condition: {
     type: String,
-    enum: ['Brand New', 'Pre-Owned', 'Refurbished'],
+    // 不使用枚举限制，允许动态成色
     required: true
   },
   // 税务分类（可以覆盖大类的默认设置）
@@ -117,6 +117,10 @@ const productSchema = new mongoose.Schema({
   // 序列号（对于单个设备）
   serialNumbers: [{
     serialNumber: String,
+    color: {
+      type: String,
+      default: ''
+    },
     status: {
       type: String,
       enum: ['available', 'sold', 'reserved', 'damaged'],

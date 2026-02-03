@@ -477,38 +477,40 @@
       loginButton.textContent = i18n.t('loading');
       
       try {
-        // 这里暂时使用简单的验证逻辑
-        // 实际应该调用后端API进行验证
+        // 调用后端登录API
+        const response = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ username, password })
+        });
         
-        // 模拟API调用延迟
-        await new Promise(resolve => setTimeout(resolve, 500));
+        const result = await response.json();
         
-        // 简单验证（实际应该调用后端）
-        const validUsers = {
-          'admin': { password: 'admin123', role: 'admin' },
-          'warehouse1': { password: 'warehouse123', role: 'warehouse_staff' },
-          'merchant_vip': { password: 'merchant123', role: 'merchant' },
-          'merchant_gold': { password: 'merchant123', role: 'merchant' },
-          'customer1': { password: 'customer123', role: 'merchant' }
-        };
-        
-        const user = validUsers[username];
-        
-        if (user && user.password === password) {
-          // 登录成功
-          localStorage.setItem('username', username);
+        if (result.success && result.data && result.data.user) {
+          const user = result.data.user;
+          
+          // 保存登录信息到localStorage
+          localStorage.setItem('username', user.username);
           localStorage.setItem('userRole', user.role);
+          localStorage.setItem('userId', user._id);
+          localStorage.setItem('userEmail', user.email);
           localStorage.setItem('loginTime', new Date().toISOString());
+          
+          // 保存完整用户信息
+          localStorage.setItem('userInfo', JSON.stringify(user));
           
           // 根据用户角色跳转到对应的主页
           const homePage = AuthGuard.getRoleHomePage(user.role);
           window.location.href = homePage;
         } else {
-          showError(i18n.t('login.error.invalid'));
+          showError(result.error || i18n.t('login.error.invalid'));
           loginButton.disabled = false;
           loginButton.textContent = i18n.t('login.button');
         }
       } catch (error) {
+        console.error('登录错误:', error);
         showError(i18n.t('login.error.failed'));
         loginButton.disabled = false;
         loginButton.textContent = i18n.t('login.button');

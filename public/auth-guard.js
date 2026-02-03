@@ -5,36 +5,41 @@
 
 // 用户角色定义
 const USER_ROLES = {
-  WAREHOUSE_STAFF: 'warehouse_staff',    // 仓库管理员
-  MERCHANT: 'merchant',                  // 批发商户
-  ADMIN: 'admin'                         // 管理员
+  ADMIN: 'admin',                        // 管理员
+  WAREHOUSE_MANAGER: 'warehouse_manager', // 仓库管理员
+  WAREHOUSE_STAFF: 'warehouse_staff',    // 仓库管理员（旧）
+  RETAIL_USER: 'retail_user',            // 普通用户（零售用户）
+  MERCHANT: 'merchant'                   // 批发商户（旧）
 };
 
 // 页面角色映射 - 定义每个页面允许访问的角色
 const PAGE_ROLES = {
   // 仓库管理系统页面
-  '/prototype.html': [USER_ROLES.WAREHOUSE_STAFF, USER_ROLES.ADMIN],
-  '/inventory.html': [USER_ROLES.WAREHOUSE_STAFF, USER_ROLES.ADMIN],
-  '/receiving.html': [USER_ROLES.WAREHOUSE_STAFF, USER_ROLES.ADMIN],
-  '/product-management.html': [USER_ROLES.WAREHOUSE_STAFF, USER_ROLES.ADMIN],
-  '/sales.html': [USER_ROLES.WAREHOUSE_STAFF, USER_ROLES.ADMIN],
+  '/prototype.html': [USER_ROLES.WAREHOUSE_STAFF, USER_ROLES.WAREHOUSE_MANAGER, USER_ROLES.ADMIN],
+  '/prototype-working.html': [USER_ROLES.WAREHOUSE_STAFF, USER_ROLES.WAREHOUSE_MANAGER, USER_ROLES.RETAIL_USER, USER_ROLES.MERCHANT, USER_ROLES.ADMIN],
+  '/inventory.html': [USER_ROLES.WAREHOUSE_STAFF, USER_ROLES.WAREHOUSE_MANAGER, USER_ROLES.ADMIN],
+  '/receiving.html': [USER_ROLES.WAREHOUSE_STAFF, USER_ROLES.WAREHOUSE_MANAGER, USER_ROLES.ADMIN],
+  '/product-management.html': [USER_ROLES.WAREHOUSE_STAFF, USER_ROLES.WAREHOUSE_MANAGER, USER_ROLES.ADMIN],
+  '/sales.html': [USER_ROLES.WAREHOUSE_STAFF, USER_ROLES.WAREHOUSE_MANAGER, USER_ROLES.ADMIN],
   
-  // 批发商户页面
-  '/merchant.html': [USER_ROLES.MERCHANT, USER_ROLES.ADMIN],
+  // 批发商户/零售用户页面
+  '/merchant.html': [USER_ROLES.MERCHANT, USER_ROLES.RETAIL_USER, USER_ROLES.ADMIN],
   
   // 管理员页面
   '/admin.html': [USER_ROLES.ADMIN],
   
   // 公共页面（所有人都可以访问）
-  '/login.html': [USER_ROLES.WAREHOUSE_STAFF, USER_ROLES.MERCHANT, USER_ROLES.ADMIN],
-  '/index.html': [USER_ROLES.WAREHOUSE_STAFF, USER_ROLES.MERCHANT, USER_ROLES.ADMIN]
+  '/login.html': [USER_ROLES.WAREHOUSE_STAFF, USER_ROLES.WAREHOUSE_MANAGER, USER_ROLES.MERCHANT, USER_ROLES.RETAIL_USER, USER_ROLES.ADMIN],
+  '/index.html': [USER_ROLES.WAREHOUSE_STAFF, USER_ROLES.WAREHOUSE_MANAGER, USER_ROLES.MERCHANT, USER_ROLES.RETAIL_USER, USER_ROLES.ADMIN]
 };
 
 // 角色主页映射 - 定义每个角色的默认主页
 const ROLE_HOME_PAGES = {
+  [USER_ROLES.ADMIN]: '/admin.html',
+  [USER_ROLES.WAREHOUSE_MANAGER]: '/prototype-working.html',
   [USER_ROLES.WAREHOUSE_STAFF]: '/prototype-working.html',
-  [USER_ROLES.MERCHANT]: '/merchant.html',
-  [USER_ROLES.ADMIN]: '/admin.html'
+  [USER_ROLES.RETAIL_USER]: '/merchant.html',  // 恢复为merchant.html
+  [USER_ROLES.MERCHANT]: '/merchant.html'       // 恢复为merchant.html
 };
 
 /**
@@ -129,7 +134,10 @@ function logout() {
     // 清除所有登录信息
     localStorage.removeItem('username');
     localStorage.removeItem('userRole');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userEmail');
     localStorage.removeItem('loginTime');
+    localStorage.removeItem('userInfo');
     
     // 跳转到登录页面
     window.location.href = '/login.html';
@@ -143,9 +151,11 @@ function logout() {
  */
 function getRoleDisplayName(role) {
   const roleNames = {
+    [USER_ROLES.ADMIN]: '管理员',
+    [USER_ROLES.WAREHOUSE_MANAGER]: '仓库管理员',
     [USER_ROLES.WAREHOUSE_STAFF]: '仓库管理员',
-    [USER_ROLES.MERCHANT]: '批发商户',
-    [USER_ROLES.ADMIN]: '管理员'
+    [USER_ROLES.RETAIL_USER]: '普通用户',
+    [USER_ROLES.MERCHANT]: '批发商户'
   };
   return roleNames[role] || '未知角色';
 }

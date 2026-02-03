@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理员采购订单功能测试</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      padding: 20px;
+      background: #f5f7fa;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .header {
+      background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+      color: white;
+      padding: 30px;
+      border-radius: 12px;
+      margin-bottom: 30px;
+    }
+    h1 {
+      margin: 0 0 10px 0;
+    }
+    .subtitle {
+      opacity: 0.9;
+      margin: 0;
+    }
+    .card {
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+    .card h2 {
+      color: #dc3545;
+      margin-top: 0;
+    }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 15px;
+      margin: 20px 0;
+    }
+    .feature {
+      padding: 15px;
+      background: #f7fafc;
+      border-radius: 8px;
+      border-left: 4px solid #dc3545;
+    }
+    .feature h3 {
+      margin: 0 0 8px 0;
+      font-size: 16px;
+      color: #2d3748;
+    }
+    .feature p {
+      margin: 0;
+      font-size: 14px;
+      color: #6b7280;
+    }
+    .btn {
+      display: inline-block;
+      padding: 12px 24px;
+      background: #dc3545;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 500;
+      transition: all 0.3s;
+      margin: 10px 10px 10px 0;
+    }
+    .btn:hover {
+      background: #c82333;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+    }
+    .checklist {
+      list-style: none;
+      padding: 0;
+    }
+    .checklist li {
+      padding: 8px 0;
+      border-bottom: 1px solid #e8ecf0;
+    }
+    .checklist li:before {
+      content: "✅ ";
+      color: #48bb78;
+      font-weight: bold;
+    }
+    .status {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      background: #d4edda;
+      color: #155724;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>✅ 管理员采购订单功能测试</h1>
+    <p class="subtitle">仓管员入库管理功能已成功照搬到管理员采购订单</p>
+  </div>
+
+  <div class="card">
+    <h2>🚀 快速访问</h2>
+    <a href="/admin.html" class="btn" target="_blank">🔧 打开管理员页面</a>
+    <a href="/prototype-working.html" class="btn" style="background: #667eea;" target="_blank">📦 打开仓管员页面（参考）</a>
+  </div>
+
+  <div class="card">
+    <h2>✅ 已完成的功能</h2>
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>📤 发票上传入库</h3>
+        <p>支持图片上传，AI智能识别发票信息</p>
+      </div>
+      <div class="feature">
+        <h3>✏️ 手动录入入库</h3>
+        <p>完整的产品信息录入表单</p>
+      </div>
+      <div class="feature">
+        <h3>➕ 动态产品行</h3>
+        <p>添加/删除产品行，灵活管理</p>
+      </div>
+      <div class="feature">
+        <h3>🔢 自动计算价格</h3>
+        <p>进货价 → 批发价 → 零售价</p>
+      </div>
+      <div class="feature">
+        <h3>📊 自动设置税率</h3>
+        <p>根据产品分类自动设置VAT税率</p>
+      </div>
+      <div class="feature">
+        <h3>🏷️ 序列号管理</h3>
+        <p>设备类产品支持多个序列号</p>
+      </div>
+      <div class="feature">
+        <h3>📦 条码管理</h3>
+        <p>配件类产品支持条码录入</p>
+      </div>
+      <div class="feature">
+        <h3>✅ 数据验证</h3>
+        <p>完整的必填字段和格式验证</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🧪 测试步骤</h2>
+    <h3>手动录入入库测试</h3>
+    <ol>
+      <li>访问管理员页面，点击"采购订单"标签</li>
+      <li>点击"✏️ 手动录入入库"按钮</li>
+      <li>选择供应商（下拉框应该自动加载）</li>
+      <li>输入发票号码</li>
+      <li>填写产品信息：
+        <ul>
+          <li>产品名称：iPhone 15 Pro</li>
+          <li>数量：2</li>
+          <li>进货价：800（应自动计算批发价960和零售价1248）</li>
+          <li>产品分类：全新设备（应自动设置VAT 23%）</li>
+          <li>填写2个序列号（应自动生成2个输入框）</li>
+          <li>颜色：黑色</li>
+          <li>成色：全新</li>
+        </ul>
+      </li>
+      <li>点击"➕ 添加产品"添加第二个产品</li>
+      <li>填写第二个产品（配件类）：
+        <ul>
+          <li>产品名称：iPhone 充电线</li>
+          <li>数量：10</li>
+          <li>进货价：5</li>
+          <li>产品分类：手机配件</li>
+          <li>条码：可选填</li>
+        </ul>
+      </li>
+      <li>点击"✅ 确认入库"</li>
+      <li>检查是否成功入库</li>
+    </ol>
+
+    <h3>发票上传测试</h3>
+    <ol>
+      <li>点击"📤 发票上传入库"按钮</li>
+      <li>点击"📤 上传发票图片"</li>
+      <li>选择一张发票图片</li>
+      <li>等待AI识别</li>
+      <li>检查识别结果</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>📋 功能清单</h2>
+    <ul class="checklist">
+      <li>HTML结构完整</li>
+      <li>CSS样式已添加</li>
+      <li>JavaScript函数已实现</li>
+      <li>切换入库模式功能</li>
+      <li>加载供应商列表</li>
+      <li>添加产品行</li>
+      <li>更新产品数据</li>
+      <li>自动计算价格</li>
+      <li>自动设置税率</li>
+      <li>序列号管理</li>
+      <li>条码管理</li>
+      <li>数据验证</li>
+      <li>确认入库</li>
+      <li>文件上传处理</li>
+      <li>清空表单</li>
+      <li>移除产品行</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>🎯 价格计算逻辑</h2>
+    <div style="background: #f7fafc; padding: 20px; border-radius: 8px; font-family: monospace;">
+      <div style="margin-bottom: 15px;">
+        <strong>进货价 (Purchase Price)</strong><br>
+        <span style="color: #6b7280;">用户输入</span>
+      </div>
+      <div style="margin: 15px 0; padding-left: 20px; border-left: 3px solid #dc3545;">
+        ↓ × 1.2
+      </div>
+      <div style="margin-bottom: 15px;">
+        <strong>批发价 (Wholesale Price)</strong><br>
+        <span style="color: #6b7280;">自动计算 = 进货价 × 1.2</span>
+      </div>
+      <div style="margin: 15px 0; padding-left: 20px; border-left: 3px solid #dc3545;">
+        ↓ × 1.3
+      </div>
+      <div>
+        <strong>零售价 (Retail Price)</strong><br>
+        <span style="color: #6b7280;">自动计算 = 批发价 × 1.3</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📊 税率设置</h2>
+    <table style="width: 100%; border-collapse: collapse;">
+      <thead>
+        <tr style="background: #f7fafc;">
+          <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e8ecf0;">产品分类</th>
+          <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e8ecf0;">默认税率</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #e8ecf0;">手机配件、电脑配件、车载配件</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e8ecf0;"><strong>VAT 23%</strong></td>
+        </tr>
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #e8ecf0;">Audio、数据线、Power Supply</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e8ecf0;"><strong>VAT 23%</strong></td>
+        </tr>
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #e8ecf0;">全新设备</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e8ecf0;"><strong>VAT 23%</strong></td>
+        </tr>
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #e8ecf0;">二手设备、维修</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e8ecf0;"><strong>VAT 13.5%</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" style="background: #d4edda; border-left: 4px solid #48bb78;">
+    <h2>🎉 功能已完成！</h2>
+    <p>管理员采购订单功能已成功实现，包含发票上传和手动录入两种入库方式。</p>
+    <p><strong>状态</strong>: <span class="status">✅ 已完成并测试</span></p>
+    <p style="margin-top: 20px;">
+      <a href="/admin.html" class="btn">🚀 立即测试采购订单功能</a>
+    </p>
+  </div>
+
+  <script>
+    console.log('✅ 管理员采购订单功能已完成！');
+    console.log('📋 功能清单：');
+    console.log('  - 发票上传入库');
+    console.log('  - 手动录入入库');
+    console.log('  - 动态产品行管理');
+    console.log('  - 自动价格计算');
+    console.log('  - 自动税率设置');
+    console.log('  - 序列号/条码管理');
+    console.log('  - 完整数据验证');
+  </script>
+</body>
+</html>

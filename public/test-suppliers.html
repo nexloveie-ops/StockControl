@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>测试供应商加载</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    .test-section {
+      margin: 20px 0;
+      padding: 20px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+    }
+    select {
+      width: 100%;
+      padding: 10px;
+      font-size: 16px;
+      border: 2px solid #cbd5e0;
+      border-radius: 6px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      background: #4299e1;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #3182ce;
+    }
+    #log {
+      background: #f7fafc;
+      padding: 15px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .success { color: #38a169; }
+    .error { color: #e53e3e; }
+    .info { color: #3182ce; }
+  </style>
+</head>
+<body>
+  <h1>🧪 供应商加载测试</h1>
+  
+  <div class="test-section">
+    <h2>1. API测试</h2>
+    <button onclick="testAPI()">测试 /api/suppliers</button>
+    <div id="apiResult" style="margin-top: 10px;"></div>
+  </div>
+  
+  <div class="test-section">
+    <h2>2. 供应商下拉框</h2>
+    <label for="supplierSelect">选择供应商：</label>
+    <select id="supplierSelect">
+      <option value="">加载中...</option>
+    </select>
+    <button onclick="loadSuppliers()">重新加载</button>
+  </div>
+  
+  <div class="test-section">
+    <h2>3. 调试日志</h2>
+    <button onclick="clearLog()">清空日志</button>
+    <div id="log"></div>
+  </div>
+
+  <script>
+    function log(message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const timestamp = new Date().toLocaleTimeString();
+      const className = type;
+      logDiv.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(message);
+    }
+
+    function clearLog() {
+      document.getElementById('log').innerHTML = '';
+    }
+
+    async function testAPI() {
+      log('🔄 测试 API: /api/suppliers', 'info');
+      const resultDiv = document.getElementById('apiResult');
+      
+      try {
+        const response = await fetch('/api/suppliers');
+        log(`📥 响应状态: ${response.status} ${response.statusText}`, 'info');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const result = await response.json();
+        log(`✅ 成功获取数据`, 'success');
+        log(`📊 供应商数量: ${result.data?.length || 0}`, 'success');
+        
+        resultDiv.innerHTML = `
+          <div style="background: #f0fff4; padding: 15px; border-radius: 6px; margin-top: 10px;">
+            <strong>✅ API 正常工作</strong><br>
+            供应商数量: ${result.data?.length || 0}<br>
+            <details style="margin-top: 10px;">
+              <summary>查看详细数据</summary>
+              <pre style="background: white; padding: 10px; border-radius: 4px; overflow-x: auto;">${JSON.stringify(result, null, 2)}</pre>
+            </details>
+          </div>
+        `;
+        
+        return result.data;
+      } catch (error) {
+        log(`❌ API 错误: ${error.message}`, 'error');
+        resultDiv.innerHTML = `
+          <div style="background: #fff5f5; padding: 15px; border-radius: 6px; margin-top: 10px; color: #c53030;">
+            <strong>❌ API 错误</strong><br>
+            ${error.message}
+          </div>
+        `;
+        return [];
+      }
+    }
+
+    async function loadSuppliers() {
+      log('🔄 开始加载供应商到下拉框', 'info');
+      const select = document.getElementById('supplierSelect');
+      
+      try {
+        // 显示加载状态
+        select.innerHTML = '<option value="">加载中...</option>';
+        log('📡 发送请求到 /api/suppliers', 'info');
+        
+        const response = await fetch('/api/suppliers');
+        log(`📥 收到响应: ${response.status}`, 'info');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const result = await response.json();
+        const suppliers = result.data || [];
+        
+        log(`✅ 获取到 ${suppliers.length} 个供应商`, 'success');
+        
+        // 清空并重新填充
+        select.innerHTML = '<option value="">选择供应商...</option>';
+        
+        if (suppliers.length === 0) {
+          log('⚠️  没有供应商数据', 'error');
+          select.innerHTML = '<option value="">没有可用供应商</option>';
+          return;
+        }
+        
+        suppliers.forEach((supplier, index) => {
+          log(`  ${index + 1}. ${supplier.name} (${supplier._id})`, 'info');
+          const option = document.createElement('option');
+          option.value = supplier._id;
+          option.textContent = supplier.name;
+          select.appendChild(option);
+        });
+        
+        log(`✅ 成功加载 ${suppliers.length} 个供应商到下拉框`, 'success');
+        
+      } catch (error) {
+        log(`❌ 加载失败: ${error.message}`, 'error');
+        select.innerHTML = '<option value="">加载失败</option>';
+      }
+    }
+
+    // 页面加载时自动测试
+    window.addEventListener('DOMContentLoaded', () => {
+      log('🚀 页面加载完成', 'success');
+      log('🔄 自动加载供应商...', 'info');
+      loadSuppliers();
+    });
+
+    // 监听下拉框变化
+    document.getElementById('supplierSelect').addEventListener('change', (e) => {
+      if (e.target.value) {
+        log(`✅ 选择了供应商: ${e.target.options[e.target.selectedIndex].text} (${e.target.value})`, 'success');
+      }
+    });
+  </script>
+</body>
+</html>

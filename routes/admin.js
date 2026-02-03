@@ -8,6 +8,8 @@ const supplierController = require('../controllers/admin/supplierController');
 const userController = require('../controllers/admin/userController');
 const storeController = require('../controllers/admin/storeController');
 const inventoryController = require('../controllers/admin/inventoryController');
+const conditionController = require('../controllers/admin/conditionController');
+const vatRateController = require('../controllers/admin/vatRateController');
 
 // 临时中间件（简化版，生产环境需要真正的认证）
 const tempAuth = (req, res, next) => {
@@ -345,6 +347,18 @@ router.get('/categories', categoryController.getCategories);
 router.post('/categories', categoryController.createCategory);
 router.put('/categories/:id', categoryController.updateCategory);
 router.delete('/categories/:id', categoryController.deleteCategory);
+
+// ==================== 设备成色管理 ====================
+router.get('/conditions', conditionController.getConditions);
+router.post('/conditions', conditionController.createCondition);
+router.put('/conditions/:id', conditionController.updateCondition);
+router.delete('/conditions/:id', conditionController.deleteCondition);
+
+// ==================== 税率管理 ====================
+router.get('/vat-rates', vatRateController.getVatRates);
+router.post('/vat-rates', vatRateController.createVatRate);
+router.put('/vat-rates/:id', vatRateController.updateVatRate);
+router.delete('/vat-rates/:id', vatRateController.deleteVatRate);
 
 // ==================== 产品管理 ====================
 router.get('/products-admin', productController.getProducts);

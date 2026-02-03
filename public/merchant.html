@@ -225,13 +225,56 @@
       padding: 40px;
       color: #666;
     }
+    
+    /* 模态框样式 */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0, 0, 0, 0.5);
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal-content {
+      background-color: #fefefe;
+      margin: auto;
+      padding: 30px;
+      border: 1px solid #888;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 600px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      position: relative;
+    }
+    
+    .close {
+      color: #aaa;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+      line-height: 20px;
+    }
+    
+    .close:hover,
+    .close:focus {
+      color: #000;
+    }
   </style>
 </head>
 <body>
   <div class="header">
     <div class="header-content">
       <div>
-        <h1>🏢 批发商户中心</h1>
+        <h1 id="merchantWelcome">🏢 Welcome</h1>
         <p>库存管理 · 销售业务 · 税务报表</p>
       </div>
       <button class="logout-btn" onclick="logout()">退出登录</button>
@@ -245,17 +288,26 @@
         <h3>我的库存</h3>
         <div class="value" id="myInventory">-</div>
       </div>
-      <div class="stat-card">
-        <h3>本月销售</h3>
-        <div class="value" id="monthlySales">-</div>
+      <div class="stat-card" onclick="showDailySalesDetails()" style="cursor: pointer;" 
+           onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 16px rgba(0,0,0,0.15)';"
+           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.1)';">
+        <h3>本日销售 💰</h3>
+        <div class="value" id="dailySales">-</div>
+        <small style="color: #666; font-size: 12px;">点击查看明细</small>
       </div>
-      <div class="stat-card">
-        <h3>本月维修</h3>
-        <div class="value" id="monthlyRepairs">-</div>
+      <div class="stat-card" onclick="showDailyRepairsDetails()" style="cursor: pointer;"
+           onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 16px rgba(0,0,0,0.15)';"
+           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.1)';">
+        <h3>本日维修 🔧</h3>
+        <div class="value" id="dailyRepairs">-</div>
+        <small style="color: #666; font-size: 12px;">点击查看明细</small>
       </div>
-      <div class="stat-card">
-        <h3>应缴税额</h3>
+      <div class="stat-card" onclick="showTaxCalculationDetails()" style="cursor: pointer;"
+           onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 16px rgba(0,0,0,0.15)';"
+           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.1)';">
+        <h3>应缴税额 📊</h3>
         <div class="value" id="taxDue">-</div>
+        <small style="color: #666; font-size: 12px;">点击查看计算过程</small>
       </div>
     </div>
 
@@ -264,6 +316,7 @@
       <button class="tab active" onclick="switchTab('sales')">销售业务</button>
       <button class="tab" onclick="switchTab('repairs')">维修业务</button>
       <button class="tab" onclick="switchTab('my-inventory')">我的库存</button>
+      <button class="tab" onclick="switchTab('group-inventory')">群组库存</button>
       <button class="tab" onclick="switchTab('warehouse-order')">仓库订货</button>
       <button class="tab" onclick="switchTab('reports')">报表中心</button>
       <button class="tab" onclick="switchTab('tax-report')">税务报表</button>
@@ -272,12 +325,42 @@
     <!-- 销售业务 -->
     <div id="sales" class="tab-content active">
       <div class="card">
-        <h2>销售业务</h2>
-        <p style="color: #666; margin-bottom: 20px;">从您的库存中选择产品进行销售</p>
+        <h2>🛒 销售业务</h2>
+        <p style="color: #666; margin-bottom: 20px;">选择产品类别，添加到购物车后结账</p>
         
-        <!-- 销售表单 -->
-        <div id="salesForm">
+        <!-- 购物车摘要 -->
+        <div id="cartSummary" style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <span style="font-size: 18px;">🛒</span>
+              <strong>购物车：</strong>
+              <span id="cartItemCount">0</span> 件商品
+              <span style="margin-left: 20px;"><strong>总计：</strong></span>
+              <span id="cartTotal" style="color: #2563eb; font-size: 20px; font-weight: bold;">€0.00</span>
+            </div>
+            <div>
+              <button class="btn btn-primary" onclick="showCheckoutModal()" style="padding: 10px 30px; font-size: 16px;">
+                💳 结账
+              </button>
+              <button onclick="clearCart()" style="padding: 10px 20px; background: #ef4444; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; margin-left: 10px;">
+                清空
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 产品分类列表 -->
+        <div id="categoryList">
           <div class="loading">加载中...</div>
+        </div>
+        
+        <!-- 分类产品列表 -->
+        <div id="categoryProducts" style="display: none;">
+          <button onclick="backToCategories()" style="padding: 8px 16px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 15px;">
+            ← 返回分类
+          </button>
+          <h3 id="currentCategoryName" style="margin-bottom: 15px;"></h3>
+          <div id="productList"></div>
         </div>
       </div>
       
@@ -302,13 +385,393 @@
       </div>
     </div>
 
+    <!-- 选择IMEI/SN模态框 -->
+    <div id="selectDeviceModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+      <div style="background: white; border-radius: 10px; padding: 30px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
+        <h3 style="margin-bottom: 20px;">选择设备</h3>
+        <p style="color: #666; margin-bottom: 15px;" id="deviceProductName"></p>
+        <div id="deviceList" style="margin-bottom: 20px;"></div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button onclick="closeDeviceModal()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+            取消
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 结账模态框 -->
+    <div id="checkoutModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+      <div style="background: white; border-radius: 10px; padding: 30px; max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <h3 style="margin-bottom: 20px;">💳 结账</h3>
+        
+        <!-- 购物车明细 -->
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; max-height: 300px; overflow-y: auto;">
+          <h4 style="margin-bottom: 10px;">购物车明细</h4>
+          <div id="checkoutCartItems"></div>
+          <div style="border-top: 2px solid #dee2e6; margin-top: 10px; padding-top: 10px;">
+            <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: bold;">
+              <span>总计：</span>
+              <span id="checkoutTotal" style="color: #2563eb;">€0.00</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 客户信息 -->
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; font-weight: 600; margin-bottom: 8px;">客户电话（选填）</label>
+          <input type="text" id="customerPhone" placeholder="输入客户电话..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+        </div>
+        
+        <!-- 支付方式 -->
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; font-weight: 600; margin-bottom: 8px;">支付方式</label>
+          <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <button onclick="selectPaymentMethod('CASH')" id="payBtn_CASH" style="flex: 1; padding: 15px; border: 2px solid #ddd; border-radius: 8px; background: white; cursor: pointer; font-weight: 600;">
+              💵 现金
+            </button>
+            <button onclick="selectPaymentMethod('CARD')" id="payBtn_CARD" style="flex: 1; padding: 15px; border: 2px solid #ddd; border-radius: 8px; background: white; cursor: pointer; font-weight: 600;">
+              💳 刷卡
+            </button>
+            <button onclick="selectPaymentMethod('MIXED')" id="payBtn_MIXED" style="flex: 1; padding: 15px; border: 2px solid #ddd; border-radius: 8px; background: white; cursor: pointer; font-weight: 600;">
+              💰 混合
+            </button>
+          </div>
+          
+          <!-- 混合支付金额输入 -->
+          <div id="mixedPaymentInputs" style="display: none; background: #f0f9ff; padding: 15px; border-radius: 8px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px;">现金金额 (€)</label>
+                <input type="number" id="cashAmount" min="0" step="0.01" value="0" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;" onchange="updateMixedPayment()">
+              </div>
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px;">刷卡金额 (€)</label>
+                <input type="number" id="cardAmount" min="0" step="0.01" value="0" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;" onchange="updateMixedPayment()">
+              </div>
+            </div>
+            <p id="mixedPaymentWarning" style="color: #dc2626; margin-top: 10px; display: none;"></p>
+          </div>
+        </div>
+        
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button onclick="closeCheckoutModal()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+            取消
+          </button>
+          <button onclick="completeSale()" id="completeSaleBtn" style="padding: 10px 30px; background: #10b981; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; font-size: 16px;">
+            ✅ 确认支付
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 维修业务 -->
     <div id="repairs" class="tab-content">
       <div class="card">
-        <h2>维修记录</h2>
-        <button class="btn btn-success" onclick="showNewRepairModal()" style="margin-bottom: 15px;">+ 新增维修</button>
+        <h2>🔧 维修业务</h2>
+        <button class="btn btn-success" onclick="showNewRepairModal()" style="margin-bottom: 15px;">+ 新增维修订单</button>
+        
+        <!-- 状态筛选 -->
+        <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+          <button onclick="filterRepairs('all')" id="filterBtn_all" class="btn" style="padding: 8px 16px; background: #6366f1; color: white;">
+            全部
+          </button>
+          <button onclick="filterRepairs('pending')" id="filterBtn_pending" class="btn" style="padding: 8px 16px; background: #f59e0b; color: white;">
+            待维修
+          </button>
+          <button onclick="filterRepairs('sent_out')" id="filterBtn_sent_out" class="btn" style="padding: 8px 16px; background: #8b5cf6; color: white;">
+            已送出
+          </button>
+          <button onclick="filterRepairs('retrieved')" id="filterBtn_retrieved" class="btn" style="padding: 8px 16px; background: #10b981; color: white;">
+            已取回
+          </button>
+          <button onclick="filterRepairs('completed')" id="filterBtn_completed" class="btn" style="padding: 8px 16px; background: #06b6d4; color: white;">
+            已完成
+          </button>
+          <button onclick="filterRepairs('ready_for_sale')" id="filterBtn_ready_for_sale" class="btn" style="padding: 8px 16px; background: #ec4899; color: white;">
+            等待销售
+          </button>
+        </div>
+        
         <div id="repairsTable">
           <div class="loading">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 新增维修订单模态框 -->
+    <div id="newRepairModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+      <div style="background: white; border-radius: 10px; padding: 30px; max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <h3 style="margin-bottom: 20px;">🔧 新增维修订单</h3>
+        
+        <form id="newRepairForm" onsubmit="submitNewRepair(event)">
+          <div style="display: grid; gap: 15px;">
+            <!-- 客户信息 -->
+            <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+              <h4 style="margin-bottom: 10px; color: #1e40af;">客户信息</h4>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                  <label style="display: block; font-weight: 600; margin-bottom: 5px;">客户电话 *</label>
+                  <input type="text" id="repair_customerPhone" required placeholder="0851234567" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div>
+                  <label style="display: block; font-weight: 600; margin-bottom: 5px;">客户姓名</label>
+                  <input type="text" id="repair_customerName" placeholder="选填" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+              </div>
+            </div>
+            
+            <!-- 设备信息 -->
+            <div style="background: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+              <h4 style="margin-bottom: 10px; color: #92400e;">设备信息</h4>
+              <div style="display: grid; gap: 15px;">
+                <div>
+                  <label style="display: block; font-weight: 600; margin-bottom: 5px;">设备名称 *</label>
+                  <input type="text" id="repair_deviceName" required placeholder="例如: iPhone 13 Pro" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                  <div>
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px;">IMEI</label>
+                    <input type="text" id="repair_deviceIMEI" placeholder="选填" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                  </div>
+                  <div>
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px;">序列号 (SN)</label>
+                    <input type="text" id="repair_deviceSN" placeholder="选填" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 维修信息 -->
+            <div style="background: #fce7f3; padding: 15px; border-radius: 8px; border-left: 4px solid #ec4899;">
+              <h4 style="margin-bottom: 10px; color: #9f1239;">维修信息</h4>
+              <div style="display: grid; gap: 15px;">
+                <div>
+                  <label style="display: block; font-weight: 600; margin-bottom: 5px;">问题描述 *</label>
+                  <textarea id="repair_problemDescription" required rows="3" placeholder="描述设备的问题..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; resize: vertical;"></textarea>
+                </div>
+                <div>
+                  <label style="display: block; font-weight: 600; margin-bottom: 5px;">备注</label>
+                  <textarea id="repair_notes" rows="2" placeholder="其他备注信息..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; resize: vertical;"></textarea>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                  <div>
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px;">维修地点</label>
+                    <input type="text" id="repair_location" placeholder="留空表示自己维修" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                    <small style="color: #666; font-size: 12px;">填写则为外送维修</small>
+                  </div>
+                  <div>
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px;">预计完成时间</label>
+                    <input type="date" id="repair_estimatedDate" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                  </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                  <div>
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px;">维修费用 (€)</label>
+                    <input type="number" id="repair_cost" min="0" step="0.01" value="0" placeholder="选填，成本价" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                    <small style="color: #666; font-size: 12px;">维修成本（选填）</small>
+                  </div>
+                  <div>
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px;">销售价格 (€) *</label>
+                    <input type="number" id="repair_salePrice" min="0" step="0.01" required placeholder="必填，销售价" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                    <small style="color: #10b981; font-size: 12px;">客户支付价格（必填）</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+            <button type="button" onclick="closeNewRepairModal()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+              取消
+            </button>
+            <button type="submit" style="padding: 10px 30px; background: #10b981; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+              ✅ 创建订单
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 编辑维修订单模态框 -->
+    <div id="editRepairModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+      <div style="background: white; border-radius: 10px; padding: 30px; max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <h3 style="margin-bottom: 20px;">✏️ 编辑维修订单</h3>
+        
+        <form id="editRepairForm" onsubmit="submitEditRepair(event)">
+          <input type="hidden" id="edit_repair_id">
+          
+          <div style="display: grid; gap: 15px;">
+            <!-- 客户信息 -->
+            <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+              <h4 style="margin-bottom: 10px; color: #1e40af;">客户信息</h4>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                  <label style="display: block; font-weight: 600; margin-bottom: 5px;">客户电话 *</label>
+                  <input type="text" id="edit_repair_customerPhone" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div>
+                  <label style="display: block; font-weight: 600; margin-bottom: 5px;">客户姓名</label>
+                  <input type="text" id="edit_repair_customerName" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+              </div>
+            </div>
+            
+            <!-- 设备信息 -->
+            <div style="background: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+              <h4 style="margin-bottom: 10px; color: #92400e;">设备信息</h4>
+              <div style="display: grid; gap: 15px;">
+                <div>
+                  <label style="display: block; font-weight: 600; margin-bottom: 5px;">设备名称 *</label>
+                  <input type="text" id="edit_repair_deviceName" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                  <div>
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px;">IMEI</label>
+                    <input type="text" id="edit_repair_deviceIMEI" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                  </div>
+                  <div>
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px;">序列号 (SN)</label>
+                    <input type="text" id="edit_repair_deviceSN" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 维修信息 -->
+            <div style="background: #fce7f3; padding: 15px; border-radius: 8px; border-left: 4px solid #ec4899;">
+              <h4 style="margin-bottom: 10px; color: #9f1239;">维修信息</h4>
+              <div style="display: grid; gap: 15px;">
+                <div>
+                  <label style="display: block; font-weight: 600; margin-bottom: 5px;">问题描述 *</label>
+                  <textarea id="edit_repair_problemDescription" required rows="3" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; resize: vertical;"></textarea>
+                </div>
+                <div>
+                  <label style="display: block; font-weight: 600; margin-bottom: 5px;">备注</label>
+                  <textarea id="edit_repair_notes" rows="2" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; resize: vertical;"></textarea>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                  <div>
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px;">维修地点</label>
+                    <input type="text" id="edit_repair_location" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                    <small style="color: #666; font-size: 12px;">留空表示自己维修</small>
+                  </div>
+                  <div>
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px;">预计完成时间</label>
+                    <input type="date" id="edit_repair_estimatedDate" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                  </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                  <div>
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px;">维修费用 (€)</label>
+                    <input type="number" id="edit_repair_cost" min="0" step="0.01" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                    <small style="color: #666; font-size: 12px;">维修成本（选填）</small>
+                  </div>
+                  <div>
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px;">销售价格 (€) *</label>
+                    <input type="number" id="edit_repair_salePrice" min="0" step="0.01" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                    <small style="color: #10b981; font-size: 12px;">客户支付价格（必填）</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+            <button type="button" onclick="closeEditRepairModal()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+              取消
+            </button>
+            <button type="submit" style="padding: 10px 30px; background: #10b981; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+              ✅ 保存修改
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 产品时间线模态框 -->
+    <div id="productTimelineModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+      <div style="background: white; border-radius: 10px; padding: 30px; max-width: 900px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h3 style="margin: 0;">📊 产品时间线</h3>
+          <button onclick="closeProductTimeline()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
+        </div>
+        
+        <div id="timelineProductName" style="font-size: 18px; font-weight: 600; color: #3b82f6; margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;"></div>
+        
+        <div id="timelineContent" style="position: relative;">
+          <div class="loading">加载中...</div>
+        </div>
+        
+        <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+          <button onclick="closeProductTimeline()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 本日销售明细模态框 -->
+    <div id="dailySalesModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+      <div style="background: white; border-radius: 10px; padding: 30px; max-width: 1000px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h3 style="margin: 0;">💰 本日销售明细</h3>
+          <button onclick="closeDailySalesModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
+        </div>
+        
+        <div id="dailySalesDate" style="font-size: 16px; color: #666; margin-bottom: 20px;"></div>
+        
+        <div id="dailySalesContent">
+          <div class="loading">加载中...</div>
+        </div>
+        
+        <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+          <button onclick="closeDailySalesModal()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 本日维修明细模态框 -->
+    <div id="dailyRepairsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+      <div style="background: white; border-radius: 10px; padding: 30px; max-width: 1000px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h3 style="margin: 0;">🔧 本日维修明细</h3>
+          <button onclick="closeDailyRepairsModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
+        </div>
+        
+        <div id="dailyRepairsDate" style="font-size: 16px; color: #666; margin-bottom: 20px;"></div>
+        
+        <div id="dailyRepairsContent">
+          <div class="loading">加载中...</div>
+        </div>
+        
+        <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+          <button onclick="closeDailyRepairsModal()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 税额计算明细模态框 -->
+    <div id="taxCalculationModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+      <div style="background: white; border-radius: 10px; padding: 30px; max-width: 1000px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h3 style="margin: 0;">📊 税额计算过程</h3>
+          <button onclick="closeTaxCalculationModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
+        </div>
+        
+        <div id="taxCalculationDate" style="font-size: 16px; color: #666; margin-bottom: 20px;"></div>
+        
+        <div id="taxCalculationContent">
+          <div class="loading">加载中...</div>
+        </div>
+        
+        <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+          <button onclick="closeTaxCalculationModal()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+            关闭
+          </button>
         </div>
       </div>
     </div>
@@ -316,9 +779,175 @@
     <!-- 我的库存 -->
     <div id="my-inventory" class="tab-content">
       <div class="card">
-        <h2>我的库存</h2>
-        <div id="inventoryTable">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h2>我的库存</h2>
+          <button class="btn btn-primary" onclick="showAddInventoryModal()" style="padding: 10px 20px; background: #6366f1; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+            + 手动入库
+          </button>
+        </div>
+        
+        <!-- 搜索框 -->
+        <div style="margin-bottom: 20px;">
+          <input type="text" id="inventorySearchInput" placeholder="🔍 搜索产品名称、序列号、条码或备注..." 
+            style="width: 100%; padding: 12px 20px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;"
+            oninput="searchInventory()">
+        </div>
+        
+        <!-- 分类列表 -->
+        <div id="inventoryCategoryList" style="display: block;">
           <div class="loading">加载中...</div>
+        </div>
+        
+        <!-- 产品列表 -->
+        <div id="inventoryProductList" style="display: none;">
+          <button onclick="backToInventoryCategories()" style="padding: 8px 16px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 15px;">
+            ← 返回分类
+          </button>
+          <h3 id="currentInventoryCategoryName" style="margin-bottom: 15px;"></h3>
+          <div id="inventoryProducts">
+            <div class="loading">加载中...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 入库模态框 -->
+    <div id="addInventoryModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+      <div style="background: white; border-radius: 10px; padding: 30px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h3 style="font-size: 20px; color: #333;">手动入库</h3>
+          <button onclick="closeAddInventoryModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
+        </div>
+        
+        <!-- 显示当前商户信息 -->
+        <div style="background: #f0f9ff; padding: 12px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #3b82f6;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 18px;">🏢</span>
+            <div>
+              <div style="font-size: 12px; color: #666;">入库到</div>
+              <div style="font-weight: 600; color: #1e40af;" id="currentMerchantInfo">当前商户</div>
+            </div>
+          </div>
+        </div>
+        
+        <form id="addInventoryForm" onsubmit="submitAddInventory(event)">
+          <div style="display: grid; grid-template-columns: 1fr; gap: 15px;">
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #555;">产品名称 *</label>
+              <input type="text" id="inv_productName" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #555;">品牌</label>
+                <input type="text" id="inv_brand" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #555;">型号</label>
+                <input type="text" id="inv_model" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+              </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #555;">分类 *</label>
+                <select id="inv_category" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                  <option value="">请选择分类...</option>
+                </select>
+              </div>
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #555;">数量 *</label>
+                <input type="number" id="inv_quantity" required min="1" value="1" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+              </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #555;">成本价 (€) *</label>
+                <input type="number" id="inv_costPrice" required min="0" step="0.01" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #555;">批发价 (€) *</label>
+                <input type="number" id="inv_wholesalePrice" required min="0" step="0.01" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #555;">零售价 (€) *</label>
+                <input type="number" id="inv_retailPrice" required min="0" step="0.01" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+              </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #555;">条码</label>
+                <input type="text" id="inv_barcode" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #555;">序列号</label>
+                <input type="text" id="inv_serialNumber" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+              </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #555;">颜色</label>
+                <input type="text" id="inv_color" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #555;">成色</label>
+                <select id="inv_condition" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                  <option value="BRAND_NEW">全新</option>
+                  <option value="PRE_OWNED">二手</option>
+                  <option value="REFURBISHED">翻新</option>
+                </select>
+              </div>
+            </div>
+            
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #555;">备注</label>
+              <textarea id="inv_notes" rows="3" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; resize: vertical;"></textarea>
+            </div>
+          </div>
+          
+          <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+            <button type="button" onclick="closeAddInventoryModal()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+              取消
+            </button>
+            <button type="submit" style="padding: 10px 20px; background: #10b981; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+              确认入库
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 群组库存 -->
+    <div id="group-inventory" class="tab-content">
+      <div class="card">
+        <h2>👥 群组库存</h2>
+        <p style="color: #666; margin-bottom: 20px;">查看同一群组内其他商户的库存，方便调货</p>
+        
+        <!-- 分类列表 -->
+        <div id="groupInventoryCategoryList" style="display: block;">
+          <div class="loading">加载中...</div>
+        </div>
+        
+        <!-- 产品列表 -->
+        <div id="groupInventoryProductList" style="display: none;">
+          <button onclick="backToGroupCategories()" style="padding: 8px 16px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 15px;">
+            ← 返回分类
+          </button>
+          <h3 id="currentGroupCategoryName" style="margin-bottom: 15px;"></h3>
+          
+          <!-- 搜索框 -->
+          <div style="margin-bottom: 20px;">
+            <input type="text" id="groupInventorySearchInput" placeholder="🔍 搜索产品名称、序列号、商户..." 
+              style="width: 100%; padding: 12px 20px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;"
+              oninput="searchGroupInventory()">
+          </div>
+          
+          <div id="groupInventoryTable">
+            <div class="loading">加载中...</div>
+          </div>
         </div>
       </div>
     </div>
@@ -326,9 +955,149 @@
     <!-- 仓库订货 -->
     <div id="warehouse-order" class="tab-content">
       <div class="card">
-        <h2>从仓库订货</h2>
+        <h2>📦 从仓库订货</h2>
         <p style="color: #666; margin-bottom: 20px;">选择产品从仓库采购到您的库存</p>
-        <div id="warehouseProducts">
+        
+        <!-- 订单标签 -->
+        <div style="margin-bottom: 20px; border-bottom: 2px solid #e5e7eb;">
+          <button id="warehouseOrderTabBtn" class="sub-tab active" onclick="switchWarehouseTab('order')" style="padding: 10px 20px; background: none; border: none; border-bottom: 3px solid #6366f1; color: #6366f1; font-weight: 600; cursor: pointer;">
+            浏览产品
+          </button>
+          <button id="warehouseMyOrdersTabBtn" class="sub-tab" onclick="switchWarehouseTab('myOrders')" style="padding: 10px 20px; background: none; border: none; border-bottom: 3px solid transparent; color: #6b7280; cursor: pointer;">
+            我的订单
+          </button>
+        </div>
+        
+        <!-- 浏览产品区域 -->
+        <div id="warehouseOrderSection">
+          <div style="display: grid; grid-template-columns: 3fr 1fr; gap: 20px;">
+            <!-- 左侧：产品区域 -->
+            <div>
+              <!-- 分类列表视图 -->
+              <div id="warehouseCategoryListView" style="display: block;">
+                <div id="warehouseCategoryList">
+                  <h3 style="margin-bottom: 15px;">选择产品分类</h3>
+                  <div id="warehouseCategories" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px;">
+                    <div class="loading">加载中...</div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 产品列表视图 -->
+              <div id="warehouseProductList" style="display: none;">
+                <button onclick="backToWarehouseCategories()" style="padding: 8px 16px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 15px;">
+                  ← 返回分类
+                </button>
+                <h3 id="currentWarehouseCategoryName" style="margin-bottom: 15px;"></h3>
+                <div id="warehouseProducts" style="overflow-x: auto;">
+                  <div class="loading">加载中...</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 右侧：购物车（固定显示） -->
+            <div style="position: sticky; top: 20px; height: fit-content;">
+              <div style="background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 10px; padding: 20px;">
+                <h3 style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                  <span>🛒 购物车</span>
+                  <span id="warehouseCartCount" style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 12px; font-size: 14px;">0</span>
+                </h3>
+                
+                <div id="warehouseCartItems" style="max-height: 400px; overflow-y: auto; margin-bottom: 15px;">
+                  <p style="color: #9ca3af; text-align: center; padding: 40px 0;">购物车是空的</p>
+                </div>
+                
+                <div style="border-top: 2px solid #e5e7eb; padding-top: 15px; margin-top: 15px;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 18px; font-weight: 600;">
+                    <span>总计:</span>
+                    <span style="color: #ef4444;">€<span id="warehouseCartTotal">0.00</span></span>
+                  </div>
+                  <button onclick="submitWarehouseOrder()" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer;">
+                    提交订单
+                  </button>
+                  <button onclick="clearWarehouseCart()" style="width: 100%; padding: 8px; background: #ef4444; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; margin-top: 10px;">
+                    清空购物车
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 我的订单区域 -->
+        <div id="warehouseMyOrdersSection" style="display: none;">
+          <div style="margin-bottom: 20px;">
+            <select id="orderStatusFilter" onchange="loadMyWarehouseOrders()" style="padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px;">
+              <option value="">全部状态</option>
+              <option value="pending">待确认</option>
+              <option value="confirmed">已确认</option>
+              <option value="shipped">已发货</option>
+              <option value="completed">已完成</option>
+              <option value="cancelled">已取消</option>
+            </select>
+          </div>
+          
+          <div id="myWarehouseOrdersList">
+            <div class="loading">加载中...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 订单提交对话框 -->
+    <div id="warehouseOrderSubmitModal" class="modal">
+      <div class="modal-content" style="max-width: 600px;">
+        <span class="close" onclick="closeWarehouseOrderSubmitModal()">&times;</span>
+        <h2>📦 提交订单</h2>
+        
+        <div style="margin: 20px 0;">
+          <h3 style="margin-bottom: 10px;">订单明细</h3>
+          <div id="orderSubmitItems" style="max-height: 200px; overflow-y: auto; background: #f9fafb; padding: 15px; border-radius: 8px;">
+          </div>
+          <div style="text-align: right; margin-top: 10px; font-size: 18px; font-weight: 600;">
+            总计: €<span id="orderSubmitTotal">0.00</span>
+          </div>
+        </div>
+        
+        <div style="margin: 20px 0;">
+          <label style="display: block; margin-bottom: 5px; font-weight: 600;">配送方式</label>
+          <select id="deliveryMethod" onchange="toggleDeliveryFields()" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            <option value="delivery">🚚 物流配送</option>
+            <option value="pickup">🏪 到店自取</option>
+          </select>
+        </div>
+        
+        <div id="deliveryAddressSection" style="margin: 20px 0;">
+          <label style="display: block; margin-bottom: 5px; font-weight: 600;">配送地址</label>
+          <textarea id="deliveryAddress" rows="3" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;" placeholder="请输入详细配送地址"></textarea>
+        </div>
+        
+        <div id="pickupLocationSection" style="margin: 20px 0; display: none;">
+          <label style="display: block; margin-bottom: 5px; font-weight: 600;">自取地点</label>
+          <select id="pickupLocation" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            <option value="warehouse">仓库</option>
+            <option value="store">门店</option>
+          </select>
+        </div>
+        
+        <div style="margin: 20px 0;">
+          <label style="display: block; margin-bottom: 5px; font-weight: 600;">备注</label>
+          <textarea id="orderNotes" rows="2" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;" placeholder="选填"></textarea>
+        </div>
+        
+        <button onclick="confirmWarehouseOrderSubmit()" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer;">
+          确认提交
+        </button>
+      </div>
+    </div>
+
+    <!-- 订单详情对话框 -->
+    <div id="warehouseOrderDetailModal" class="modal">
+      <div class="modal-content" style="max-width: 800px;">
+        <span class="close" onclick="closeWarehouseOrderDetailModal()">&times;</span>
+        <h2>📋 订单详情</h2>
+        
+        <div id="orderDetailContent">
           <div class="loading">加载中...</div>
         </div>
       </div>
@@ -376,7 +1145,24 @@
 
   <script>
     const API_BASE = '/api';
-    const merchantId = 'merchant_001'; // 实际应从登录session获取
+    const merchantId = localStorage.getItem('username') || 'merchant_001'; // 从登录session获取
+    
+    // 购物车
+    let cart = [];
+    let selectedPaymentMethod = null;
+
+    // 加载商户信息
+    async function loadMerchantInfo() {
+      try {
+        // 从 localStorage 获取用户名
+        const userName = localStorage.getItem('username') || 'Guest';
+        document.getElementById('merchantWelcome').textContent = `🏢 Welcome ${userName}`;
+        document.title = `Welcome ${userName} - 3C产品管理系统`;
+      } catch (error) {
+        console.error('加载商户信息失败:', error);
+        document.getElementById('merchantWelcome').textContent = `🏢 Welcome`;
+      }
+    }
 
     // 切换标签页
     function switchTab(tabName) {
@@ -388,10 +1174,11 @@
       
       // 加载对应数据
       switch(tabName) {
-        case 'sales': loadSalesForm(); break;
+        case 'sales': loadCategoryList(); break;
         case 'repairs': loadRepairs(); break;
         case 'my-inventory': loadMyInventory(); break;
-        case 'warehouse-order': loadWarehouseProducts(); break;
+        case 'group-inventory': loadGroupInventory(); break;
+        case 'warehouse-order': switchWarehouseTab('order'); break;
         case 'reports': loadReports(); break;
       }
     }
@@ -405,8 +1192,8 @@
         if (result.success) {
           const stats = result.data;
           document.getElementById('myInventory').textContent = stats.myInventory || 0;
-          document.getElementById('monthlySales').textContent = '€' + (stats.monthlySales || 0).toFixed(2);
-          document.getElementById('monthlyRepairs').textContent = '€' + (stats.monthlyRepairs || 0).toFixed(2);
+          document.getElementById('dailySales').textContent = '€' + (stats.dailySales || 0).toFixed(2);
+          document.getElementById('dailyRepairs').textContent = '€' + (stats.dailyRepairs || 0).toFixed(2);
           document.getElementById('taxDue').textContent = '€' + (stats.taxDue || 0).toFixed(2);
         }
       } catch (error) {
@@ -414,67 +1201,1003 @@
       }
     }
 
-    // 加载销售业务表单
-    async function loadSalesForm() {
-      const container = document.getElementById('salesForm');
+    // 显示本日销售明细
+    async function showDailySalesDetails() {
+      document.getElementById('dailySalesModal').style.display = 'flex';
+      
+      const today = new Date();
+      const dateStr = today.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      document.getElementById('dailySalesDate').textContent = `📅 ${dateStr}`;
+      document.getElementById('dailySalesContent').innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const startDate = new Date(today.setHours(0, 0, 0, 0)).toISOString();
+        const endDate = new Date(today.setHours(23, 59, 59, 999)).toISOString();
+        
+        const response = await fetch(`${API_BASE}/merchant/sales?merchantId=${merchantId}&startDate=${startDate}&endDate=${endDate}`);
+        const result = await response.json();
+        
+        if (result.success && result.data && result.data.length > 0) {
+          const sales = result.data;
+          let totalAmount = 0;
+          let totalTax = 0;
+          let totalProfit = 0;
+          
+          let html = `
+            <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
+              <h4 style="margin-bottom: 10px; color: #1e40af;">销售汇总</h4>
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                <div>
+                  <div style="font-size: 12px; color: #666;">销售笔数</div>
+                  <div style="font-size: 20px; font-weight: bold; color: #3b82f6;">${sales.length}</div>
+                </div>
+                <div id="dailySalesSummary"></div>
+              </div>
+            </div>
+            
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
+                  <th style="padding: 12px; text-align: left;">时间</th>
+                  <th style="padding: 12px; text-align: left;">产品</th>
+                  <th style="padding: 12px; text-align: right;">数量</th>
+                  <th style="padding: 12px; text-align: right;">金额</th>
+                  <th style="padding: 12px; text-align: right;">税额</th>
+                  <th style="padding: 12px; text-align: left;">支付方式</th>
+                </tr>
+              </thead>
+              <tbody>
+          `;
+          
+          sales.forEach(sale => {
+            totalAmount += sale.totalAmount || 0;
+            totalTax += sale.totalTax || 0;
+            
+            // 计算利润
+            sale.items.forEach(item => {
+              totalProfit += (item.price - item.costPrice) * item.quantity;
+            });
+            
+            const time = new Date(sale.date).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            const paymentMethod = sale.paymentMethod === 'CASH' ? '💵 现金' : 
+                                 sale.paymentMethod === 'CARD' ? '💳 刷卡' : '💰 混合';
+            
+            html += `
+              <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 12px;">${time}</td>
+                <td style="padding: 12px;">
+                  ${sale.items.map(item => `
+                    <div style="margin-bottom: 5px;">
+                      ${item.productName} ${item.serialNumber ? `<small style="color: #666;">(${item.serialNumber})</small>` : ''}
+                    </div>
+                  `).join('')}
+                </td>
+                <td style="padding: 12px; text-align: right;">
+                  ${sale.items.map(item => `<div style="margin-bottom: 5px;">${item.quantity}</div>`).join('')}
+                </td>
+                <td style="padding: 12px; text-align: right; font-weight: 600; color: #10b981;">
+                  €${sale.totalAmount.toFixed(2)}
+                </td>
+                <td style="padding: 12px; text-align: right; color: #f59e0b;">
+                  €${(sale.totalTax || 0).toFixed(2)}
+                </td>
+                <td style="padding: 12px;">${paymentMethod}</td>
+              </tr>
+            `;
+          });
+          
+          html += `
+              </tbody>
+              <tfoot>
+                <tr style="background: #f9fafb; font-weight: bold; border-top: 2px solid #e5e7eb;">
+                  <td colspan="3" style="padding: 12px; text-align: right;">合计：</td>
+                  <td style="padding: 12px; text-align: right; color: #10b981;">€${totalAmount.toFixed(2)}</td>
+                  <td style="padding: 12px; text-align: right; color: #f59e0b;">€${totalTax.toFixed(2)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          `;
+          
+          document.getElementById('dailySalesContent').innerHTML = html;
+          
+          // 更新汇总信息
+          document.getElementById('dailySalesSummary').innerHTML = `
+            <div>
+              <div style="font-size: 12px; color: #666;">销售总额</div>
+              <div style="font-size: 20px; font-weight: bold; color: #10b981;">€${totalAmount.toFixed(2)}</div>
+            </div>
+            <div>
+              <div style="font-size: 12px; color: #666;">利润</div>
+              <div style="font-size: 20px; font-weight: bold; color: #8b5cf6;">€${totalProfit.toFixed(2)}</div>
+            </div>
+          `;
+        } else {
+          document.getElementById('dailySalesContent').innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">今日暂无销售记录</p>';
+        }
+      } catch (error) {
+        console.error('加载销售明细失败:', error);
+        document.getElementById('dailySalesContent').innerHTML = `<p style="text-align: center; color: #dc3545; padding: 40px;">加载失败: ${error.message}</p>`;
+      }
+    }
+    
+    // 关闭本日销售明细模态框
+    function closeDailySalesModal() {
+      document.getElementById('dailySalesModal').style.display = 'none';
+    }
+
+    // 显示本日维修明细
+    async function showDailyRepairsDetails() {
+      document.getElementById('dailyRepairsModal').style.display = 'flex';
+      
+      const today = new Date();
+      const dateStr = today.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      document.getElementById('dailyRepairsDate').textContent = `📅 ${dateStr}`;
+      document.getElementById('dailyRepairsContent').innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/repairs?merchantId=${merchantId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const tomorrow = new Date(today);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          
+          // 筛选今日创建的维修订单
+          const todayRepairs = result.data.filter(repair => {
+            const createdDate = new Date(repair.createdAt);
+            return createdDate >= today && createdDate < tomorrow;
+          });
+          
+          if (todayRepairs.length > 0) {
+            let totalCost = 0;
+            let totalSalePrice = 0;
+            const statusCount = {};
+            
+            todayRepairs.forEach(repair => {
+              totalCost += repair.repairCost || 0;
+              totalSalePrice += repair.salePrice || 0;
+              statusCount[repair.status] = (statusCount[repair.status] || 0) + 1;
+            });
+            
+            const statusNames = {
+              'pending': '待维修',
+              'sent_out': '已送出',
+              'retrieved': '已取回',
+              'completed': '已完成',
+              'ready_for_sale': '等待销售',
+              'sold': '已销售',
+              'cancelled': '已取消'
+            };
+            
+            let html = `
+              <div style="margin-bottom: 20px; padding: 15px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                <h4 style="margin-bottom: 10px; color: #92400e;">维修汇总</h4>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
+                  <div>
+                    <div style="font-size: 12px; color: #666;">订单数量</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #f59e0b;">${todayRepairs.length}</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 12px; color: #666;">维修成本</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #dc3545;">€${totalCost.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 12px; color: #666;">预计收入</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #10b981;">€${totalSalePrice.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 12px; color: #666;">预计利润</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #8b5cf6;">€${(totalSalePrice - totalCost).toFixed(2)}</div>
+                  </div>
+                </div>
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #fde68a;">
+                  <div style="font-size: 12px; color: #666; margin-bottom: 8px;">状态分布：</div>
+                  <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                    ${Object.entries(statusCount).map(([status, count]) => `
+                      <span style="background: white; padding: 4px 12px; border-radius: 20px; font-size: 13px;">
+                        ${statusNames[status]}: <strong>${count}</strong>
+                      </span>
+                    `).join('')}
+                  </div>
+                </div>
+              </div>
+              
+              <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                  <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
+                    <th style="padding: 12px; text-align: left;">时间</th>
+                    <th style="padding: 12px; text-align: left;">客户</th>
+                    <th style="padding: 12px; text-align: left;">设备</th>
+                    <th style="padding: 12px; text-align: left;">问题</th>
+                    <th style="padding: 12px; text-align: right;">成本</th>
+                    <th style="padding: 12px; text-align: right;">售价</th>
+                    <th style="padding: 12px; text-align: center;">状态</th>
+                  </tr>
+                </thead>
+                <tbody>
+            `;
+            
+            todayRepairs.forEach(repair => {
+              const time = new Date(repair.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+              const statusColors = {
+                'pending': '#f59e0b',
+                'sent_out': '#8b5cf6',
+                'retrieved': '#10b981',
+                'completed': '#06b6d4',
+                'ready_for_sale': '#ec4899',
+                'sold': '#6b7280',
+                'cancelled': '#ef4444'
+              };
+              
+              html += `
+                <tr style="border-bottom: 1px solid #e5e7eb;">
+                  <td style="padding: 12px;">${time}</td>
+                  <td style="padding: 12px;">
+                    ${repair.customerPhone}<br>
+                    <small style="color: #666;">${repair.customerName || '-'}</small>
+                  </td>
+                  <td style="padding: 12px;">
+                    ${repair.deviceName}<br>
+                    <small style="color: #666;">${repair.deviceIMEI || repair.deviceSN || '-'}</small>
+                  </td>
+                  <td style="padding: 12px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${repair.problemDescription}">
+                    ${repair.problemDescription}
+                  </td>
+                  <td style="padding: 12px; text-align: right; color: #dc3545;">
+                    €${(repair.repairCost || 0).toFixed(2)}
+                  </td>
+                  <td style="padding: 12px; text-align: right; font-weight: 600; color: #10b981;">
+                    €${(repair.salePrice || 0).toFixed(2)}
+                  </td>
+                  <td style="padding: 12px; text-align: center;">
+                    <span style="background: ${statusColors[repair.status]}; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">
+                      ${statusNames[repair.status]}
+                    </span>
+                  </td>
+                </tr>
+              `;
+            });
+            
+            html += `
+                </tbody>
+              </table>
+            `;
+            
+            document.getElementById('dailyRepairsContent').innerHTML = html;
+          } else {
+            document.getElementById('dailyRepairsContent').innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">今日暂无维修订单</p>';
+          }
+        } else {
+          document.getElementById('dailyRepairsContent').innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">今日暂无维修订单</p>';
+        }
+      } catch (error) {
+        console.error('加载维修明细失败:', error);
+        document.getElementById('dailyRepairsContent').innerHTML = `<p style="text-align: center; color: #dc3545; padding: 40px;">加载失败: ${error.message}</p>`;
+      }
+    }
+    
+    // 关闭本日维修明细模态框
+    function closeDailyRepairsModal() {
+      document.getElementById('dailyRepairsModal').style.display = 'none';
+    }
+
+    // 显示税额计算明细
+    async function showTaxCalculationDetails() {
+      document.getElementById('taxCalculationModal').style.display = 'flex';
+      
+      const today = new Date();
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      const dateStr = `${firstDay.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })} - ${today.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })}`;
+      document.getElementById('taxCalculationDate').textContent = `📅 本月统计期间: ${dateStr}`;
+      document.getElementById('taxCalculationContent').innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const startDate = firstDay.toISOString();
+        const endDate = new Date(today.setHours(23, 59, 59, 999)).toISOString();
+        
+        const response = await fetch(`${API_BASE}/merchant/sales?merchantId=${merchantId}&startDate=${startDate}&endDate=${endDate}`);
+        const result = await response.json();
+        
+        if (result.success && result.data && result.data.length > 0) {
+          const sales = result.data;
+          
+          // 按税率分类统计
+          const taxByRate = {};
+          let totalTax = 0;
+          let totalSales = 0;
+          
+          sales.forEach(sale => {
+            totalSales += sale.totalAmount || 0;
+            totalTax += sale.totalTax || 0;
+            
+            sale.items.forEach(item => {
+              const taxClass = item.taxClassification || 'VAT_23';
+              if (!taxByRate[taxClass]) {
+                taxByRate[taxClass] = {
+                  totalAmount: 0,
+                  totalCost: 0,
+                  totalTax: 0,
+                  count: 0,
+                  items: []
+                };
+              }
+              
+              const itemTotal = item.price * item.quantity;
+              const itemCost = (item.costPrice || 0) * item.quantity;
+              const itemTax = item.taxAmount || 0;
+              
+              taxByRate[taxClass].totalAmount += itemTotal;
+              taxByRate[taxClass].totalCost += itemCost;
+              taxByRate[taxClass].totalTax += itemTax;
+              taxByRate[taxClass].count += item.quantity;
+              taxByRate[taxClass].items.push({
+                name: item.productName,
+                quantity: item.quantity,
+                price: item.price,
+                costPrice: item.costPrice || 0,
+                total: itemTotal,
+                tax: itemTax,
+                date: sale.date
+              });
+            });
+          });
+          
+          // 税率名称和税率
+          const taxRates = {
+            'VAT_23': { name: 'VAT 23%', rate: 23, formula: '销售额 × 23 / 123' },
+            'VAT_13_5': { name: 'VAT 13.5%', rate: 13.5, formula: '销售额 × 13.5 / 113.5' },
+            'SERVICE_VAT_13_5': { name: '服务 VAT 13.5%', rate: 13.5, formula: '销售额 × 13.5 / 113.5' },
+            'VAT_9': { name: 'VAT 9%', rate: 9, formula: '销售额 × 9 / 109' },
+            'VAT_0': { name: 'VAT 0%', rate: 0, formula: '免税' },
+            'MARGIN_VAT_0': { name: '差价征税 VAT 23%', rate: 23, formula: '(销售价 - 成本价) × 23 / 123' }
+          };
+          
+          let html = `
+            <div style="margin-bottom: 20px; padding: 15px; background: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981;">
+              <h4 style="margin-bottom: 10px; color: #065f46;">税额汇总</h4>
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                <div>
+                  <div style="font-size: 12px; color: #666;">销售总额</div>
+                  <div style="font-size: 24px; font-weight: bold; color: #10b981;">€${totalSales.toFixed(2)}</div>
+                </div>
+                <div>
+                  <div style="font-size: 12px; color: #666;">应缴税额</div>
+                  <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">€${totalTax.toFixed(2)}</div>
+                </div>
+                <div>
+                  <div style="font-size: 12px; color: #666;">净收入</div>
+                  <div style="font-size: 24px; font-weight: bold; color: #3b82f6;">€${(totalSales - totalTax).toFixed(2)}</div>
+                </div>
+              </div>
+            </div>
+          `;
+          
+          // 按税率分类显示
+          Object.entries(taxByRate).forEach(([taxClass, data]) => {
+            const taxInfo = taxRates[taxClass] || { name: taxClass, rate: 0, formula: '未知' };
+            
+            html += `
+              <div style="margin-bottom: 20px; padding: 15px; background: white; border: 2px solid #e5e7eb; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                  <div>
+                    <h4 style="margin: 0; color: #1e40af;">${taxInfo.name}</h4>
+                    <div style="font-size: 13px; color: #666; margin-top: 5px;">
+                      计算公式: <code style="background: #f3f4f6; padding: 2px 8px; border-radius: 4px;">${taxInfo.formula}</code>
+                    </div>
+                  </div>
+                  <div style="text-align: right;">
+                    <div style="font-size: 12px; color: #666;">商品数量</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #3b82f6;">${data.count}</div>
+                  </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px; padding: 15px; background: #f9fafb; border-radius: 6px;">
+                  <div>
+                    <div style="font-size: 12px; color: #666;">销售额</div>
+                    <div style="font-size: 18px; font-weight: bold; color: #10b981;">€${data.totalAmount.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 12px; color: #666;">税额</div>
+                    <div style="font-size: 18px; font-weight: bold; color: #f59e0b;">€${data.totalTax.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 12px; color: #666;">净额</div>
+                    <div style="font-size: 18px; font-weight: bold; color: #3b82f6;">€${(data.totalAmount - data.totalTax).toFixed(2)}</div>
+                  </div>
+                </div>
+                
+                <div style="font-size: 13px; color: #666; margin-bottom: 10px;">
+                  <strong>计算过程：</strong>
+                </div>
+                <div style="background: #f9fafb; padding: 10px; border-radius: 6px; font-family: monospace; font-size: 12px;">
+                  ${taxClass === 'MARGIN_VAT_0' ? `
+                    销售额: €${data.totalAmount.toFixed(2)}<br>
+                    成本价: €${data.totalCost.toFixed(2)}<br>
+                    利润: €${(data.totalAmount - data.totalCost).toFixed(2)}<br>
+                    税率: 23%<br>
+                    税额 = (€${data.totalAmount.toFixed(2)} - €${data.totalCost.toFixed(2)}) × 23 / 123 = €${data.totalTax.toFixed(2)}
+                  ` : `
+                    销售额: €${data.totalAmount.toFixed(2)}<br>
+                    税率: ${taxInfo.rate}%<br>
+                    ${taxInfo.rate > 0 ? `税额 = €${data.totalAmount.toFixed(2)} × ${taxInfo.rate} / ${100 + taxInfo.rate} = €${data.totalTax.toFixed(2)}` : '免税商品，税额 = €0.00'}
+                  `}
+                </div>
+              </div>
+            `;
+          });
+          
+          html += `
+            <div style="margin-top: 20px; padding: 15px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+              <h4 style="margin-bottom: 10px; color: #92400e;">💡 税额说明</h4>
+              <ul style="margin: 0; padding-left: 20px; color: #666; font-size: 14px; line-height: 1.8;">
+                <li>VAT 23%：标准税率，适用于大多数商品</li>
+                <li>VAT 13.5%：降低税率，适用于特定商品和服务</li>
+                <li>VAT 9%：超低税率，适用于特殊商品</li>
+                <li>VAT 0%：免税商品</li>
+                <li>差价征税 VAT 23%：适用于二手商品，仅对利润部分征税，计算公式：(销售价 - 成本价) × 23 / 123</li>
+                <li>税额计算采用含税价格反推法</li>
+              </ul>
+            </div>
+          `;
+          
+          document.getElementById('taxCalculationContent').innerHTML = html;
+        } else {
+          document.getElementById('taxCalculationContent').innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">本月暂无销售记录</p>';
+        }
+      } catch (error) {
+        console.error('加载税额计算失败:', error);
+        document.getElementById('taxCalculationContent').innerHTML = `<p style="text-align: center; color: #dc3545; padding: 40px;">加载失败: ${error.message}</p>`;
+      }
+    }
+    
+    // 关闭税额计算明细模态框
+    function closeTaxCalculationModal() {
+      document.getElementById('taxCalculationModal').style.display = 'none';
+    }
+
+    // ==================== 销售业务 - 购物车模式 ====================
+    
+    // 加载产品分类列表
+    async function loadCategoryList() {
+      const container = document.getElementById('categoryList');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        // 获取库存产品
+        const inventoryResponse = await fetch(`${API_BASE}/merchant/inventory?merchantId=${merchantId}`);
+        const inventoryResult = await inventoryResponse.json();
+        
+        // 获取待销售的维修订单
+        const repairsResponse = await fetch(`${API_BASE}/merchant/repairs/ready-for-sale?merchantId=${merchantId}`);
+        const repairsResult = await repairsResponse.json();
+        
+        const categories = {};
+        let repairCount = 0;
+        
+        // 处理库存产品
+        if (inventoryResult.success && inventoryResult.data.length > 0) {
+          inventoryResult.data.forEach(item => {
+            if (item.quantity > 0 && item.status === 'active') {
+              // category 是字符串，直接使用
+              const categoryName = item.category || '未分类';
+              if (!categories[categoryName]) {
+                categories[categoryName] = {
+                  name: categoryName,
+                  count: 0,
+                  totalQty: 0
+                };
+              }
+              categories[categoryName].count++;
+              categories[categoryName].totalQty += item.quantity;
+            }
+          });
+        }
+        
+        // 统计维修订单数量
+        if (repairsResult.success && repairsResult.data.length > 0) {
+          repairCount = repairsResult.data.length;
+        }
+        
+        const categoryArray = Object.values(categories);
+        
+        let html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px;">';
+        
+        // 添加维修订单分类（如果有）
+        if (repairCount > 0) {
+          html += `
+            <div onclick="showRepairOrders()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 30px; border-radius: 12px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" 
+              onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 12px rgba(0,0,0,0.2)';"
+              onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.1)';">
+              <div style="font-size: 40px; margin-bottom: 10px;">🔧</div>
+              <h3 style="font-size: 18px; margin-bottom: 10px;">维修订单</h3>
+              <div style="font-size: 14px; opacity: 0.9;">
+                ${repairCount} 个待销售订单
+              </div>
+            </div>
+          `;
+        }
+        
+        // 添加库存产品分类
+        if (categoryArray.length > 0) {
+          html += categoryArray.map(cat => `
+            <div onclick="showCategoryProducts('${cat.name}')" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 12px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" 
+              onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 12px rgba(0,0,0,0.2)';"
+              onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.1)';">
+              <div style="font-size: 40px; margin-bottom: 10px;">📦</div>
+              <h3 style="font-size: 18px; margin-bottom: 10px;">${cat.name}</h3>
+              <div style="font-size: 14px; opacity: 0.9;">
+                ${cat.count} 种产品 · ${cat.totalQty} 件库存
+              </div>
+            </div>
+          `).join('');
+        }
+        
+        html += '</div>';
+        
+        if (categoryArray.length > 0 || repairCount > 0) {
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">暂无可销售产品</p>';
+        }
+      } catch (error) {
+        console.error('加载分类失败:', error);
+        container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+      }
+    }
+    
+    // 显示维修订单列表
+    async function showRepairOrders() {
+      document.getElementById('categoryList').style.display = 'none';
+      document.getElementById('categoryProducts').style.display = 'block';
+      document.getElementById('currentCategoryName').textContent = '🔧 维修订单';
+      
+      const container = document.getElementById('productList');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/repairs/ready-for-sale?merchantId=${merchantId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data.length > 0) {
+          const html = `
+            <div style="display: grid; gap: 15px;">
+              ${result.data.map(repair => `
+                <div style="background: white; border: 2px solid #f59e0b; border-radius: 10px; padding: 20px; display: flex; justify-content: space-between; align-items: center;">
+                  <div style="flex: 1;">
+                    <h4 style="font-size: 18px; margin-bottom: 8px;">🔧 ${repair.deviceName}</h4>
+                    <div style="color: #666; font-size: 14px; margin-bottom: 8px;">
+                      客户: ${repair.customerPhone}${repair.customerName ? ` (${repair.customerName})` : ''}
+                      ${repair.deviceIMEI ? `<br>IMEI: ${repair.deviceIMEI}` : ''}
+                      ${repair.deviceSN ? `<br>SN: ${repair.deviceSN}` : ''}
+                    </div>
+                    <div style="color: #666; font-size: 13px; margin-bottom: 8px;">
+                      问题: ${repair.problemDescription}
+                    </div>
+                    <div style="display: flex; gap: 15px; align-items: center;">
+                      <span style="background: #fef3c7; color: #92400e; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;">
+                        成本: €${repair.repairCost.toFixed(2)}
+                      </span>
+                      <span style="color: #10b981; font-size: 20px; font-weight: bold;">
+                        售价: €${repair.salePrice.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <button onclick="addRepairToCart('${repair._id}', '${repair.deviceName}', ${repair.repairCost}, ${repair.salePrice}, '${repair.customerPhone}')" 
+                      style="padding: 12px 24px; background: #f59e0b; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">
+                      + 加入购物车
+                    </button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `;
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">暂无待销售的维修订单</p>';
+        }
+      } catch (error) {
+        console.error('加载维修订单失败:', error);
+        container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+      }
+    }
+    
+    // 将维修订单加入购物车
+    function addRepairToCart(repairId, deviceName, repairCost, salePrice, customerPhone) {
+      // 使用预设的销售价格
+      const price = salePrice;
+      
+      // 检查是否已在购物车中
+      const existingItem = cart.find(item => item.repairId === repairId);
+      
+      if (existingItem) {
+        alert('此维修订单已在购物车中');
+        return;
+      }
+      
+      cart.push({
+        repairId: repairId,
+        productName: `🔧 ${deviceName} (维修)`,
+        price: price,
+        quantity: 1,
+        maxQty: 1,
+        taxClassification: 'SERVICE_VAT_13_5', // 维修服务使用13.5%税率
+        isRepair: true,
+        customerPhone: customerPhone
+      });
+      
+      updateCartDisplay();
+      alert(`✅ ${deviceName} 维修订单已添加到购物车\n销售价格: €${price.toFixed(2)}`);
+    }
+    
+    // 显示分类下的产品
+    async function showCategoryProducts(category) {
+      document.getElementById('categoryList').style.display = 'none';
+      document.getElementById('categoryProducts').style.display = 'block';
+      document.getElementById('currentCategoryName').textContent = `📦 ${category}`;
+      
+      const container = document.getElementById('productList');
       container.innerHTML = '<div class="loading">加载中...</div>';
       
       try {
         const response = await fetch(`${API_BASE}/merchant/inventory?merchantId=${merchantId}`);
         const result = await response.json();
         
-        if (result.success && result.data.length > 0) {
-          const html = `
-            <table>
-              <thead>
-                <tr>
-                  <th>产品名称</th>
-                  <th>类别</th>
-                  <th>品牌/型号</th>
-                  <th>库存数量</th>
-                  <th>零售价</th>
-                  <th>税务分类</th>
-                  <th>状态</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${result.data.map(item => `
-                  <tr>
-                    <td><strong>${item.productName}</strong></td>
-                    <td>${getCategoryBadge(item.category)}</td>
-                    <td>${item.brand || '-'} ${item.model || ''}</td>
-                    <td><strong>${item.quantity}</strong></td>
-                    <td>€${item.retailPrice.toFixed(2)}</td>
-                    <td>${getTaxBadge(item.taxClassification)}</td>
-                    <td>${getStatusBadge(item.status)}</td>
-                    <td>
-                      <button class="btn btn-success" style="padding: 6px 12px; font-size: 12px;" 
-                        onclick="sellProduct('${item._id}', '${item.productName}', ${item.quantity}, ${item.retailPrice})"
-                        ${item.quantity === 0 ? 'disabled' : ''}>
-                        销售
-                      </button>
-                    </td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          `;
-          container.innerHTML = html;
-        } else {
-          container.innerHTML = `
-            <div style="background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;">
-              <h3 style="color: #856404; margin-bottom: 10px;">📦 暂无库存</h3>
-              <p style="color: #856404; margin: 0;">
-                您的库存为空，请先前往"仓库订货"页面采购产品。
-              </p>
-            </div>
-          `;
+        if (result.success) {
+          // category 是字符串，直接比较
+          const allProducts = result.data.filter(item => 
+            item.category === category && item.quantity > 0 && item.status === 'active'
+          );
+          
+          // 按产品名称、品牌、型号、颜色分组
+          const groupedProducts = {};
+          allProducts.forEach(item => {
+            const key = `${item.productName}_${item.brand || ''}_${item.model || ''}_${item.color || ''}`;
+            if (!groupedProducts[key]) {
+              groupedProducts[key] = {
+                productName: item.productName,
+                brand: item.brand,
+                model: item.model,
+                color: item.color,
+                retailPrice: item.retailPrice,
+                taxClassification: item.taxClassification,
+                items: [],
+                totalQuantity: 0
+              };
+            }
+            groupedProducts[key].items.push(item);
+            groupedProducts[key].totalQuantity += item.quantity;
+          });
+          
+          const products = Object.values(groupedProducts);
+          
+          if (products.length > 0) {
+            const html = `
+              <div style="display: grid; gap: 15px;">
+                ${products.map(product => {
+                  const hasSerialNumber = product.items.some(item => item.serialNumber || item.imei);
+                  return `
+                  <div style="background: white; border: 2px solid #e5e7eb; border-radius: 10px; padding: 20px; display: flex; justify-content: space-between; align-items: center;">
+                    <div style="flex: 1;">
+                      <h4 style="font-size: 18px; margin-bottom: 8px;">${product.productName}</h4>
+                      <div style="color: #666; font-size: 14px; margin-bottom: 8px;">
+                        ${product.brand ? `品牌: ${product.brand}` : ''} 
+                        ${product.model ? `型号: ${product.model}` : ''}
+                        ${product.color ? `· 颜色: ${product.color}` : ''}
+                      </div>
+                      <div style="display: flex; gap: 15px; align-items: center;">
+                        <span style="background: #dbeafe; color: #1e40af; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;">
+                          库存: ${product.totalQuantity}
+                        </span>
+                        <span style="color: #10b981; font-size: 20px; font-weight: bold;">
+                          €${product.retailPrice.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      ${hasSerialNumber ? `
+                        <button onclick='showDeviceSelectionMultiple(${JSON.stringify(product.items.map(i => i._id))}, "${product.productName}")' 
+                          style="padding: 12px 24px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">
+                          选择设备
+                        </button>
+                      ` : `
+                        <button onclick="addToCart('${product.items[0]._id}', '${product.productName}', ${product.retailPrice}, ${product.totalQuantity}, '${product.taxClassification || 'VAT_23'}')" 
+                          style="padding: 12px 24px; background: #10b981; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">
+                          + 加入购物车
+                        </button>
+                      `}
+                    </div>
+                  </div>
+                `}).join('')}
+              </div>
+            `;
+            container.innerHTML = html;
+          } else {
+            container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">该分类暂无可销售产品</p>';
+          }
         }
       } catch (error) {
         container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
       }
     }
+    
+    // 判断是否为设备（需要选择IMEI/SN）
+    function isDevice(product) {
+      // 如果有序列号或IMEI，认为是设备
+      return product.serialNumber || product.barcode;
+    }
+    
+    // 返回分类列表
+    function backToCategories() {
+      document.getElementById('categoryList').style.display = 'block';
+      document.getElementById('categoryProducts').style.display = 'none';
+    }
+    
+    // 显示设备选择模态框（多个设备）
+    async function showDeviceSelectionMultiple(inventoryIds, productName) {
+      document.getElementById('deviceProductName').textContent = `产品: ${productName}`;
+      
+      // 获取所有设备的详细信息
+      const response = await fetch(`${API_BASE}/merchant/inventory?merchantId=${merchantId}`);
+      const result = await response.json();
+      
+      if (result.success) {
+        const devices = result.data.filter(p => inventoryIds.includes(p._id));
+        
+        if (devices.length > 0) {
+          const html = devices.map(device => {
+            const displayInfo = device.serialNumber || device.imei || device.barcode || '无序列号';
+            return `
+              <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 10px; cursor: pointer; transition: background 0.2s;" 
+                onmouseover="this.style.background='#e9ecef'"
+                onmouseout="this.style.background='#f8f9fa'"
+                onclick="addDeviceToCart('${device._id}', '${productName}', ${device.retailPrice}, '${displayInfo}', '${device.taxClassification || 'VAT_23'}')">
+                <div style="font-weight: 600; margin-bottom: 5px;">
+                  ${device.serialNumber ? `序列号: ${device.serialNumber}` : ''}
+                  ${device.imei ? `IMEI: ${device.imei}` : ''}
+                </div>
+                <div style="color: #666; font-size: 14px;">
+                  ${device.color ? `颜色: ${device.color} · ` : ''}
+                  价格: €${device.retailPrice.toFixed(2)}
+                </div>
+              </div>
+            `;
+          }).join('');
+          
+          document.getElementById('deviceList').innerHTML = html;
+          document.getElementById('selectDeviceModal').style.display = 'flex';
+        }
+      }
+    }
+    
+    // 显示设备选择模态框（单个设备 - 保留向后兼容）
+    async function showDeviceSelection(inventoryId, productName) {
+      showDeviceSelectionMultiple([inventoryId], productName);
+    }
+    
+    // 关闭设备选择模态框
+    function closeDeviceModal() {
+      document.getElementById('selectDeviceModal').style.display = 'none';
+    }
+    
+    // 添加设备到购物车
+    function addDeviceToCart(inventoryId, productName, price, serialNumber, taxClassification) {
+      addToCart(inventoryId, productName, price, 1, taxClassification, serialNumber);
+      closeDeviceModal();
+    }
+    
+    // 添加到购物车
+    function addToCart(inventoryId, productName, price, maxQty, taxClassification, serialNumber = null) {
+      // 检查是否已在购物车中
+      const existingItem = cart.find(item => item.inventoryId === inventoryId && item.serialNumber === serialNumber);
+      
+      if (existingItem) {
+        if (existingItem.quantity < maxQty) {
+          existingItem.quantity++;
+        } else {
+          alert('已达到最大库存数量');
+          return;
+        }
+      } else {
+        cart.push({
+          inventoryId,
+          productName,
+          price,
+          quantity: 1,
+          maxQty,
+          taxClassification,
+          serialNumber
+        });
+      }
+      
+      updateCartDisplay();
+      alert(`✅ ${productName} 已添加到购物车`);
+    }
+    
+    // 更新购物车显示
+    function updateCartDisplay() {
+      const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+      const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      
+      document.getElementById('cartItemCount').textContent = itemCount;
+      document.getElementById('cartTotal').textContent = '€' + total.toFixed(2);
+      
+      if (cart.length > 0) {
+        document.getElementById('cartSummary').style.display = 'block';
+      } else {
+        document.getElementById('cartSummary').style.display = 'none';
+      }
+    }
+    
+    // 清空购物车
+    function clearCart() {
+      if (confirm('确定要清空购物车吗？')) {
+        cart = [];
+        updateCartDisplay();
+      }
+    }
+    
+    // 显示结账模态框
+    function showCheckoutModal() {
+      if (cart.length === 0) {
+        alert('购物车为空');
+        return;
+      }
+      
+      // 显示购物车明细
+      const itemsHtml = cart.map(item => `
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+          <div>
+            <div style="font-weight: 600;">${item.productName}</div>
+            ${item.serialNumber ? `<div style="font-size: 12px; color: #666;">SN: ${item.serialNumber}</div>` : ''}
+            <div style="font-size: 14px; color: #666;">€${item.price.toFixed(2)} × ${item.quantity}</div>
+          </div>
+          <div style="font-weight: 600; color: #2563eb;">
+            €${(item.price * item.quantity).toFixed(2)}
+          </div>
+        </div>
+      `).join('');
+      
+      document.getElementById('checkoutCartItems').innerHTML = itemsHtml;
+      
+      const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      document.getElementById('checkoutTotal').textContent = '€' + total.toFixed(2);
+      
+      // 重置支付方式
+      selectedPaymentMethod = null;
+      document.querySelectorAll('[id^="payBtn_"]').forEach(btn => {
+        btn.style.borderColor = '#ddd';
+        btn.style.background = 'white';
+      });
+      document.getElementById('mixedPaymentInputs').style.display = 'none';
+      document.getElementById('customerPhone').value = '';
+      
+      document.getElementById('checkoutModal').style.display = 'flex';
+    }
+    
+    // 关闭结账模态框
+    function closeCheckoutModal() {
+      document.getElementById('checkoutModal').style.display = 'none';
+    }
+    
+    // 选择支付方式
+    function selectPaymentMethod(method) {
+      selectedPaymentMethod = method;
+      
+      // 更新按钮样式
+      document.querySelectorAll('[id^="payBtn_"]').forEach(btn => {
+        btn.style.borderColor = '#ddd';
+        btn.style.background = 'white';
+      });
+      document.getElementById(`payBtn_${method}`).style.borderColor = '#3b82f6';
+      document.getElementById(`payBtn_${method}`).style.background = '#eff6ff';
+      
+      // 显示/隐藏混合支付输入
+      if (method === 'MIXED') {
+        document.getElementById('mixedPaymentInputs').style.display = 'block';
+        const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        document.getElementById('cashAmount').value = (total / 2).toFixed(2);
+        document.getElementById('cardAmount').value = (total / 2).toFixed(2);
+      } else {
+        document.getElementById('mixedPaymentInputs').style.display = 'none';
+      }
+    }
+    
+    // 更新混合支付
+    function updateMixedPayment() {
+      const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const cash = parseFloat(document.getElementById('cashAmount').value) || 0;
+      const card = parseFloat(document.getElementById('cardAmount').value) || 0;
+      const sum = cash + card;
+      
+      const warning = document.getElementById('mixedPaymentWarning');
+      if (Math.abs(sum - total) > 0.01) {
+        warning.textContent = `⚠️ 支付总额 €${sum.toFixed(2)} 与订单总额 €${total.toFixed(2)} 不符`;
+        warning.style.display = 'block';
+      } else {
+        warning.style.display = 'none';
+      }
+    }
+    
+    // 完成销售
+    async function completeSale() {
+      if (!selectedPaymentMethod) {
+        alert('请选择支付方式');
+        return;
+      }
+      
+      const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      
+      // 验证混合支付
+      if (selectedPaymentMethod === 'MIXED') {
+        const cash = parseFloat(document.getElementById('cashAmount').value) || 0;
+        const card = parseFloat(document.getElementById('cardAmount').value) || 0;
+        if (Math.abs((cash + card) - total) > 0.01) {
+          alert('混合支付金额不正确');
+          return;
+        }
+      }
+      
+      const customerPhone = document.getElementById('customerPhone').value;
+      
+      // 准备销售数据
+      const saleData = {
+        merchantId,
+        customerPhone: customerPhone || null,
+        paymentMethod: selectedPaymentMethod,
+        items: cart.map(item => ({
+          inventoryId: item.inventoryId || null,
+          repairId: item.repairId || null,
+          productName: item.productName,
+          quantity: item.quantity,
+          price: item.price,
+          taxClassification: item.taxClassification,
+          serialNumber: item.serialNumber
+        })),
+        totalAmount: total
+      };
+      
+      // 添加混合支付金额
+      if (selectedPaymentMethod === 'MIXED') {
+        saleData.cashAmount = parseFloat(document.getElementById('cashAmount').value);
+        saleData.cardAmount = parseFloat(document.getElementById('cardAmount').value);
+      }
+      
+      try {
+        document.getElementById('completeSaleBtn').disabled = true;
+        document.getElementById('completeSaleBtn').textContent = '处理中...';
+        
+        const response = await fetch(`${API_BASE}/merchant/sales/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(saleData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert(`✅ 销售成功！\n订单号: ${result.data.saleId}\n总金额: €${total.toFixed(2)}`);
+          cart = [];
+          updateCartDisplay();
+          closeCheckoutModal();
+          loadStats();
+          backToCategories();
+          loadCategoryList();
+        } else {
+          alert('❌ 销售失败: ' + result.error);
+        }
+      } catch (error) {
+        alert('❌ 销售失败: ' + error.message);
+      } finally {
+        document.getElementById('completeSaleBtn').disabled = false;
+        document.getElementById('completeSaleBtn').textContent = '✅ 确认支付';
+      }
+    }
+    
+    // ==================== 原有功能 ====================
     
     // 查询销售记录
     async function querySalesRecords() {
@@ -494,55 +2217,86 @@
         const result = await response.json();
         
         if (result.success && result.data.length > 0) {
-          // 过滤日期范围内的记录
-          const filteredData = result.data.filter(sale => {
-            const saleDate = new Date(sale.date);
-            const start = new Date(startDate);
-            const end = new Date(endDate);
-            end.setHours(23, 59, 59, 999); // 包含结束日期的全天
-            return saleDate >= start && saleDate <= end;
+          // 展开销售记录中的所有商品
+          const allItems = [];
+          result.data.forEach(sale => {
+            sale.items.forEach(item => {
+              allItems.push({
+                date: sale.date,
+                productName: item.productName,
+                quantity: item.quantity,
+                price: item.price,
+                costPrice: item.costPrice,
+                taxClassification: item.taxClassification,
+                taxAmount: item.taxAmount,
+                paymentMethod: sale.paymentMethod,
+                cashAmount: sale.cashAmount,
+                cardAmount: sale.cardAmount,
+                customerPhone: sale.customerPhone,
+                serialNumber: item.serialNumber
+              });
+            });
           });
           
-          if (filteredData.length > 0) {
+          if (allItems.length > 0) {
             const html = `
               <table>
                 <thead>
                   <tr>
                     <th>日期</th>
                     <th>产品</th>
-                    <th>类别</th>
+                    <th>序列号</th>
                     <th>数量</th>
+                    <th>单价</th>
                     <th>销售额</th>
                     <th>成本</th>
                     <th>税额</th>
+                    <th>税务分类</th>
                     <th>支付方式</th>
+                    <th>客户</th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${filteredData.map(sale => `
+                  ${allItems.map(item => `
                     <tr>
-                      <td>${new Date(sale.date).toLocaleDateString('zh-CN')}</td>
-                      <td>${sale.productName}</td>
-                      <td>${getCategoryBadge(sale.category)}</td>
-                      <td>${sale.quantity}</td>
-                      <td>€${(sale.salePrice * sale.quantity).toFixed(2)}</td>
-                      <td>€${(sale.costPrice * sale.quantity).toFixed(2)}</td>
-                      <td>€${sale.taxAmount.toFixed(2)}</td>
-                      <td>${getPaymentBadge(sale.paymentMethod)}</td>
+                      <td>${new Date(item.date).toLocaleDateString('zh-CN')} ${new Date(item.date).toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'})}</td>
+                      <td><strong>${item.productName}</strong></td>
+                      <td style="font-size: 11px; color: #666;">${item.serialNumber || '-'}</td>
+                      <td>${item.quantity}</td>
+                      <td>€${item.price.toFixed(2)}</td>
+                      <td><strong>€${(item.price * item.quantity).toFixed(2)}</strong></td>
+                      <td>€${(item.costPrice * item.quantity).toFixed(2)}</td>
+                      <td>€${item.taxAmount.toFixed(2)}</td>
+                      <td>${getTaxBadge(item.taxClassification)}</td>
+                      <td>${getPaymentBadge(item.paymentMethod, item.cashAmount, item.cardAmount)}</td>
+                      <td style="font-size: 12px;">${item.customerPhone || '-'}</td>
                     </tr>
                   `).join('')}
                   <tr style="font-weight: bold; background: #f8f9fa;">
-                    <td colspan="4" style="text-align: right;">合计：</td>
-                    <td>€${filteredData.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0).toFixed(2)}</td>
-                    <td>€${filteredData.reduce((sum, s) => sum + (s.costPrice * s.quantity), 0).toFixed(2)}</td>
-                    <td>€${filteredData.reduce((sum, s) => sum + s.taxAmount, 0).toFixed(2)}</td>
-                    <td>-</td>
+                    <td colspan="5" style="text-align: right;">合计：</td>
+                    <td>€${allItems.reduce((sum, item) => sum + (item.price * item.quantity), 0).toFixed(2)}</td>
+                    <td>€${allItems.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0).toFixed(2)}</td>
+                    <td>€${allItems.reduce((sum, item) => sum + item.taxAmount, 0).toFixed(2)}</td>
+                    <td colspan="3">-</td>
                   </tr>
                 </tbody>
               </table>
-              <p style="text-align: center; color: #666; margin-top: 10px;">
-                共找到 ${filteredData.length} 条销售记录
-              </p>
+              <div style="margin-top: 15px; padding: 15px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                  <div>
+                    <div style="font-size: 12px; color: #666;">销售记录数</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #2563eb;">${result.data.length}</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 12px; color: #666;">商品总数</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #2563eb;">${allItems.reduce((sum, item) => sum + item.quantity, 0)}</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 12px; color: #666;">总利润</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #10b981;">€${allItems.reduce((sum, item) => sum + ((item.price - item.costPrice) * item.quantity), 0).toFixed(2)}</div>
+                  </div>
+                </div>
+              </div>
             `;
             container.innerHTML = html;
           } else {
@@ -554,13 +2308,18 @@
         
         if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
       } catch (error) {
+        console.error('查询销售记录失败:', error);
         container.innerHTML = `<div class="loading">查询失败: ${error.message}</div>`;
       }
     }
 
-    // 加载我的库存
+    // 全局变量存储库存数据
+    let allInventoryData = [];
+    let allInventoryDataIncludingZero = []; // 包含零库存的完整数据，用于搜索
+    
+    // 加载我的库存（分类视图）
     async function loadMyInventory() {
-      const container = document.getElementById('inventoryTable');
+      const container = document.getElementById('inventoryCategoryList');
       container.innerHTML = '<div class="loading">加载中...</div>';
       
       try {
@@ -568,36 +2327,54 @@
         const result = await response.json();
         
         if (result.success && result.data.length > 0) {
-          const html = `
-            <table>
-              <thead>
-                <tr>
-                  <th>产品名称</th>
-                  <th>类别</th>
-                  <th>品牌/型号</th>
-                  <th>库存数量</th>
-                  <th>成本价</th>
-                  <th>零售价</th>
-                  <th>税务分类</th>
-                  <th>状态</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${result.data.map(item => `
-                  <tr>
-                    <td><strong>${item.productName}</strong></td>
-                    <td>${getCategoryBadge(item.category)}</td>
-                    <td>${item.brand || '-'} ${item.model || ''}</td>
-                    <td><strong>${item.quantity}</strong></td>
-                    <td>€${item.costPrice.toFixed(2)}</td>
-                    <td>€${item.retailPrice.toFixed(2)}</td>
-                    <td>${getTaxBadge(item.taxClassification)}</td>
-                    <td>${getStatusBadge(item.status)}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          `;
+          // 保存完整数据（包括零库存）用于搜索
+          allInventoryDataIncludingZero = result.data;
+          
+          // 过滤掉数量为0的产品用于分类显示
+          allInventoryData = result.data.filter(item => item.quantity > 0);
+          
+          if (allInventoryData.length === 0) {
+            container.innerHTML = `
+              <p style="text-align: center; color: #999; padding: 40px;">
+                暂无可用库存<br>
+                <small>点击上方"+ 手动入库"按钮添加产品</small>
+              </p>
+            `;
+            return;
+          }
+          
+          // 按分类分组
+          const categoryMap = {};
+          allInventoryData.forEach(item => {
+            const category = item.category || '未分类';
+            if (!categoryMap[category]) {
+              categoryMap[category] = [];
+            }
+            categoryMap[category].push(item);
+          });
+          
+          // 显示分类卡片
+          let html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px;">';
+          
+          Object.keys(categoryMap).sort().forEach(category => {
+            const items = categoryMap[category];
+            const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
+            
+            html += `
+              <div onclick="showInventoryCategory('${category}')" 
+                style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 12px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" 
+                onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 12px rgba(0,0,0,0.2)';"
+                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.1)';">
+                <div style="font-size: 40px; margin-bottom: 10px;">📦</div>
+                <h3 style="font-size: 18px; margin-bottom: 10px;">${category}</h3>
+                <div style="font-size: 14px; opacity: 0.9;">
+                  ${items.length} 种产品 · ${totalQty} 件库存
+                </div>
+              </div>
+            `;
+          });
+          
+          html += '</div>';
           container.innerHTML = html;
         } else {
           container.innerHTML = `
@@ -605,12 +2382,12 @@
               <h3 style="color: #856404; margin-bottom: 10px;">📦 批发商独立库存系统</h3>
               <p style="color: #856404; margin: 0;">
                 这里显示的是您作为批发商在自己店铺中的库存，与仓库库存是独立管理的。<br>
-                您可以通过"仓库订货"功能从仓库采购产品到您的库存中。
+                您可以通过"手动入库"或"仓库订货"功能添加产品到您的库存中。
               </p>
             </div>
             <p style="text-align: center; color: #999; padding: 40px;">
               暂无库存数据<br>
-              <small>请前往"仓库订货"页面采购产品</small>
+              <small>点击上方"+ 手动入库"按钮添加产品</small>
             </p>
           `;
         }
@@ -618,75 +2395,609 @@
         container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
       }
     }
+    
+    // 显示某个分类的产品
+    function showInventoryCategory(category) {
+      document.getElementById('inventoryCategoryList').style.display = 'none';
+      document.getElementById('inventoryProductList').style.display = 'block';
+      document.getElementById('currentInventoryCategoryName').textContent = `📦 ${category}`;
+      
+      const products = allInventoryData.filter(item => (item.category || '未分类') === category);
+      displayInventoryProducts(products);
+    }
+    
+    // 返回分类列表
+    function backToInventoryCategories() {
+      document.getElementById('inventoryCategoryList').style.display = 'block';
+      document.getElementById('inventoryProductList').style.display = 'none';
+      document.getElementById('inventorySearchInput').value = '';
+    }
+    
+    // 显示产品列表
+    function displayInventoryProducts(products) {
+      const container = document.getElementById('inventoryProducts');
+      
+      if (products.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">没有找到产品</p>';
+        return;
+      }
+      
+      const html = `
+        <table>
+          <thead>
+            <tr>
+              <th>产品名称</th>
+              <th>品牌/型号</th>
+              <th>库存数量</th>
+              <th>成本价</th>
+              <th>零售价</th>
+              <th>税务分类</th>
+              <th>序列号/条码</th>
+              <th>备注</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${products.map(item => `
+              <tr ${item.quantity === 0 ? 'style="background: #fff3cd; cursor: pointer;"' : 'style="cursor: pointer;"'}
+                  onclick="showProductTimeline('${item._id}', '${item.productName}')"
+                  onmouseover="this.style.background='${item.quantity === 0 ? '#ffe69c' : '#f0f9ff'}'"
+                  onmouseout="this.style.background='${item.quantity === 0 ? '#fff3cd' : ''}'">
+                <td><strong>${item.productName}</strong></td>
+                <td>${item.brand || '-'} ${item.model || ''}</td>
+                <td>
+                  <strong style="color: ${item.quantity === 0 ? '#dc3545' : '#10b981'};">
+                    ${item.quantity}
+                  </strong>
+                  ${item.quantity === 0 ? '<br><small style="color: #856404;">已售完</small>' : ''}
+                </td>
+                <td>€${item.costPrice.toFixed(2)}</td>
+                <td>€${item.retailPrice.toFixed(2)}</td>
+                <td>${getTaxBadge(item.taxClassification)}</td>
+                <td style="font-size: 11px; color: #666;">
+                  ${item.serialNumber || item.barcode || '-'}
+                </td>
+                <td style="font-size: 12px; color: #666; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.notes || ''}">
+                  ${item.notes || '-'}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+      container.innerHTML = html;
+    }
+    
+    // 搜索库存
+    function searchInventory() {
+      const searchTerm = document.getElementById('inventorySearchInput').value.toLowerCase().trim();
+      
+      if (!searchTerm) {
+        // 如果搜索框为空，返回分类视图
+        backToInventoryCategories();
+        return;
+      }
+      
+      // 搜索产品名称、序列号、条码、备注（包括零库存产品）
+      const filteredProducts = allInventoryDataIncludingZero.filter(item => {
+        return (
+          (item.productName && item.productName.toLowerCase().includes(searchTerm)) ||
+          (item.serialNumber && item.serialNumber.toLowerCase().includes(searchTerm)) ||
+          (item.barcode && item.barcode.toLowerCase().includes(searchTerm)) ||
+          (item.notes && item.notes.toLowerCase().includes(searchTerm))
+        );
+      });
+      
+      // 显示搜索结果
+      document.getElementById('inventoryCategoryList').style.display = 'none';
+      document.getElementById('inventoryProductList').style.display = 'block';
+      document.getElementById('currentInventoryCategoryName').textContent = `🔍 搜索结果: "${searchTerm}"`;
+      displayInventoryProducts(filteredProducts);
+    }
 
-    // 加载仓库产品
-    async function loadWarehouseProducts() {
-      const container = document.getElementById('warehouseProducts');
+    // 显示入库模态框
+    async function showAddInventoryModal() {
+      document.getElementById('addInventoryModal').style.display = 'flex';
+      document.getElementById('addInventoryForm').reset();
+      
+      // 显示当前商户信息
+      const merchantInfo = document.getElementById('currentMerchantInfo');
+      merchantInfo.textContent = `${merchantId} (当前登录商户)`;
+      
+      // 加载分类列表
+      await loadCategoriesForInventory();
+      
+      // 加载成色列表
+      await loadConditionsForInventory();
+    }
+    
+    // 加载分类列表（用于入库表单）
+    async function loadCategoriesForInventory() {
+      try {
+        const response = await fetch(`${API_BASE}/admin/categories`);
+        const result = await response.json();
+        
+        const select = document.getElementById('inv_category');
+        select.innerHTML = '<option value="">请选择分类...</option>';
+        
+        if (result.success && result.data && result.data.length > 0) {
+          result.data.forEach(category => {
+            const option = document.createElement('option');
+            option.value = category.type;
+            option.textContent = category.type;
+            select.appendChild(option);
+          });
+        } else {
+          // 如果没有分类，添加默认选项
+          const defaultCategories = ['手机配件', '电脑配件', '车载配件', '数据线', 'Audio', 'Power Supply'];
+          defaultCategories.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat;
+            option.textContent = cat;
+            select.appendChild(option);
+          });
+        }
+      } catch (error) {
+        console.error('加载分类失败:', error);
+        // 添加默认选项
+        const select = document.getElementById('inv_category');
+        const defaultCategories = ['手机配件', '电脑配件', '车载配件', '数据线', 'Audio', 'Power Supply'];
+        defaultCategories.forEach(cat => {
+          const option = document.createElement('option');
+          option.value = cat;
+          option.textContent = cat;
+          select.appendChild(option);
+        });
+      }
+    }
+    
+    // 加载成色列表（用于入库表单）
+    async function loadConditionsForInventory() {
+      try {
+        const response = await fetch(`${API_BASE}/admin/conditions`);
+        const result = await response.json();
+        
+        const select = document.getElementById('inv_condition');
+        select.innerHTML = '';
+        
+        if (result.success && result.data && result.data.length > 0) {
+          result.data.forEach(condition => {
+            const option = document.createElement('option');
+            option.value = condition.code;
+            option.textContent = condition.name;
+            if (condition.code === 'BRAND_NEW') {
+              option.selected = true;
+            }
+            select.appendChild(option);
+          });
+        } else {
+          // 如果没有成色，添加默认选项
+          select.innerHTML = `
+            <option value="BRAND_NEW" selected>全新</option>
+            <option value="PRE_OWNED">二手</option>
+            <option value="REFURBISHED">翻新</option>
+          `;
+        }
+      } catch (error) {
+        console.error('加载成色失败:', error);
+        // 添加默认选项
+        const select = document.getElementById('inv_condition');
+        select.innerHTML = `
+          <option value="BRAND_NEW" selected>全新</option>
+          <option value="PRE_OWNED">二手</option>
+          <option value="REFURBISHED">翻新</option>
+        `;
+      }
+    }
+
+    // 关闭入库模态框
+    function closeAddInventoryModal() {
+      document.getElementById('addInventoryModal').style.display = 'none';
+    }
+
+    // 提交入库表单
+    async function submitAddInventory(event) {
+      event.preventDefault();
+      
+      const formData = {
+        merchantId: merchantId,
+        productName: document.getElementById('inv_productName').value,
+        brand: document.getElementById('inv_brand').value,
+        model: document.getElementById('inv_model').value,
+        category: document.getElementById('inv_category').value,
+        quantity: parseInt(document.getElementById('inv_quantity').value),
+        costPrice: parseFloat(document.getElementById('inv_costPrice').value),
+        wholesalePrice: parseFloat(document.getElementById('inv_wholesalePrice').value),
+        retailPrice: parseFloat(document.getElementById('inv_retailPrice').value),
+        barcode: document.getElementById('inv_barcode').value,
+        serialNumber: document.getElementById('inv_serialNumber').value,
+        color: document.getElementById('inv_color').value,
+        condition: document.getElementById('inv_condition').value,
+        notes: document.getElementById('inv_notes').value
+      };
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/inventory/add`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(formData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert('✅ 入库成功！');
+          closeAddInventoryModal();
+          loadMyInventory(); // 刷新库存列表
+          loadStats(); // 刷新统计数据
+        } else {
+          alert('❌ 入库失败: ' + result.error);
+        }
+      } catch (error) {
+        alert('❌ 入库失败: ' + error.message);
+      }
+    }
+
+    // 全局变量存储仓库产品数据
+    let allWarehouseData = [];
+    
+    // ==================== 群组库存功能 ====================
+    
+    let allGroupInventoryData = [];
+    
+    // 加载群组库存（分类视图）
+    async function loadGroupInventory() {
+      const container = document.getElementById('groupInventoryCategoryList');
       container.innerHTML = '<div class="loading">加载中...</div>';
       
       try {
-        const response = await fetch(`${API_BASE}/merchant/warehouse-products`);
+        const response = await fetch(`${API_BASE}/merchant/group-inventory?merchantId=${merchantId}`);
         const result = await response.json();
         
         if (result.success && result.data.length > 0) {
-          const html = `
+          // 只保留可销售的产品
+          allGroupInventoryData = result.data.filter(item => 
+            item.quantity > 0 && item.status === 'active'
+          );
+          
+          if (allGroupInventoryData.length === 0) {
+            container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">群组内暂无可销售产品</p>';
+            return;
+          }
+          
+          // 按分类分组
+          const categoryMap = {};
+          allGroupInventoryData.forEach(item => {
+            const category = item.category || '未分类';
+            if (!categoryMap[category]) {
+              categoryMap[category] = {
+                name: category,
+                count: 0,
+                totalQty: 0,
+                merchants: new Set()
+              };
+            }
+            categoryMap[category].count++;
+            categoryMap[category].totalQty += item.quantity;
+            categoryMap[category].merchants.add(item.merchantId);
+          });
+          
+          const categoryArray = Object.values(categoryMap);
+          
+          let html = `
+            <div style="background: #d1ecf1; padding: 20px; border-radius: 8px; border-left: 4px solid #17a2b8; margin-bottom: 20px;">
+              <h3 style="color: #0c5460; margin-bottom: 10px;">👥 群组库存</h3>
+              <p style="color: #0c5460; margin: 0;">
+                查看同一群组内其他商户的库存。点击分类查看详细产品列表。
+              </p>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px;">
+          `;
+          
+          categoryArray.forEach(cat => {
+            html += `
+              <div onclick="showGroupCategory('${cat.name}')" 
+                style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 12px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" 
+                onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 12px rgba(0,0,0,0.2)';"
+                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.1)';">
+                <div style="font-size: 40px; margin-bottom: 10px;">📦</div>
+                <h3 style="font-size: 18px; margin-bottom: 10px;">${cat.name}</h3>
+                <div style="font-size: 14px; opacity: 0.9;">
+                  ${cat.count} 种产品 · ${cat.totalQty} 件库存<br>
+                  ${cat.merchants.size} 个商户
+                </div>
+              </div>
+            `;
+          });
+          
+          html += '</div>';
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">群组内暂无其他商户库存</p>';
+        }
+      } catch (error) {
+        console.error('加载群组库存失败:', error);
+        container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+      }
+    }
+    
+    // 显示某个分类的群组产品
+    function showGroupCategory(category) {
+      document.getElementById('groupInventoryCategoryList').style.display = 'none';
+      document.getElementById('groupInventoryProductList').style.display = 'block';
+      document.getElementById('currentGroupCategoryName').textContent = `📦 ${category}`;
+      
+      const products = allGroupInventoryData.filter(item => 
+        (item.category || '未分类') === category
+      );
+      
+      displayGroupInventoryProducts(products);
+    }
+    
+    // 返回群组分类列表
+    function backToGroupCategories() {
+      document.getElementById('groupInventoryCategoryList').style.display = 'block';
+      document.getElementById('groupInventoryProductList').style.display = 'none';
+      document.getElementById('groupInventorySearchInput').value = '';
+    }
+    
+    // 显示群组库存产品列表
+    function displayGroupInventoryProducts(products) {
+      const container = document.getElementById('groupInventoryTable');
+      
+      if (products.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">该分类暂无产品</p>';
+        return;
+      }
+      
+      const html = `
+        <table>
+          <thead>
+            <tr>
+              <th>商户</th>
+              <th>产品名称</th>
+              <th>品牌/型号</th>
+              <th>颜色</th>
+              <th>序列号/IMEI</th>
+              <th>数量</th>
+              <th>零售价</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${products.map(item => `
+              <tr>
+                <td><strong>${item.merchantId}</strong></td>
+                <td>${item.productName}</td>
+                <td>${item.brand || ''} ${item.model || ''}</td>
+                <td>${item.color || '-'}</td>
+                <td style="font-size: 11px; color: #666;">${item.serialNumber || item.imei || item.barcode || '-'}</td>
+                <td>${item.quantity}</td>
+                <td>€${item.retailPrice.toFixed(2)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <div style="margin-top: 15px; padding: 15px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
+          <div style="font-size: 14px; color: #1e40af;">
+            <strong>💡 提示：</strong> 如需调货请联系对应商户
+          </div>
+        </div>
+      `;
+      container.innerHTML = html;
+    }
+    
+    // 搜索群组库存
+    function searchGroupInventory() {
+      const searchTerm = document.getElementById('groupInventorySearchInput').value.toLowerCase();
+      const rows = document.querySelectorAll('#groupInventoryTable tbody tr');
+      
+      rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchTerm) ? '' : 'none';
+      });
+    }
+    
+    // ==================== 仓库订货功能 ====================
+    
+    // 加载仓库产品（分类视图）
+    async function loadWarehouseProducts() {
+      const container = document.getElementById('warehouseCategoryList');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        console.log('🔍 开始加载仓库产品...');
+        const url = `${API_BASE}/merchant/warehouse-products`;
+        console.log('📡 请求 URL:', url);
+        
+        const response = await fetch(url);
+        console.log('📥 响应状态:', response.status, response.statusText);
+        
+        const result = await response.json();
+        console.log('📦 API 返回数据:', result);
+        console.log('📊 产品数量:', result.data?.length);
+        
+        if (result.success && result.data.length > 0) {
+          // 只保留可销售的产品（totalAvailable > 0）
+          allWarehouseData = result.data.filter(group => group.totalAvailable > 0);
+          console.log('✅ 可订购产品数量:', allWarehouseData.length);
+          
+          if (allWarehouseData.length === 0) {
+            container.innerHTML = `
+              <p style="text-align: center; color: #999; padding: 40px;">
+                仓库暂无可订购产品
+              </p>
+            `;
+            return;
+          }
+          
+          // 按分类分组
+          const categoryMap = {};
+          allWarehouseData.forEach(group => {
+            const category = group.category || '未分类';
+            if (!categoryMap[category]) {
+              categoryMap[category] = [];
+            }
+            categoryMap[category].push(group);
+          });
+          
+          console.log('📂 分类:', Object.keys(categoryMap));
+          
+          // 显示分类卡片
+          let html = `
             <div style="background: #d1ecf1; padding: 20px; border-radius: 8px; border-left: 4px solid #17a2b8; margin-bottom: 20px;">
               <h3 style="color: #0c5460; margin-bottom: 10px;">🏭 从仓库订货</h3>
               <p style="color: #0c5460; margin: 0;">
-                以下是仓库中可供采购的产品。选择产品并输入数量后点击"订货"按钮。<br>
+                以下是仓库中可供采购的产品。选择分类查看产品详情。<br>
                 订单确认后，产品将从仓库转移到您的批发商库存中。
               </p>
             </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>产品类型</th>
-                  <th>类别</th>
-                  <th>品牌/型号</th>
-                  <th>可用数量</th>
-                  <th>批发价</th>
-                  <th>建议零售价</th>
-                  <th>税务分类</th>
-                  <th>订货数量</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${result.data.map((group, index) => `
-                  <tr>
-                    <td><strong>${group.productType}</strong></td>
-                    <td>${getCategoryBadge(group.category)}</td>
-                    <td>${group.brand || '-'} ${group.model || ''}</td>
-                    <td><strong>${group.totalAvailable}</strong></td>
-                    <td>€${group.wholesalePrice.toFixed(2)}</td>
-                    <td>€${group.suggestedRetailPrice.toFixed(2)}</td>
-                    <td>${getTaxBadge(group.taxClassification)}</td>
-                    <td>
-                      <input type="number" id="orderQty_${index}" min="1" max="${group.totalAvailable}" 
-                        value="1" style="width: 80px; padding: 5px; border: 1px solid #ddd; border-radius: 4px;">
-                    </td>
-                    <td>
-                      <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" 
-                        onclick="orderFromWarehouse(${index}, '${group.products[0]._id}', '${group.productType}', ${group.category === 'ACCESSORY' ? group.totalAvailable : 1})">
-                        订货
-                      </button>
-                    </td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px;">
           `;
+          
+          Object.keys(categoryMap).sort().forEach(category => {
+            const groups = categoryMap[category];
+            const totalProducts = groups.length;
+            const totalQty = groups.reduce((sum, group) => sum + group.totalAvailable, 0);
+            
+            html += `
+              <div onclick="showWarehouseCategory('${category}')" 
+                style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); color: white; padding: 30px; border-radius: 12px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" 
+                onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 12px rgba(0,0,0,0.2)';"
+                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.1)';">
+                <div style="font-size: 40px; margin-bottom: 10px;">🏭</div>
+                <h3 style="font-size: 18px; margin-bottom: 10px;">${category}</h3>
+                <div style="font-size: 14px; opacity: 0.9;">
+                  ${totalProducts} 种产品 · ${totalQty} 件可订
+                </div>
+              </div>
+            `;
+          });
+          
+          html += '</div>';
           container.innerHTML = html;
+          console.log('✅ 仓库产品加载完成');
         } else {
+          console.log('⚠️ 没有产品数据');
           container.innerHTML = `
-            <p style="color: #999; text-align: center; padding: 40px;">
+            <p style="text-align: center; color: #999; padding: 40px;">
               仓库暂无可订购产品
             </p>
           `;
         }
       } catch (error) {
+        console.error('❌ 加载仓库产品失败:', error);
         container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
       }
+    }
+    
+    // 显示某个分类的仓库产品
+    function showWarehouseCategory(category) {
+      // 只切换左侧内容，购物车保持显示
+      document.getElementById('warehouseCategoryListView').style.display = 'none';
+      document.getElementById('warehouseProductList').style.display = 'block';
+      document.getElementById('currentWarehouseCategoryName').textContent = `🏭 ${category}`;
+      
+      const products = allWarehouseData.filter(group => (group.category || '未分类') === category);
+      displayWarehouseProducts(products);
+    }
+    
+    // 返回仓库分类列表
+    function backToWarehouseCategories() {
+      // 只切换左侧内容，购物车保持显示
+      document.getElementById('warehouseCategoryListView').style.display = 'block';
+      document.getElementById('warehouseProductList').style.display = 'none';
+    }
+    
+    // 显示仓库产品列表
+    function displayWarehouseProducts(products) {
+      const container = document.getElementById('warehouseProducts');
+      
+      if (products.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">没有找到产品</p>';
+        return;
+      }
+      
+      const html = `
+        <table style="width: 100%; table-layout: auto;">
+          <thead>
+            <tr>
+              <th style="min-width: 120px;">产品类型</th>
+              <th style="min-width: 150px;">品牌/型号</th>
+              <th style="min-width: 80px;">颜色</th>
+              <th style="min-width: 80px; text-align: center;">可用数量</th>
+              <th style="min-width: 100px; text-align: right;">批发价</th>
+              <th style="min-width: 100px; text-align: right;">建议零售价</th>
+              <th style="min-width: 120px;">税务分类</th>
+              <th style="min-width: 100px; text-align: center;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${products.map((group, index) => {
+              const displayName = `${group.brand || ''} ${group.model || ''}`.trim() || group.productType;
+              const colorDisplay = group.color || '-';
+              return `
+              <tr>
+                <td><strong>${group.productType}</strong></td>
+                <td>${displayName}</td>
+                <td>${colorDisplay}</td>
+                <td style="text-align: center;"><strong style="color: #10b981;">${group.totalAvailable}</strong></td>
+                <td style="text-align: right;">€${group.wholesalePrice.toFixed(2)}</td>
+                <td style="text-align: right;">€${group.suggestedRetailPrice.toFixed(2)}</td>
+                <td>${getTaxBadge(group.taxClassification)}</td>
+                <td style="text-align: center;">
+                  <button class="btn btn-primary" style="padding: 8px 16px; font-size: 14px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;" 
+                    onclick="addToWarehouseCartFromTable('${group.products[0]._id}', '${displayName}${colorDisplay !== '-' ? ' - ' + colorDisplay : ''}', ${group.wholesalePrice}, ${group.totalAvailable})">
+                    🛒 加入购物车
+                  </button>
+                </td>
+              </tr>
+            `}).join('')}
+          </tbody>
+        </table>
+      `;
+      container.innerHTML = html;
+    }
+    
+    // 从表格添加到购物车
+    function addToWarehouseCartFromTable(productId, productName, price, maxQuantity) {
+      const quantity = prompt(`请输入订购数量（可用: ${maxQuantity}）:`, '1');
+      
+      if (!quantity) return;
+      
+      const qty = parseInt(quantity);
+      if (isNaN(qty) || qty < 1) {
+        alert('请输入有效的数量');
+        return;
+      }
+      
+      if (qty > maxQuantity) {
+        alert(`订购数量不能超过可用数量 ${maxQuantity}`);
+        return;
+      }
+      
+      // 检查购物车中是否已有该产品
+      const existingItem = warehouseCart.find(item => item.productId === productId);
+      
+      if (existingItem) {
+        const newQty = existingItem.quantity + qty;
+        if (newQty > maxQuantity) {
+          alert(`购物车中已有 ${existingItem.quantity} 件，最多可订购 ${maxQuantity} 件`);
+          return;
+        }
+        existingItem.quantity = newQty;
+      } else {
+        warehouseCart.push({
+          productId,
+          productName,
+          price,
+          quantity: qty,
+          maxQuantity
+        });
+      }
+      
+      updateWarehouseCart();
+      alert(`已添加 ${qty} 件 ${productName} 到购物车`);
     }
 
     // 加载销售记录
@@ -936,10 +3247,14 @@
       return badges[category] || category;
     }
     
-    function getPaymentBadge(method) {
+    function getPaymentBadge(method, cashAmount, cardAmount) {
+      if (method === 'MIXED' && cashAmount !== undefined && cardAmount !== undefined) {
+        return `<span class="badge badge-warning">混合</span><br><small style="color: #666;">现金€${cashAmount.toFixed(2)}<br>刷卡€${cardAmount.toFixed(2)}</small>`;
+      }
       const badges = {
         'CASH': '<span class="badge badge-info">现金</span>',
-        'CARD': '<span class="badge badge-primary">刷卡</span>'
+        'CARD': '<span class="badge badge-primary">刷卡</span>',
+        'MIXED': '<span class="badge badge-warning">混合</span>'
       };
       return badges[method] || method;
     }
@@ -1076,9 +3391,425 @@
       }
     }
 
-    // 占位函数
+    // ==================== 维修业务功能 ====================
+    
+    let currentRepairFilter = 'all';
+    
+    // 加载维修记录
+    async function loadRepairs(status = null) {
+      const container = document.getElementById('repairsTable');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        let url = `${API_BASE}/merchant/repairs?merchantId=${merchantId}`;
+        if (status && status !== 'all') {
+          url += `&status=${status}`;
+        }
+        
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (result.success && result.data.length > 0) {
+          const html = `
+            <table>
+              <thead>
+                <tr>
+                  <th>接收日期</th>
+                  <th>客户</th>
+                  <th>设备</th>
+                  <th>IMEI/SN</th>
+                  <th>问题描述</th>
+                  <th>维修地点</th>
+                  <th>成本</th>
+                  <th>售价</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${result.data.map(repair => `
+                  <tr style="${repair.status !== 'sold' ? 'cursor: pointer;' : ''}" 
+                      ${repair.status !== 'sold' ? `onclick="showEditRepairModal('${repair._id}')"` : ''}
+                      ${repair.status !== 'sold' ? `onmouseover="this.style.background='#f0f9ff'"` : ''}
+                      ${repair.status !== 'sold' ? `onmouseout="this.style.background=''"` : ''}>
+                    <td>${new Date(repair.receivedDate).toLocaleDateString('zh-CN')}</td>
+                    <td>
+                      <div style="font-weight: 600;">${repair.customerPhone}</div>
+                      ${repair.customerName ? `<small style="color: #666;">${repair.customerName}</small>` : ''}
+                    </td>
+                    <td><strong>${repair.deviceName}</strong></td>
+                    <td style="font-size: 11px; color: #666;">
+                      ${repair.deviceIMEI ? `IMEI: ${repair.deviceIMEI}<br>` : ''}
+                      ${repair.deviceSN ? `SN: ${repair.deviceSN}` : '-'}
+                    </td>
+                    <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${repair.problemDescription}">
+                      ${repair.problemDescription}
+                    </td>
+                    <td>${repair.repairLocation || '<span style="color: #10b981;">自己维修</span>'}</td>
+                    <td style="color: #666;">€${repair.repairCost.toFixed(2)}</td>
+                    <td><strong style="color: #10b981;">€${repair.salePrice.toFixed(2)}</strong></td>
+                    <td>${getRepairStatusBadge(repair.status)}</td>
+                    <td onclick="event.stopPropagation()">
+                      ${getRepairActions(repair)}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">暂无维修记录</p>';
+        }
+      } catch (error) {
+        console.error('加载维修记录失败:', error);
+        container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+      }
+    }
+    
+    // 筛选维修记录
+    function filterRepairs(status) {
+      currentRepairFilter = status;
+      
+      // 更新按钮样式
+      document.querySelectorAll('[id^="filterBtn_"]').forEach(btn => {
+        btn.style.opacity = '0.6';
+      });
+      document.getElementById(`filterBtn_${status}`).style.opacity = '1';
+      
+      // 加载数据
+      loadRepairs(status === 'all' ? null : status);
+    }
+    
+    // 获取维修状态标签
+    function getRepairStatusBadge(status) {
+      const badges = {
+        'pending': '<span class="badge badge-warning">待维修</span>',
+        'sent_out': '<span class="badge" style="background: #8b5cf6; color: white;">已送出</span>',
+        'retrieved': '<span class="badge badge-success">已取回</span>',
+        'completed': '<span class="badge badge-info">已完成</span>',
+        'ready_for_sale': '<span class="badge" style="background: #ec4899; color: white;">等待销售</span>',
+        'sold': '<span class="badge" style="background: #6b7280; color: white;">已销售</span>',
+        'cancelled': '<span class="badge" style="background: #ef4444; color: white;">已取消</span>'
+      };
+      return badges[status] || status;
+    }
+    
+    // 获取维修操作按钮
+    function getRepairActions(repair) {
+      const buttons = [];
+      
+      switch (repair.status) {
+        case 'pending':
+          // 待维修 -> 可以标记为已完成或等待销售
+          buttons.push(`<button class="btn btn-success" style="padding: 4px 8px; font-size: 12px;" onclick="updateRepairStatus('${repair._id}', 'completed')">完成</button>`);
+          buttons.push(`<button class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;" onclick="updateRepairStatus('${repair._id}', 'ready_for_sale')">待销售</button>`);
+          break;
+        case 'sent_out':
+          // 已送出 -> 可以标记为已取回
+          buttons.push(`<button class="btn btn-success" style="padding: 4px 8px; font-size: 12px;" onclick="updateRepairStatus('${repair._id}', 'retrieved')">已取回</button>`);
+          break;
+        case 'retrieved':
+        case 'completed':
+          // 已取回/已完成 -> 可以标记为等待销售
+          buttons.push(`<button class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;" onclick="updateRepairStatus('${repair._id}', 'ready_for_sale')">待销售</button>`);
+          break;
+        case 'ready_for_sale':
+          // 等待销售 -> 显示在销售业务中
+          buttons.push(`<span style="color: #10b981; font-size: 12px;">✓ 可销售</span>`);
+          break;
+      }
+      
+      // 删除按钮（未销售的订单可以删除）
+      if (repair.status !== 'sold') {
+        buttons.push(`<button class="btn" style="padding: 4px 8px; font-size: 12px; background: #ef4444; color: white;" onclick="deleteRepair('${repair._id}')">删除</button>`);
+      }
+      
+      return buttons.join(' ');
+    }
+    
+    // 显示新增维修模态框
     function showNewRepairModal() {
-      alert('新增维修功能开发中...');
+      document.getElementById('newRepairModal').style.display = 'flex';
+      document.getElementById('newRepairForm').reset();
+    }
+    
+    // 关闭新增维修模态框
+    function closeNewRepairModal() {
+      document.getElementById('newRepairModal').style.display = 'none';
+    }
+    
+    // 提交新增维修订单
+    async function submitNewRepair(event) {
+      event.preventDefault();
+      
+      const formData = {
+        merchantId: merchantId,
+        customerPhone: document.getElementById('repair_customerPhone').value,
+        customerName: document.getElementById('repair_customerName').value,
+        deviceName: document.getElementById('repair_deviceName').value,
+        deviceIMEI: document.getElementById('repair_deviceIMEI').value,
+        deviceSN: document.getElementById('repair_deviceSN').value,
+        problemDescription: document.getElementById('repair_problemDescription').value,
+        notes: document.getElementById('repair_notes').value,
+        repairLocation: document.getElementById('repair_location').value,
+        estimatedCompletionDate: document.getElementById('repair_estimatedDate').value || null,
+        repairCost: parseFloat(document.getElementById('repair_cost').value) || 0,
+        salePrice: parseFloat(document.getElementById('repair_salePrice').value) || 0
+      };
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/repairs`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(formData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          const isOutsourced = result.data.isOutsourced;
+          const statusText = isOutsourced ? '已送出' : '待维修';
+          alert(`✅ 维修订单创建成功！\n状态: ${statusText}\n订单号: ${result.data.repairOrderId}`);
+          closeNewRepairModal();
+          loadRepairs(currentRepairFilter === 'all' ? null : currentRepairFilter);
+        } else {
+          alert('❌ 创建失败: ' + result.error);
+        }
+      } catch (error) {
+        alert('❌ 创建失败: ' + error.message);
+      }
+    }
+    
+    // 更新维修订单状态
+    async function updateRepairStatus(repairId, newStatus) {
+      const statusNames = {
+        'completed': '已完成',
+        'retrieved': '已取回',
+        'ready_for_sale': '等待销售',
+        'sent_out': '已送出'
+      };
+      
+      if (!confirm(`确定要将此订单标记为"${statusNames[newStatus]}"吗？`)) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/repairs/${repairId}/status`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ status: newStatus })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert(`✅ 状态已更新为: ${statusNames[newStatus]}`);
+          loadRepairs(currentRepairFilter === 'all' ? null : currentRepairFilter);
+        } else {
+          alert('❌ 更新失败: ' + result.error);
+        }
+      } catch (error) {
+        alert('❌ 更新失败: ' + error.message);
+      }
+    }
+    
+    // 删除维修订单
+    async function deleteRepair(repairId) {
+      if (!confirm('确定要删除此维修订单吗？此操作不可恢复！')) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/repairs/${repairId}`, {
+          method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert('✅ 维修订单已删除');
+          loadRepairs(currentRepairFilter === 'all' ? null : currentRepairFilter);
+        } else {
+          alert('❌ 删除失败: ' + result.error);
+        }
+      } catch (error) {
+        alert('❌ 删除失败: ' + error.message);
+      }
+    }
+    
+    // 显示编辑维修订单模态框
+    async function showEditRepairModal(repairId) {
+      try {
+        // 获取维修订单详情
+        const response = await fetch(`${API_BASE}/merchant/repairs/${repairId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          const repair = result.data;
+          
+          // 填充表单
+          document.getElementById('edit_repair_id').value = repair._id;
+          document.getElementById('edit_repair_customerPhone').value = repair.customerPhone;
+          document.getElementById('edit_repair_customerName').value = repair.customerName || '';
+          document.getElementById('edit_repair_deviceName').value = repair.deviceName;
+          document.getElementById('edit_repair_deviceIMEI').value = repair.deviceIMEI || '';
+          document.getElementById('edit_repair_deviceSN').value = repair.deviceSN || '';
+          document.getElementById('edit_repair_problemDescription').value = repair.problemDescription;
+          document.getElementById('edit_repair_notes').value = repair.notes || '';
+          document.getElementById('edit_repair_location').value = repair.repairLocation || '';
+          document.getElementById('edit_repair_cost').value = repair.repairCost || 0;
+          document.getElementById('edit_repair_salePrice').value = repair.salePrice || 0;
+          
+          // 处理日期
+          if (repair.estimatedCompletionDate) {
+            const date = new Date(repair.estimatedCompletionDate);
+            document.getElementById('edit_repair_estimatedDate').value = date.toISOString().split('T')[0];
+          } else {
+            document.getElementById('edit_repair_estimatedDate').value = '';
+          }
+          
+          // 显示模态框
+          document.getElementById('editRepairModal').style.display = 'flex';
+        } else {
+          alert('❌ 获取维修订单详情失败');
+        }
+      } catch (error) {
+        alert('❌ 获取维修订单详情失败: ' + error.message);
+      }
+    }
+    
+    // 关闭编辑维修订单模态框
+    function closeEditRepairModal() {
+      document.getElementById('editRepairModal').style.display = 'none';
+    }
+    
+    // 提交编辑维修订单
+    async function submitEditRepair(event) {
+      event.preventDefault();
+      
+      const repairId = document.getElementById('edit_repair_id').value;
+      const formData = {
+        customerPhone: document.getElementById('edit_repair_customerPhone').value,
+        customerName: document.getElementById('edit_repair_customerName').value,
+        deviceName: document.getElementById('edit_repair_deviceName').value,
+        deviceIMEI: document.getElementById('edit_repair_deviceIMEI').value,
+        deviceSN: document.getElementById('edit_repair_deviceSN').value,
+        problemDescription: document.getElementById('edit_repair_problemDescription').value,
+        notes: document.getElementById('edit_repair_notes').value,
+        repairLocation: document.getElementById('edit_repair_location').value,
+        estimatedCompletionDate: document.getElementById('edit_repair_estimatedDate').value || null,
+        repairCost: parseFloat(document.getElementById('edit_repair_cost').value) || 0,
+        salePrice: parseFloat(document.getElementById('edit_repair_salePrice').value) || 0
+      };
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/repairs/${repairId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(formData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert('✅ 维修订单已更新');
+          closeEditRepairModal();
+          loadRepairs(currentRepairFilter === 'all' ? null : currentRepairFilter);
+        } else {
+          alert('❌ 更新失败: ' + result.error);
+        }
+      } catch (error) {
+        alert('❌ 更新失败: ' + error.message);
+      }
+    }
+
+    // 显示产品时间线
+    async function showProductTimeline(inventoryId, productName) {
+      // 显示模态框
+      document.getElementById('productTimelineModal').style.display = 'flex';
+      document.getElementById('timelineProductName').textContent = `📦 ${productName}`;
+      document.getElementById('timelineContent').innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/inventory/${inventoryId}/timeline`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          const timeline = result.data;
+          
+          let html = '<div style="position: relative; padding-left: 30px;">';
+          
+          // 时间线样式
+          html += '<div style="position: absolute; left: 10px; top: 0; bottom: 0; width: 2px; background: #e5e7eb;"></div>';
+          
+          if (timeline.length === 0) {
+            html += '<p style="text-align: center; color: #999; padding: 40px;">暂无历史记录</p>';
+          } else {
+            timeline.forEach((event, index) => {
+              const isFirst = index === 0;
+              const eventColor = event.type === 'created' ? '#10b981' : 
+                                 event.type === 'sold' ? '#3b82f6' : 
+                                 event.type === 'transferred_out' ? '#f59e0b' : 
+                                 event.type === 'transferred_in' ? '#8b5cf6' : '#6b7280';
+              
+              html += `
+                <div style="position: relative; margin-bottom: 30px;">
+                  <!-- 时间线圆点 -->
+                  <div style="position: absolute; left: -24px; width: 12px; height: 12px; border-radius: 50%; background: ${eventColor}; border: 3px solid white; box-shadow: 0 0 0 2px ${eventColor};"></div>
+                  
+                  <!-- 事件卡片 -->
+                  <div style="background: white; border: 2px solid ${eventColor}; border-radius: 8px; padding: 15px; ${isFirst ? 'box-shadow: 0 4px 6px rgba(0,0,0,0.1);' : ''}">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+                      <div style="font-weight: 600; color: ${eventColor}; font-size: 16px;">
+                        ${event.icon} ${event.title}
+                      </div>
+                      <div style="font-size: 12px; color: #666;">
+                        ${new Date(event.date).toLocaleString('zh-CN', { 
+                          year: 'numeric', 
+                          month: '2-digit', 
+                          day: '2-digit', 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </div>
+                    </div>
+                    
+                    <div style="color: #666; font-size: 14px; line-height: 1.6;">
+                      ${event.description}
+                    </div>
+                    
+                    ${event.details ? `
+                      <div style="margin-top: 10px; padding: 10px; background: #f9fafb; border-radius: 5px; font-size: 13px; color: #666;">
+                        ${event.details}
+                      </div>
+                    ` : ''}
+                  </div>
+                </div>
+              `;
+            });
+          }
+          
+          html += '</div>';
+          document.getElementById('timelineContent').innerHTML = html;
+        } else {
+          document.getElementById('timelineContent').innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">加载失败</p>';
+        }
+      } catch (error) {
+        console.error('加载时间线失败:', error);
+        document.getElementById('timelineContent').innerHTML = `<p style="text-align: center; color: #dc3545; padding: 40px;">加载失败: ${error.message}</p>`;
+      }
+    }
+    
+    // 关闭产品时间线模态框
+    function closeProductTimeline() {
+      document.getElementById('productTimelineModal').style.display = 'none';
     }
 
     // 登出功能 - 使用AuthGuard统一的logout
@@ -1086,10 +3817,425 @@
       AuthGuard.logout();
     }
 
+    // ==================== 仓库订货功能 ====================
+    
+    // 仓库订货购物车
+    let warehouseCart = [];
+    
+    // 切换仓库订货标签
+    function switchWarehouseTab(tab) {
+      // 更新按钮样式
+      document.querySelectorAll('.sub-tab').forEach(btn => {
+        btn.classList.remove('active');
+        btn.style.borderBottom = '3px solid transparent';
+        btn.style.color = '#6b7280';
+      });
+      
+      if (tab === 'order') {
+        document.getElementById('warehouseOrderTabBtn').classList.add('active');
+        document.getElementById('warehouseOrderTabBtn').style.borderBottom = '3px solid #6366f1';
+        document.getElementById('warehouseOrderTabBtn').style.color = '#6366f1';
+        document.getElementById('warehouseOrderSection').style.display = 'block';
+        document.getElementById('warehouseMyOrdersSection').style.display = 'none';
+        loadWarehouseProducts(); // 修改：调用正确的函数
+      } else if (tab === 'myOrders') {
+        document.getElementById('warehouseMyOrdersTabBtn').classList.add('active');
+        document.getElementById('warehouseMyOrdersTabBtn').style.borderBottom = '3px solid #6366f1';
+        document.getElementById('warehouseMyOrdersTabBtn').style.color = '#6366f1';
+        document.getElementById('warehouseOrderSection').style.display = 'none';
+        document.getElementById('warehouseMyOrdersSection').style.display = 'block';
+        loadMyWarehouseOrders();
+      }
+    }
+    
+    // 加载仓库产品分类（已废弃，使用 loadWarehouseProducts 代替）
+    // 此函数保留以防其他地方调用，但实际调用 loadWarehouseProducts
+    async function loadWarehouseCategories() {
+      console.log('⚠️ loadWarehouseCategories 已废弃，调用 loadWarehouseProducts');
+      loadWarehouseProducts();
+    }
+    
+    // 更新仓库购物车显示
+    function updateWarehouseCart() {
+      const cartCount = warehouseCart.reduce((sum, item) => sum + item.quantity, 0);
+      const cartTotal = warehouseCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      
+      document.getElementById('warehouseCartCount').textContent = cartCount;
+      document.getElementById('warehouseCartTotal').textContent = cartTotal.toFixed(2);
+      
+      if (warehouseCart.length === 0) {
+        document.getElementById('warehouseCartItems').innerHTML = '<p style="color: #9ca3af; text-align: center; padding: 40px 0;">购物车是空的</p>';
+      } else {
+        const html = warehouseCart.map((item, index) => `
+          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 10px;">
+            <div style="font-weight: 600; margin-bottom: 8px; color: #1f2937;">${item.productName}</div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <button onclick="decreaseWarehouseCartQuantity(${index})" style="width: 24px; height: 24px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; line-height: 1;">-</button>
+                <span style="min-width: 30px; text-align: center; font-weight: 600;">${item.quantity}</span>
+                <button onclick="increaseWarehouseCartQuantity(${index})" style="width: 24px; height: 24px; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; line-height: 1;">+</button>
+              </div>
+              <div>
+                <div style="color: #6b7280; font-size: 12px;">€${item.price.toFixed(2)} × ${item.quantity}</div>
+                <div style="font-weight: 600; color: #ef4444;">€${(item.price * item.quantity).toFixed(2)}</div>
+              </div>
+            </div>
+            <button onclick="removeFromWarehouseCart(${index})" style="width: 100%; margin-top: 8px; padding: 4px; background: #fee2e2; color: #ef4444; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+              移除
+            </button>
+          </div>
+        `).join('');
+        
+        document.getElementById('warehouseCartItems').innerHTML = html;
+      }
+    }
+    
+    // 增加数量
+    function increaseWarehouseCartQuantity(index) {
+      if (warehouseCart[index].quantity < warehouseCart[index].maxQuantity) {
+        warehouseCart[index].quantity++;
+        updateWarehouseCart();
+      } else {
+        alert(`库存不足，最多可订购 ${warehouseCart[index].maxQuantity} 件`);
+      }
+    }
+    
+    // 减少数量
+    function decreaseWarehouseCartQuantity(index) {
+      if (warehouseCart[index].quantity > 1) {
+        warehouseCart[index].quantity--;
+        updateWarehouseCart();
+      }
+    }
+    
+    // 从购物车移除
+    function removeFromWarehouseCart(index) {
+      warehouseCart.splice(index, 1);
+      updateWarehouseCart();
+    }
+    
+    // 清空购物车
+    function clearWarehouseCart() {
+      if (confirm('确定要清空购物车吗？')) {
+        warehouseCart = [];
+        updateWarehouseCart();
+      }
+    }
+    
+    // 提交订单
+    function submitWarehouseOrder() {
+      if (warehouseCart.length === 0) {
+        alert('购物车是空的');
+        return;
+      }
+      
+      // 显示订单确认对话框
+      const itemsHtml = warehouseCart.map(item => `
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+          <span>${item.productName} × ${item.quantity}</span>
+          <span style="font-weight: 600;">€${(item.price * item.quantity).toFixed(2)}</span>
+        </div>
+      `).join('');
+      
+      const total = warehouseCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      
+      document.getElementById('orderSubmitItems').innerHTML = itemsHtml;
+      document.getElementById('orderSubmitTotal').textContent = total.toFixed(2);
+      
+      const modal = document.getElementById('warehouseOrderSubmitModal');
+      modal.style.display = 'flex'; // 使用 flex 布局居中显示
+    }
+    
+    // 切换配送字段
+    function toggleDeliveryFields() {
+      const method = document.getElementById('deliveryMethod').value;
+      document.getElementById('deliveryAddressSection').style.display = method === 'delivery' ? 'block' : 'none';
+      document.getElementById('pickupLocationSection').style.display = method === 'pickup' ? 'block' : 'none';
+    }
+    
+    // 确认提交订单
+    async function confirmWarehouseOrderSubmit() {
+      try {
+        const deliveryMethod = document.getElementById('deliveryMethod').value;
+        const deliveryAddress = document.getElementById('deliveryAddress').value;
+        const pickupLocation = document.getElementById('pickupLocation').value;
+        const notes = document.getElementById('orderNotes').value;
+        
+        if (deliveryMethod === 'delivery' && !deliveryAddress.trim()) {
+          alert('请输入配送地址');
+          return;
+        }
+        
+        const orderData = {
+          merchantId,
+          items: warehouseCart.map(item => ({
+            productId: item.productId,
+            quantity: item.quantity
+          })),
+          deliveryMethod,
+          deliveryAddress: deliveryMethod === 'delivery' ? deliveryAddress : '',
+          pickupLocation: deliveryMethod === 'pickup' ? pickupLocation : '',
+          notes
+        };
+        
+        const response = await fetch(`${API_BASE}/warehouse/orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert(`订单创建成功！\n订单号: ${result.data.orderNumber}\n\n库存已预留，等待仓管员确认发货。`);
+          warehouseCart = [];
+          updateWarehouseCart();
+          closeWarehouseOrderSubmitModal();
+          
+          // 刷新仓库产品列表以显示更新后的库存
+          loadWarehouseProducts();
+          
+          // 切换到我的订单标签
+          switchWarehouseTab('myOrders');
+        } else {
+          alert('订单创建失败: ' + result.error);
+        }
+      } catch (error) {
+        console.error('提交订单失败:', error);
+        alert('提交订单失败');
+      }
+    }
+    
+    // 关闭订单提交对话框
+    function closeWarehouseOrderSubmitModal() {
+      document.getElementById('warehouseOrderSubmitModal').style.display = 'none';
+      document.getElementById('deliveryAddress').value = '';
+      document.getElementById('orderNotes').value = '';
+    }
+    
+    // 加载我的订单
+    async function loadMyWarehouseOrders() {
+      try {
+        const status = document.getElementById('orderStatusFilter').value;
+        const url = `${API_BASE}/warehouse/orders/my?merchantId=${merchantId}${status ? '&status=' + status : ''}`;
+        
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (result.success) {
+          if (result.data.length === 0) {
+            document.getElementById('myWarehouseOrdersList').innerHTML = '<p style="color: #9ca3af; text-align: center; padding: 40px 0;">暂无订单</p>';
+            return;
+          }
+          
+          const html = result.data.map(order => {
+            const statusColors = {
+              'pending': '#f59e0b',
+              'confirmed': '#3b82f6',
+              'shipped': '#8b5cf6',
+              'completed': '#10b981',
+              'cancelled': '#ef4444'
+            };
+            
+            const statusNames = {
+              'pending': '待确认',
+              'confirmed': '已确认',
+              'shipped': '已发货',
+              'completed': '已完成',
+              'cancelled': '已取消'
+            };
+            
+            return `
+              <div style="background: white; border: 2px solid #e5e7eb; border-radius: 10px; padding: 20px; margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+                  <div>
+                    <h3 style="margin-bottom: 5px;">订单号: ${order.orderNumber}</h3>
+                    <p style="color: #6b7280; font-size: 14px;">${new Date(order.orderedAt).toLocaleString('zh-CN')}</p>
+                  </div>
+                  <span style="padding: 6px 12px; background: ${statusColors[order.status]}; color: white; border-radius: 6px; font-weight: 600;">
+                    ${statusNames[order.status]}
+                  </span>
+                </div>
+                
+                <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                  <p style="margin-bottom: 5px;"><strong>产品数量:</strong> ${order.items.length} 种</p>
+                  <p style="margin-bottom: 5px;"><strong>总数量:</strong> ${order.items.reduce((sum, item) => sum + item.quantity, 0)} 件</p>
+                  <p style="margin-bottom: 5px;"><strong>配送方式:</strong> ${order.deliveryMethod === 'delivery' ? '🚚 物流配送' : '🏪 到店自取'}</p>
+                  <p style="font-size: 18px; font-weight: 600; color: #ef4444; margin-top: 10px;">总计: €${order.totalAmount.toFixed(2)}</p>
+                </div>
+                
+                <button onclick="viewWarehouseOrderDetail('${order._id}')" style="padding: 8px 16px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                  查看详情
+                </button>
+                ${order.status === 'shipped' ? `
+                  <button onclick="confirmReceiveOrder('${order._id}')" style="padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; margin-left: 10px;">
+                    ✅ 确认收货
+                  </button>
+                ` : ''}
+              </div>
+            `;
+          }).join('');
+          
+          document.getElementById('myWarehouseOrdersList').innerHTML = html;
+        }
+      } catch (error) {
+        console.error('加载订单失败:', error);
+        document.getElementById('myWarehouseOrdersList').innerHTML = '<p style="color: #ef4444;">加载失败</p>';
+      }
+    }
+    
+    // 查看订单详情
+    async function viewWarehouseOrderDetail(orderId) {
+      try {
+        document.getElementById('warehouseOrderDetailModal').style.display = 'block';
+        document.getElementById('orderDetailContent').innerHTML = '<div class="loading">加载中...</div>';
+        
+        const response = await fetch(`${API_BASE}/warehouse/orders/${orderId}`);
+        const result = await response.json();
+        
+        if (result.success) {
+          const order = result.data;
+          
+          const statusColors = {
+            'pending': '#f59e0b',
+            'confirmed': '#3b82f6',
+            'shipped': '#8b5cf6',
+            'completed': '#10b981',
+            'cancelled': '#ef4444'
+          };
+          
+          const statusNames = {
+            'pending': '待确认',
+            'confirmed': '已确认',
+            'shipped': '已发货',
+            'completed': '已完成',
+            'cancelled': '已取消'
+          };
+          
+          const html = `
+            <div style="background: #f9fafb; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                  <p style="color: #6b7280; margin-bottom: 5px;">订单号</p>
+                  <p style="font-weight: 600;">${order.orderNumber}</p>
+                </div>
+                <div>
+                  <p style="color: #6b7280; margin-bottom: 5px;">状态</p>
+                  <span style="padding: 6px 12px; background: ${statusColors[order.status]}; color: white; border-radius: 6px; font-weight: 600;">
+                    ${statusNames[order.status]}
+                  </span>
+                </div>
+                <div>
+                  <p style="color: #6b7280; margin-bottom: 5px;">下单时间</p>
+                  <p style="font-weight: 600;">${new Date(order.orderedAt).toLocaleString('zh-CN')}</p>
+                </div>
+                <div>
+                  <p style="color: #6b7280; margin-bottom: 5px;">配送方式</p>
+                  <p style="font-weight: 600;">${order.deliveryMethod === 'delivery' ? '🚚 物流配送' : '🏪 到店自取'}</p>
+                </div>
+                ${order.deliveryAddress ? `
+                <div style="grid-column: 1 / -1;">
+                  <p style="color: #6b7280; margin-bottom: 5px;">配送地址</p>
+                  <p style="font-weight: 600;">${order.deliveryAddress}</p>
+                </div>
+                ` : ''}
+                ${order.notes ? `
+                <div style="grid-column: 1 / -1;">
+                  <p style="color: #6b7280; margin-bottom: 5px;">备注</p>
+                  <p style="font-weight: 600;">${order.notes}</p>
+                </div>
+                ` : ''}
+              </div>
+            </div>
+            
+            <h3 style="margin-bottom: 15px;">订单明细</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+              <thead>
+                <tr style="background: #f9fafb;">
+                  <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">产品名称</th>
+                  <th style="padding: 12px; text-align: center; border-bottom: 2px solid #e5e7eb;">数量</th>
+                  <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb;">单价</th>
+                  <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb;">小计</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${order.items.map(item => `
+                  <tr>
+                    <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${item.productName}</td>
+                    <td style="padding: 12px; text-align: center; border-bottom: 1px solid #e5e7eb;">${item.quantity}</td>
+                    <td style="padding: 12px; text-align: right; border-bottom: 1px solid #e5e7eb;">€${item.wholesalePrice.toFixed(2)}</td>
+                    <td style="padding: 12px; text-align: right; border-bottom: 1px solid #e5e7eb; font-weight: 600;">€${item.subtotal.toFixed(2)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="3" style="padding: 12px; text-align: right; font-weight: 600; font-size: 18px;">总计:</td>
+                  <td style="padding: 12px; text-align: right; font-weight: 600; font-size: 18px; color: #ef4444;">€${order.totalAmount.toFixed(2)}</td>
+                </tr>
+              </tfoot>
+            </table>
+            
+            ${order.status === 'shipped' ? `
+              <div style="margin-top: 20px; padding: 15px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                <p style="color: #92400e; margin-bottom: 10px;">
+                  <strong>⚠️ 请确认收货</strong><br>
+                  订单已发货，请确认收到货物后点击下方按钮。确认收货后，产品将自动入库到您的库存中。
+                </p>
+                <button onclick="confirmReceiveOrder('${order._id}')" style="padding: 10px 20px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 16px;">
+                  ✅ 确认收货
+                </button>
+              </div>
+            ` : ''}
+          `;
+          
+          document.getElementById('orderDetailContent').innerHTML = html;
+        }
+      } catch (error) {
+        console.error('加载订单详情失败:', error);
+        document.getElementById('orderDetailContent').innerHTML = '<p style="color: #ef4444;">加载失败</p>';
+      }
+    }
+    
+    // 关闭订单详情对话框
+    function closeWarehouseOrderDetailModal() {
+      document.getElementById('warehouseOrderDetailModal').style.display = 'none';
+    }
+    
+    // 确认收货
+    async function confirmReceiveOrder(orderId) {
+      if (!confirm('确认已收到货物？确认后产品将自动入库到您的库存中。')) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${API_BASE}/warehouse/orders/${orderId}/complete?merchantId=${merchantId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ merchantId: merchantId })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert('✅ 收货确认成功！产品已入库到您的库存中。');
+          closeWarehouseOrderDetailModal();
+          loadMyWarehouseOrders(); // 刷新订单列表
+          loadMyInventory(); // 刷新库存列表
+        } else {
+          alert('❌ 确认收货失败: ' + result.error);
+        }
+      } catch (error) {
+        console.error('确认收货失败:', error);
+        alert('❌ 确认收货失败: ' + error.message);
+      }
+    }
+
     // 初始化
     window.addEventListener('DOMContentLoaded', () => {
+      loadMerchantInfo(); // 加载商户信息和欢迎标题
       loadStats();
-      loadSalesForm(); // 默认加载销售业务页面
+      loadCategoryList(); // 默认加载销售业务的分类列表
       
       // 设置默认日期（本月）
       const now = new Date();

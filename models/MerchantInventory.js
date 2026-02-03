@@ -1,131 +1,149 @@
 const mongoose = require('mongoose');
 
-/**
- * 批发商库存模型
- * 每个批发商有自己独立的库存
- */
 const merchantInventorySchema = new mongoose.Schema({
-  // 批发商ID（关联用户）
+  // 商户信息
   merchantId: {
     type: String,
     required: true,
     index: true
   },
-  
-  // 批发商名称
   merchantName: {
     type: String,
     required: true
   },
+  // 店面组和店面
+  storeGroup: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'StoreGroup'
+  },
+  store: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Store'
+  },
   
   // 产品信息
+  productId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ProductNew'
+  },
   productName: {
     type: String,
     required: true
   },
-  
-  // 产品类别
+  brand: {
+    type: String,
+    default: ''
+  },
+  model: {
+    type: String,
+    default: ''
+  },
   category: {
     type: String,
-    enum: ['NEW_DEVICE', 'USED_DEVICE', 'ACCESSORY'],
     required: true
   },
   
-  // 产品类型（手机、笔记本、平板等）
-  productType: {
+  // 税务分类 - 继承自产品分类的默认税率
+  taxClassification: {
     type: String,
-    required: true
+    default: 'VAT_23'
   },
-  
-  // 品牌
-  brand: String,
-  
-  // 型号
-  model: String,
   
   // 库存数量
   quantity: {
     type: Number,
     required: true,
-    default: 0,
-    min: 0
+    min: 0,
+    default: 0
   },
   
-  // 采购成本价（从仓库采购的价格）
+  // 价格信息
   costPrice: {
     type: Number,
     required: true,
     min: 0
   },
-  
-  // 零售价
+  wholesalePrice: {
+    type: Number,
+    required: true,
+    min: 0
+  },
   retailPrice: {
     type: Number,
     required: true,
     min: 0
   },
   
-  // 税务分类
-  taxClassification: {
+  // 产品标识
+  barcode: {
     type: String,
-    enum: ['VAT_23', 'MARGIN_VAT_0', 'SERVICE_VAT_13_5'],
-    required: true
+    default: ''
+  },
+  serialNumber: {
+    type: String,
+    default: ''
+  },
+  color: {
+    type: String,
+    default: ''
+  },
+  condition: {
+    type: String,
+    default: 'BRAND_NEW'
   },
   
-  // 仓库产品ID（关联仓库产品）
-  warehouseProductId: {
+  // 来源信息
+  source: {
+    type: String,
+    enum: ['warehouse', 'manual', 'transfer'],
+    default: 'manual'
+  },
+  sourceOrderId: {
+    type: mongoose.Schema.Types.ObjectId
+  },
+  sourceTransferId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Product3C'
+    ref: 'InventoryTransfer'
   },
   
   // 状态
   status: {
     type: String,
-    enum: ['ACTIVE', 'LOW_STOCK', 'OUT_OF_STOCK'],
-    default: 'ACTIVE'
-  },
-  
-  // 最小库存警告
-  minStockLevel: {
-    type: Number,
-    default: 5
+    enum: ['active', 'sold', 'transferred', 'damaged'],
+    default: 'active'
   },
   
   // 备注
-  notes: String,
-  
-  // 创建时间
-  createdAt: {
-    type: Date,
-    default: Date.now
+  notes: {
+    type: String,
+    default: ''
   },
   
-  // 更新时间
-  updatedAt: {
-    type: Date,
-    default: Date.now
+  // 是否激活
+  isActive: {
+    type: Boolean,
+    default: true
   }
+}, {
+  timestamps: true
 });
 
-// 更新时间中间件
-merchantInventorySchema.pre('save', function(next) {
-  this.updatedAt = Date.now();
-  
-  // 根据库存数量自动更新状态
-  if (this.quantity === 0) {
-    this.status = 'OUT_OF_STOCK';
-  } else if (this.quantity <= this.minStockLevel) {
-    this.status = 'LOW_STOCK';
-  } else {
-    this.status = 'ACTIVE';
-  }
-  
-  next();
-});
-
-// 索引
-merchantInventorySchema.index({ merchantId: 1, productName: 1 });
-merchantInventorySchema.index({ merchantId: 1, category: 1 });
+// 创建索引
 merchantInventorySchema.index({ merchantId: 1, status: 1 });
+merchantInventorySchema.index({ storeGroup: 1, isActive: 1 });
+merchantInventorySchema.index({ store: 1, isActive: 1 });
+merchantInventorySchema.index({ category: 1 });
+merchantInventorySchema.index({ barcode: 1 });
+merchantInventorySchema.index({ serialNumber: 1 });
+
+// 虚拟字段：库存价值
+merchantInventorySchema.virtual('inventoryValue').get(function() {
+  return this.quantity * this.costPrice;
+});
+
+// 虚拟字段：潜在利润
+merchantInventorySchema.virtual('potentialProfit').get(function() {
+  return this.quantity * (this.retailPrice - this.costPrice);
+});
 
 module.exports = mongoose.model('MerchantInventory', merchantInventorySchema);

@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>批发商户中心 - 3C产品管理系统</title>
+  <script src="/i18n.js"></script>
+  <script src="/auth-guard.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+      background: #f5f5f5;
+      color: #333;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      color: white;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    
+    .header h1 {
+      font-size: 24px;
+      margin-bottom: 5px;
+    }
+    
+    .logout-btn {
+      padding: 10px 20px;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: 2px solid white;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    
+    .logout-btn:hover {
+      background: rgba(255,255,255,0.3);
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #e0e0e0;
+      flex-wrap: wrap;
+    }
+    
+    .tab {
+      padding: 12px 24px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      color: #666;
+      border-bottom: 3px solid transparent;
+      transition: all 0.3s;
+    }
+    
+    .tab:hover {
+      color: #6366f1;
+    }
+    
+    .tab.active {
+      color: #6366f1;
+      border-bottom-color: #6366f1;
+      font-weight: 600;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    
+    .card h2 {
+      font-size: 20px;
+      margin-bottom: 15px;
+      color: #333;
+    }
+    
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+    
+    .btn-primary {
+      background: #6366f1;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #4f46e5;
+    }
+    
+    .btn-success {
+      background: #10b981;
+      color: white;
+    }
+    
+    .btn-success:hover {
+      background: #059669;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    th {
+      background: #f8f9fa;
+      font-weight: 600;
+      color: #666;
+      font-size: 14px;
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    
+    .badge-success { background: #d4edda; color: #155724; }
+    .badge-warning { background: #fff3cd; color: #856404; }
+    .badge-info { background: #d1ecf1; color: #0c5460; }
+    .badge-primary { background: #cfe2ff; color: #084298; }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .stat-card h3 {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 10px;
+    }
+    
+    .stat-card .value {
+      font-size: 32px;
+      font-weight: bold;
+      color: #6366f1;
+    }
+    
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+    
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .form-group label {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #555;
+    }
+    
+    .form-group input,
+    .form-group select {
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-content">
+      <div>
+        <h1>🏢 批发商户中心</h1>
+        <p>库存管理 · 销售业务 · 税务报表</p>
+      </div>
+      <button class="logout-btn" onclick="logout()">退出登录</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- 统计卡片 -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <h3>我的库存</h3>
+        <div class="value" id="myInventory">-</div>
+      </div>
+      <div class="stat-card">
+        <h3>本月销售</h3>
+        <div class="value" id="monthlySales">-</div>
+      </div>
+      <div class="stat-card">
+        <h3>本月维修</h3>
+        <div class="value" id="monthlyRepairs">-</div>
+      </div>
+      <div class="stat-card">
+        <h3>应缴税额</h3>
+        <div class="value" id="taxDue">-</div>
+      </div>
+    </div>
+
+    <!-- 标签页 -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('sales')">销售业务</button>
+      <button class="tab" onclick="switchTab('repairs')">维修业务</button>
+      <button class="tab" onclick="switchTab('my-inventory')">我的库存</button>
+      <button class="tab" onclick="switchTab('warehouse-order')">仓库订货</button>
+      <button class="tab" onclick="switchTab('reports')">报表中心</button>
+      <button class="tab" onclick="switchTab('tax-report')">税务报表</button>
+    </div>
+
+    <!-- 销售业务 -->
+    <div id="sales" class="tab-content active">
+      <div class="card">
+        <h2>销售业务</h2>
+        <p style="color: #666; margin-bottom: 20px;">从您的库存中选择产品进行销售</p>
+        
+        <!-- 销售表单 -->
+        <div id="salesForm">
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+      
+      <!-- 销售记录查询 -->
+      <div class="card">
+        <h2>销售记录查询</h2>
+        <div class="form-grid" style="margin-bottom: 20px;">
+          <div class="form-group">
+            <label>开始日期</label>
+            <input type="date" id="salesStartDate">
+          </div>
+          <div class="form-group">
+            <label>结束日期</label>
+            <input type="date" id="salesEndDate">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="querySalesRecords()">查询销售记录</button>
+        
+        <div id="salesRecordsTable" style="margin-top: 20px;">
+          <p style="text-align: center; color: #999; padding: 20px;">请选择日期范围并点击查询</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 维修业务 -->
+    <div id="repairs" class="tab-content">
+      <div class="card">
+        <h2>维修记录</h2>
+        <button class="btn btn-success" onclick="showNewRepairModal()" style="margin-bottom: 15px;">+ 新增维修</button>
+        <div id="repairsTable">
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 我的库存 -->
+    <div id="my-inventory" class="tab-content">
+      <div class="card">
+        <h2>我的库存</h2>
+        <div id="inventoryTable">
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 仓库订货 -->
+    <div id="warehouse-order" class="tab-content">
+      <div class="card">
+        <h2>从仓库订货</h2>
+        <p style="color: #666; margin-bottom: 20px;">选择产品从仓库采购到您的库存</p>
+        <div id="warehouseProducts">
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 报表中心 -->
+    <div id="reports" class="tab-content">
+      <div class="card">
+        <h2>库存报表</h2>
+        <div id="inventoryReport">
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+      
+      <div class="card">
+        <h2>销售报表</h2>
+        <div id="salesReport">
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 税务报表 -->
+    <div id="tax-report" class="tab-content">
+      <div class="card">
+        <h2>税务报表</h2>
+        <div class="form-grid" style="margin-bottom: 20px;">
+          <div class="form-group">
+            <label>开始日期</label>
+            <input type="date" id="taxStartDate">
+          </div>
+          <div class="form-group">
+            <label>结束日期</label>
+            <input type="date" id="taxEndDate">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="generateTaxReport()">生成报表</button>
+        
+        <div id="taxReportContent" style="margin-top: 20px;">
+          <div class="loading">请选择日期范围并生成报表</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+    const merchantId = 'merchant_001'; // 实际应从登录session获取
+
+    // 切换标签页
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      
+      event.target.classList.add('active');
+      document.getElementById(tabName).classList.add('active');
+      
+      // 加载对应数据
+      switch(tabName) {
+        case 'sales': loadSalesForm(); break;
+        case 'repairs': loadRepairs(); break;
+        case 'my-inventory': loadMyInventory(); break;
+        case 'warehouse-order': loadWarehouseProducts(); break;
+        case 'reports': loadReports(); break;
+      }
+    }
+
+    // 加载统计数据
+    async function loadStats() {
+      try {
+        const response = await fetch(`${API_BASE}/merchant/stats?merchantId=${merchantId}`);
+        const result = await response.json();
+        
+        if (result.success) {
+          const stats = result.data;
+          document.getElementById('myInventory').textContent = stats.myInventory || 0;
+          document.getElementById('monthlySales').textContent = '€' + (stats.monthlySales || 0).toFixed(2);
+          document.getElementById('monthlyRepairs').textContent = '€' + (stats.monthlyRepairs || 0).toFixed(2);
+          document.getElementById('taxDue').textContent = '€' + (stats.taxDue || 0).toFixed(2);
+        }
+      } catch (error) {
+        console.error('加载统计数据失败:', error);
+      }
+    }
+
+    // 加载销售业务表单
+    async function loadSalesForm() {
+      const container = document.getElementById('salesForm');
+      container.innerHTML = `
+        <div style="background: #e3f2fd; padding: 30px; border-radius: 12px; border-left: 4px solid #2196f3; text-align: center;">
+          <h3 style="color: #1976d2; margin-bottom: 15px;">🚧 功能开发中</h3>
+          <p style="color: #1976d2; margin: 0; font-size: 16px;">
+            销售业务功能正在开发中，敬请期待。
+          </p>
+          <p style="color: #1976d2; margin-top: 10px; font-size: 14px;">
+            如需销售功能，请联系管理员或使用仓库管理员页面。
+          </p>
+        </div>
+      `;
+    }
+    
+    // 查询销售记录
+    async function querySalesRecords() {
+      const container = document.getElementById('salesRecordsTable');
+      container.innerHTML = `
+        <div style="background: #e3f2fd; padding: 20px; border-radius: 8px; border-left: 4px solid #2196f3;">
+          <h4 style="color: #1976d2; margin-bottom: 10px;">🚧 功能开发中</h4>
+          <p style="color: #1976d2; margin: 0;">
+            销售记录查询功能正在开发中。
+          </p>
+        </div>
+      `;
+    }
+
+    // 加载我的库存
+    async function loadMyInventory() {
+      const container = document.getElementById('inventoryTable');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/inventory?merchantId=${merchantId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data.length > 0) {
+          const html = `
+            <table>
+              <thead>
+                <tr>
+                  <th>产品名称</th>
+                  <th>类别</th>
+                  <th>品牌/型号</th>
+                  <th>库存数量</th>
+                  <th>成本价</th>
+                  <th>零售价</th>
+                  <th>税务分类</th>
+                  <th>状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${result.data.map(item => `
+                  <tr>
+                    <td><strong>${item.productName}</strong></td>
+                    <td>${getCategoryBadge(item.category)}</td>
+                    <td>${item.brand || '-'} ${item.model || ''}</td>
+                    <td><strong>${item.quantity}</strong></td>
+                    <td>€${item.costPrice.toFixed(2)}</td>
+                    <td>€${item.retailPrice.toFixed(2)}</td>
+                    <td>${getTaxBadge(item.taxClassification)}</td>
+                    <td>${getStatusBadge(item.status)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = `
+            <div style="background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107; margin-bottom: 20px;">
+              <h3 style="color: #856404; margin-bottom: 10px;">📦 批发商独立库存系统</h3>
+              <p style="color: #856404; margin: 0;">
+                这里显示的是您作为批发商在自己店铺中的库存，与仓库库存是独立管理的。<br>
+                您可以通过"仓库订货"功能从仓库采购产品到您的库存中。
+              </p>
+            </div>
+            <p style="text-align: center; color: #999; padding: 40px;">
+              暂无库存数据<br>
+              <small>请前往"仓库订货"页面采购产品</small>
+            </p>
+          `;
+        }
+      } catch (error) {
+        container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+      }
+    }
+
+    // 加载仓库产品
+    async function loadWarehouseProducts() {
+      const container = document.getElementById('warehouseProducts');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/warehouse-products`);
+        const result = await response.json();
+        
+        if (result.success && result.data.length > 0) {
+          const html = `
+            <div style="background: #d1ecf1; padding: 20px; border-radius: 8px; border-left: 4px solid #17a2b8; margin-bottom: 20px;">
+              <h3 style="color: #0c5460; margin-bottom: 10px;">🏭 从仓库订货</h3>
+              <p style="color: #0c5460; margin: 0;">
+                以下是仓库中可供采购的产品。选择产品并输入数量后点击"订货"按钮。<br>
+                订单确认后，产品将从仓库转移到您的批发商库存中。
+              </p>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>产品类型</th>
+                  <th>类别</th>
+                  <th>品牌/型号</th>
+                  <th>可用数量</th>
+                  <th>批发价</th>
+                  <th>建议零售价</th>
+                  <th>税务分类</th>
+                  <th>订货数量</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${result.data.map((group, index) => `
+                  <tr>
+                    <td><strong>${group.productType}</strong></td>
+                    <td>${getCategoryBadge(group.category)}</td>
+                    <td>${group.brand || '-'} ${group.model || ''}</td>
+                    <td><strong>${group.totalAvailable}</strong></td>
+                    <td>€${group.wholesalePrice.toFixed(2)}</td>
+                    <td>€${group.suggestedRetailPrice.toFixed(2)}</td>
+                    <td>${getTaxBadge(group.taxClassification)}</td>
+                    <td>
+                      <input type="number" id="orderQty_${index}" min="1" max="${group.totalAvailable}" 
+                        value="1" style="width: 80px; padding: 5px; border: 1px solid #ddd; border-radius: 4px;">
+                    </td>
+                    <td>
+                      <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" 
+                        onclick="orderFromWarehouse(${index}, '${group.products[0]._id}', '${group.productType}', ${group.category === 'ACCESSORY' ? group.totalAvailable : 1})">
+                        订货
+                      </button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = `
+            <p style="color: #999; text-align: center; padding: 40px;">
+              仓库暂无可订购产品
+            </p>
+          `;
+        }
+      } catch (error) {
+        container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+      }
+    }
+
+    // 加载销售记录
+    async function loadSales() {
+      const container = document.getElementById('salesTable');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/sales?merchantId=${merchantId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data.length > 0) {
+          const html = `
+            <table>
+              <thead>
+                <tr>
+                  <th>日期</th>
+                  <th>产品</th>
+                  <th>类别</th>
+                  <th>数量</th>
+                  <th>销售额</th>
+                  <th>成本</th>
+                  <th>税额</th>
+                  <th>支付方式</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${result.data.slice(0, 50).map(sale => `
+                  <tr>
+                    <td>${new Date(sale.date).toLocaleDateString('zh-CN')}</td>
+                    <td>${sale.productName}</td>
+                    <td>${getCategoryBadge(sale.category)}</td>
+                    <td>${sale.quantity}</td>
+                    <td>€${(sale.salePrice * sale.quantity).toFixed(2)}</td>
+                    <td>€${(sale.costPrice * sale.quantity).toFixed(2)}</td>
+                    <td>€${sale.taxAmount.toFixed(2)}</td>
+                    <td>${getPaymentBadge(sale.paymentMethod)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            ${result.data.length > 50 ? `<p style="text-align: center; color: #666; margin-top: 10px;">显示最近50条记录，共${result.data.length}条</p>` : ''}
+          `;
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = '<div class="loading">暂无销售记录</div>';
+        }
+        
+        if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
+      } catch (error) {
+        container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+      }
+    }
+
+    // 加载维修记录
+    async function loadRepairs() {
+      const container = document.getElementById('repairsTable');
+      container.innerHTML = `
+        <div style="background: #e3f2fd; padding: 30px; border-radius: 12px; border-left: 4px solid #2196f3; text-align: center;">
+          <h3 style="color: #1976d2; margin-bottom: 15px;">🚧 功能开发中</h3>
+          <p style="color: #1976d2; margin: 0; font-size: 16px;">
+            维修业务功能正在开发中，敬请期待。
+          </p>
+        </div>
+      `;
+    }
+
+    // 加载报表
+    function loadReports() {
+      document.getElementById('inventoryReport').innerHTML = `
+        <p style="color: #999; text-align: center; padding: 20px;">库存报表功能开发中...</p>
+      `;
+      document.getElementById('salesReport').innerHTML = `
+        <p style="color: #999; text-align: center; padding: 20px;">销售报表功能开发中...</p>
+      `;
+    }
+
+    // 生成税务报表
+    async function generateTaxReport() {
+      const startDate = document.getElementById('taxStartDate').value;
+      const endDate = document.getElementById('taxEndDate').value;
+      
+      if (!startDate || !endDate) {
+        alert('请选择日期范围');
+        return;
+      }
+      
+      const container = document.getElementById('taxReportContent');
+      container.innerHTML = '<div class="loading">生成报表中...</div>';
+      
+      try {
+        const response = await fetch(
+          `${API_BASE}/merchant/tax-report?merchantId=${merchantId}&startDate=${startDate}&endDate=${endDate}`
+        );
+        const result = await response.json();
+        
+        if (result.success) {
+          const data = result.data;
+          const { dailySales, summary, taxByClassification } = data;
+          
+          // 生成日销售表格
+          const dailyTable = dailySales.length > 0 ? `
+            <table style="margin-bottom: 30px;">
+              <thead>
+                <tr>
+                  <th>日期</th>
+                  <th>销售额</th>
+                  <th>现金收入</th>
+                  <th>刷卡收入</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${dailySales.map(day => `
+                  <tr>
+                    <td>${new Date(day.date).toLocaleDateString('zh-CN')}</td>
+                    <td>€${day.totalSales.toFixed(2)}</td>
+                    <td>€${day.cashIncome.toFixed(2)}</td>
+                    <td>€${day.cardIncome.toFixed(2)}</td>
+                  </tr>
+                `).join('')}
+                <tr style="font-weight: bold; background: #e9ecef;">
+                  <td>合计</td>
+                  <td>€${summary.totalSales.toFixed(2)}</td>
+                  <td>€${summary.totalCashIncome.toFixed(2)}</td>
+                  <td>€${summary.totalCardIncome.toFixed(2)}</td>
+                </tr>
+              </tbody>
+            </table>
+          ` : '<p style="color: #999; text-align: center; padding: 20px;">该时间段内无销售数据</p>';
+          
+          container.innerHTML = `
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px;">
+              <h3 style="margin-bottom: 20px;">税务报表 (${startDate} 至 ${endDate})</h3>
+              
+              ${dailyTable}
+              
+              <h4 style="margin: 20px 0 10px 0;">税务计算明细</h4>
+              <table>
+                <thead>
+                  <tr>
+                    <th>税务分类</th>
+                    <th>销售额</th>
+                    <th>销项税</th>
+                    <th>成本</th>
+                    <th>进项税</th>
+                    <th>应缴税额</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${taxByClassification.VAT_23.sales > 0 ? `
+                    <tr>
+                      <td>VAT 23%</td>
+                      <td>€${taxByClassification.VAT_23.sales.toFixed(2)}</td>
+                      <td>€${taxByClassification.VAT_23.outputTax.toFixed(2)}</td>
+                      <td>€${taxByClassification.VAT_23.cost.toFixed(2)}</td>
+                      <td>€${taxByClassification.VAT_23.inputTax.toFixed(2)}</td>
+                      <td style="color: #dc3545; font-weight: bold;">€${taxByClassification.VAT_23.due.toFixed(2)}</td>
+                    </tr>
+                  ` : ''}
+                  ${taxByClassification.SERVICE_VAT_13_5.sales > 0 ? `
+                    <tr>
+                      <td>Service VAT 13.5%</td>
+                      <td>€${taxByClassification.SERVICE_VAT_13_5.sales.toFixed(2)}</td>
+                      <td>€${taxByClassification.SERVICE_VAT_13_5.due.toFixed(2)}</td>
+                      <td>-</td>
+                      <td>-</td>
+                      <td style="color: #dc3545; font-weight: bold;">€${taxByClassification.SERVICE_VAT_13_5.due.toFixed(2)}</td>
+                    </tr>
+                  ` : ''}
+                  ${taxByClassification.MARGIN_VAT_0.sales > 0 ? `
+                    <tr>
+                      <td>Margin VAT</td>
+                      <td>€${taxByClassification.MARGIN_VAT_0.sales.toFixed(2)}</td>
+                      <td>-</td>
+                      <td>€${taxByClassification.MARGIN_VAT_0.cost.toFixed(2)}</td>
+                      <td>-</td>
+                      <td style="color: #dc3545; font-weight: bold;">€${taxByClassification.MARGIN_VAT_0.due.toFixed(2)}</td>
+                    </tr>
+                  ` : ''}
+                  <tr style="font-weight: bold; background: #fff3cd;">
+                    <td colspan="5" style="text-align: right;">总应缴税额：</td>
+                    <td style="color: #dc3545; font-size: 18px;">€${summary.totalTaxDue.toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
+              
+              <div style="margin-top: 20px; padding: 15px; background: white; border-left: 4px solid #6366f1;">
+                <p style="margin: 0; color: #666;">
+                  <strong>计算说明：</strong><br>
+                  • VAT 23%: 销项税 = 销售额×23/123, 进项税 = 成本×23/123, 应缴 = 销项税 - 进项税<br>
+                  • Service VAT 13.5%: 应缴税 = 金额×13.5/113.5<br>
+                  • Margin VAT: 应缴税 = (销售额 - 成本)×23/123
+                </p>
+              </div>
+            </div>
+          `;
+          
+          if (typeof i18n !== 'undefined') i18n.translateDynamicContent();
+        }
+      } catch (error) {
+        container.innerHTML = `<div class="loading">生成报表失败: ${error.message}</div>`;
+      }
+    }
+    
+    // 辅助函数
+    function getCategoryBadge(category) {
+      const badges = {
+        'NEW_DEVICE': '<span class="badge badge-success">全新设备</span>',
+        'USED_DEVICE': '<span class="badge badge-warning">二手设备</span>',
+        'ACCESSORY': '<span class="badge badge-info">配件</span>'
+      };
+      return badges[category] || category;
+    }
+    
+    function getPaymentBadge(method) {
+      const badges = {
+        'CASH': '<span class="badge badge-info">现金</span>',
+        'CARD': '<span class="badge badge-primary">刷卡</span>'
+      };
+      return badges[method] || method;
+    }
+    
+    function getTaxBadge(tax) {
+      const badges = {
+        'VAT_23': '<span class="badge badge-primary">VAT 23%</span>',
+        'MARGIN_VAT_0': '<span class="badge badge-info">Margin VAT</span>',
+        'SERVICE_VAT_13_5': '<span class="badge badge-warning">Service 13.5%</span>'
+      };
+      return badges[tax] || tax;
+    }
+    
+    function getStatusBadge(status) {
+      const badges = {
+        'ACTIVE': '<span class="badge badge-success">正常</span>',
+        'LOW_STOCK': '<span class="badge badge-warning">库存低</span>',
+        'OUT_OF_STOCK': '<span class="badge badge-danger">缺货</span>'
+      };
+      return badges[status] || status;
+    }
+    
+    // 从仓库订货
+    async function orderFromWarehouse(index, productId, productName, maxQty) {
+      const qtyInput = document.getElementById(`orderQty_${index}`);
+      const quantity = parseInt(qtyInput.value);
+      
+      if (!quantity || quantity < 1) {
+        alert('请输入有效的订货数量');
+        return;
+      }
+      
+      if (quantity > maxQty) {
+        alert(`订货数量不能超过可用数量 ${maxQty}`);
+        return;
+      }
+      
+      if (!confirm(`确定要订购 ${quantity} 件 ${productName} 吗？`)) {
+        return;
+      }
+      
+      try {
+        // 创建订单
+        const orderResponse = await fetch(`${API_BASE}/merchant/orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            merchantId,
+            merchantName: 'VIP商户', // 实际应从session获取
+            items: [{
+              productId,
+              quantity
+            }]
+          })
+        });
+        
+        const orderResult = await orderResponse.json();
+        
+        if (!orderResult.success) {
+          alert('订单创建失败: ' + orderResult.error);
+          return;
+        }
+        
+        // 自动确认订单
+        const confirmResponse = await fetch(`${API_BASE}/merchant/orders/${orderResult.data._id}/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const confirmResult = await confirmResponse.json();
+        
+        if (confirmResult.success) {
+          alert(`订货成功！已将 ${quantity} 件 ${productName} 添加到您的库存`);
+          // 刷新页面数据
+          loadWarehouseProducts();
+          loadStats();
+        } else {
+          alert('订单确认失败: ' + confirmResult.error);
+        }
+      } catch (error) {
+        alert('订货失败: ' + error.message);
+      }
+    }
+    
+    // 销售产品
+    async function sellProduct(inventoryId, productName, availableQty, retailPrice) {
+      const quantity = prompt(`请输入销售数量（可用: ${availableQty}）:`, '1');
+      
+      if (!quantity) return;
+      
+      const qty = parseInt(quantity);
+      if (isNaN(qty) || qty < 1) {
+        alert('请输入有效的数量');
+        return;
+      }
+      
+      if (qty > availableQty) {
+        alert(`销售数量不能超过库存数量 ${availableQty}`);
+        return;
+      }
+      
+      const paymentMethod = confirm('支付方式：\n确定 = 刷卡\n取消 = 现金') ? 'CARD' : 'CASH';
+      
+      const totalAmount = (qty * retailPrice).toFixed(2);
+      
+      if (!confirm(`确认销售：\n产品: ${productName}\n数量: ${qty}\n单价: €${retailPrice.toFixed(2)}\n总额: €${totalAmount}\n支付: ${paymentMethod === 'CARD' ? '刷卡' : '现金'}`)) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/sell`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            merchantId,
+            inventoryId,
+            quantity: qty,
+            paymentMethod
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert(`销售成功！\n剩余库存: ${result.data.remainingStock}`);
+          // 刷新库存列表
+          loadMyInventory();
+          loadStats();
+        } else {
+          alert('销售失败: ' + result.error);
+        }
+      } catch (error) {
+        alert('销售失败: ' + error.message);
+      }
+    }
+
+    // 占位函数
+    function showNewRepairModal() {
+      alert('新增维修功能开发中...');
+    }
+
+    // 登出功能 - 使用AuthGuard统一的logout
+    function logout() {
+      AuthGuard.logout();
+    }
+
+    // 初始化
+    window.addEventListener('DOMContentLoaded', () => {
+      loadStats();
+      loadSalesForm(); // 默认加载销售业务页面
+      
+      // 设置默认日期（本月）
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      
+      // 税务报表日期
+      document.getElementById('taxStartDate').valueAsDate = firstDay;
+      document.getElementById('taxEndDate').valueAsDate = now;
+      
+      // 销售记录查询日期
+      document.getElementById('salesStartDate').valueAsDate = firstDay;
+      document.getElementById('salesEndDate').valueAsDate = now;
+    });
+  </script>
+</body>
+</html>
