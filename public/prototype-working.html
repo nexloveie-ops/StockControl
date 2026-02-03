@@ -6596,6 +6596,7 @@
             <thead>
               <tr>
                 <th>Description</th>
+                <th>Condition</th>
                 <th>Code</th>
                 <th class="text-right">Quantity</th>
                 <th class="text-right">Unit Price (Incl. VAT)</th>
@@ -6616,6 +6617,7 @@
                 return `
                   <tr>
                     <td>${item.description || item.product?.name || ''}</td>
+                    <td>${item.condition || 'N/A'}</td>
                     <td>${code}</td>
                     <td class="text-right">${item.quantity}</td>
                     <td class="text-right">€${item.unitPriceIncludingTax.toFixed(2)}</td>
