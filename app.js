@@ -4343,10 +4343,25 @@ app.put('/api/admin/store-groups/:id', async (req, res) => {
     const { id } = req.params;
     const { name, code, description, headquarters, settings, isActive } = req.body;
     
+    console.log('更新群组请求:', {
+      id,
+      name,
+      code,
+      description,
+      settings,
+      isActive
+    });
+    
     const group = await StoreGroup.findById(id);
     if (!group) {
+      console.log('群组不存在:', id);
       return res.status(404).json({ success: false, error: '群组不存在' });
     }
+    
+    console.log('更新前的群组数据:', {
+      name: group.name,
+      settings: group.settings
+    });
     
     // 更新信息
     if (name) group.name = name;
@@ -4356,7 +4371,14 @@ app.put('/api/admin/store-groups/:id', async (req, res) => {
     if (settings) group.settings = { ...group.settings, ...settings };
     if (typeof isActive !== 'undefined') group.isActive = isActive;
     
+    console.log('更新后的群组数据:', {
+      name: group.name,
+      settings: group.settings
+    });
+    
     await group.save();
+    
+    console.log('群组保存成功');
     
     res.json({ 
       success: true, 

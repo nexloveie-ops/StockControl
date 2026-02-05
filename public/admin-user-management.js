@@ -295,10 +295,12 @@ async function loadGroupsForFilter() {
     if (result.success) {
       window.allGroups = result.data;
       const select = document.getElementById('groupFilter');
-      select.innerHTML = '<option value="">全部群组</option>' +
-        result.data.filter(g => g.isActive).map(g => 
-          `<option value="${g._id}">${g.name} (${g.code})</option>`
-        ).join('');
+      if (select) {
+        select.innerHTML = '<option value="">全部群组</option>' +
+          result.data.filter(g => g.isActive).map(g => 
+            `<option value="${g._id}">${g.name} (${g.code})</option>`
+          ).join('');
+      }
     }
   } catch (error) {
     console.error('加载群组列表失败:', error);
@@ -313,10 +315,12 @@ async function loadGroupsForUserForm() {
     
     if (result.success) {
       const select = document.getElementById('userStoreGroup');
-      select.innerHTML = '<option value="">无群组（独立用户）</option>' +
-        result.data.filter(g => g.isActive).map(g => 
-          `<option value="${g._id}">${g.name} (${g.code})</option>`
-        ).join('');
+      if (select) {
+        select.innerHTML = '<option value="">无群组（独立用户）</option>' +
+          result.data.filter(g => g.isActive).map(g => 
+            `<option value="${g._id}">${g.name} (${g.code})</option>`
+          ).join('');
+      }
     }
   } catch (error) {
     console.error('加载群组列表失败:', error);
@@ -450,9 +454,15 @@ async function saveGroup(event) {
     isActive: document.getElementById('groupIsActive').checked
   };
   
+  console.log('保存群组数据:', groupData);
+  console.log('群组ID:', groupId);
+  
   try {
     const url = groupId ? `${API_BASE}/admin/store-groups/${groupId}` : `${API_BASE}/admin/store-groups`;
     const method = groupId ? 'PUT' : 'POST';
+    
+    console.log('请求URL:', url);
+    console.log('请求方法:', method);
     
     const response = await fetch(url, {
       method,
@@ -460,7 +470,10 @@ async function saveGroup(event) {
       body: JSON.stringify(groupData)
     });
     
+    console.log('响应状态:', response.status);
+    
     const result = await response.json();
+    console.log('响应结果:', result);
     
     if (result.success) {
       alert(result.message || '保存成功');
@@ -471,6 +484,7 @@ async function saveGroup(event) {
       alert('保存失败: ' + result.error);
     }
   } catch (error) {
+    console.error('保存群组错误:', error);
     alert('保存失败: ' + error.message);
   }
 }
