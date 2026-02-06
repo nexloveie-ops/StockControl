@@ -1851,12 +1851,12 @@ app.post('/api/warehouse/orders', applyDataIsolation, async (req, res) => {
         itemSubtotal = itemTotal - itemTaxAmount;
         displayTaxAmount = itemTaxAmount; // Service VAT 显示实际税额
       } else if (taxClassification === 'MARGIN_VAT_0') {
-        // Margin VAT: 内部计算税额，但对外显示为 0
+        // Margin VAT: 对差价征税
         const costPrice = product.costPrice || 0;
         const margin = itemTotal - (costPrice * item.quantity);
-        itemTaxAmount = margin * (23 / 123); // 内部记录
+        itemTaxAmount = margin * (23 / 123); // 对差价征税
         itemSubtotal = itemTotal - itemTaxAmount;
-        displayTaxAmount = 0; // Margin VAT 对外显示税额为 0
+        displayTaxAmount = itemTaxAmount; // Margin VAT 显示实际税额
       } else {
         // VAT_0 或其他
         itemTaxAmount = 0;
@@ -4531,7 +4531,7 @@ app.get('/api/admin/reports/financial', checkDbConnection, async (req, res) => {
           invoiceNumber: order.orderNumber,
           type: 'sales',
           subType: 'wholesale', // 批发
-          partner: order.merchantName || order.merchantId,
+          partner: order.merchantId || order.merchantName, // 显示登录名（merchantId）
           date: order.completedAt,
           totalAmount: order.totalAmount, // 批发价（含税）
           taxAmount: order.taxAmount || 0, // 税额
@@ -4782,7 +4782,7 @@ app.get('/api/reports/financial', checkDbConnection, async (req, res) => {
           invoiceNumber: order.orderNumber,
           type: 'sales',
           subType: 'wholesale',
-          partner: order.merchantName || order.merchantId,
+          partner: order.merchantId || order.merchantName, // 显示登录名（merchantId）
           date: order.completedAt,
           totalAmount: order.totalAmount,
           taxAmount: order.taxAmount || 0,
