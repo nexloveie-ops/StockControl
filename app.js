@@ -2741,28 +2741,8 @@ app.put('/api/warehouse/orders/:id/complete', applyDataIsolation, async (req, re
         
         await merchantInventory.save();
         
-        // 扣减配件库存
-        if (isAdminInventory) {
-          // AdminInventory 使用 quantity 字段
-          product.quantity -= quantity;
-          
-          // 如果库存为 0，标记为不活跃
-          if (product.quantity <= 0) {
-            product.quantity = 0;
-            product.isActive = false;
-          }
-        } else {
-          // ProductNew 使用 stockQuantity 字段
-          product.stockQuantity -= quantity;
-          
-          // 如果库存为 0，标记为不活跃
-          if (product.stockQuantity <= 0) {
-            product.stockQuantity = 0;
-            product.isActive = false;
-          }
-        }
-        
-        await product.save();
+        // 注意：库存已在创建订单时预留（扣减），这里不需要再次扣减
+        // 只需要将库存转移到商户库存即可
       }
     }
     
@@ -2805,11 +2785,67 @@ app.put('/api/warehouse/orders/:id/cancel', async (req, res) => {
     }
     
     // 恢复预留的库存
-    for (const item of order.items) {
-      const product = await ProductNew.findById(item.productId);
-      if (product) {
-        product.quantity += item.quantity;
-        await product.save();
+    for (let i = 0; i < order.items.length; i++) {
+      const item = order.items[i];
+      const shipmentItem = order.shipmentDetails && order.shipmentDetails[i];
+      
+      if (item.source === 'AdminInventory') {
+        // 从AdminInventory恢复库存
+        const AdminInventory = require('./models/AdminInventory');
+        const product = await AdminInventory.findById(item.productId);
+        if (product) {
+          product.quantity += item.quantity;
+          
+          // 如果有库存，恢复为活跃状态
+          if (product.quantity > 0) {
+            product.isActive = true;
+          }
+          
+          await product.save();
+        }
+      } else {
+        // 从ProductNew恢复库存
+        const product = await ProductNew.findById(item.productId);
+        if (product) {
+          // 检查是否是设备（有序列号）
+          if (shipmentItem && shipmentItem.isDevice && shipmentItem.selectedProducts) {
+            // 设备：恢复序列号状态为available
+            for (const snId of shipmentItem.selectedProducts) {
+              const serialNumberObj = product.serialNumbers.find(
+                sn => sn._id.toString() === snId.toString()
+              );
+              if (serialNumberObj) {
+                // 如果序列号状态是sold，恢复为available
+                if (serialNumberObj.status === 'sold') {
+                  serialNumberObj.status = 'available';
+                  serialNumberObj.soldTo = null;
+                  serialNumberObj.soldAt = null;
+                }
+              }
+            }
+            
+            // 重新计算可用库存数量
+            const availableCount = product.serialNumbers.filter(
+              sn => sn.status === 'available'
+            ).length;
+            product.stockQuantity = availableCount;
+            
+            // 如果有可用库存，恢复为活跃状态
+            if (availableCount > 0) {
+              product.isActive = true;
+            }
+          } else {
+            // 配件：直接增加库存数量
+            product.stockQuantity += item.quantity;
+            
+            // 如果有库存，恢复为活跃状态
+            if (product.stockQuantity > 0) {
+              product.isActive = true;
+            }
+          }
+          
+          await product.save();
+        }
       }
     }
     

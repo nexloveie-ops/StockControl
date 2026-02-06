@@ -15,7 +15,7 @@
     
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-      background: #f5f7fa;
+      background: #e8ecf0;
       color: #333;
       line-height: 1.6;
     }
@@ -92,14 +92,14 @@
       background: white;
       padding: 20px;
       border-radius: 12px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1), 0 4px 16px rgba(0,0,0,0.06);
       transition: transform 0.2s, box-shadow 0.2s;
-      border: 1px solid #e8ecf0;
+      border: 1px solid #d1d5db;
     }
     
     .stat-card:hover {
       transform: translateY(-2px);
-      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.15);
     }
     
     .stat-card h3 {
@@ -203,9 +203,9 @@
       background: white;
       border-radius: 12px;
       padding: 25px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1), 0 4px 16px rgba(0,0,0,0.06);
       margin-bottom: 20px;
-      border: 1px solid #e8ecf0;
+      border: 1px solid #d1d5db;
     }
     
     .card h2 {
@@ -534,6 +534,12 @@
         <p>仓管员工作台 - 库存管理与入库操作</p>
       </div>
       <div class="header-buttons">
+        <button onclick="toggleStatsDetails()" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); display: flex; align-items: center; gap: 6px;"
+                onmouseover="this.style.background='rgba(255,255,255,0.3)';"
+                onmouseout="this.style.background='rgba(255,255,255,0.2)';">
+          <span id="toggleStatsIcon">📊</span>
+          <span id="toggleStatsText">查看统计</span>
+        </button>
         <button onclick="window.location.href='/admin.html'">
           📄 管理后台
         </button>
@@ -546,7 +552,7 @@
 
   <div class="container">
     <!-- 统计概览 -->
-    <div class="stats-section">
+    <div class="stats-section" id="statsDetails" style="display: none;">
       <div class="stats-grid" id="statsGrid">
         <div class="stat-card">
           <h3>总产品数</h3>
@@ -1135,6 +1141,25 @@
     }
     */
 
+    // 展开/收起统计详情
+    function toggleStatsDetails() {
+      const statsDetails = document.getElementById('statsDetails');
+      const toggleIcon = document.getElementById('toggleStatsIcon');
+      const toggleText = document.getElementById('toggleStatsText');
+      
+      if (statsDetails.style.display === 'none') {
+        // 展开
+        statsDetails.style.display = 'block';
+        toggleIcon.textContent = '📈';
+        toggleText.textContent = '收起统计';
+      } else {
+        // 收起
+        statsDetails.style.display = 'none';
+        toggleIcon.textContent = '📊';
+        toggleText.textContent = '查看统计';
+      }
+    }
+
     // 切换标签页
     function switchTab(tabName) {
       debugLog(`切换到标签页: ${tabName}`);
@@ -1255,7 +1280,7 @@
                     <div class="stat-label">库存价值</div>
                     <div class="stat-value">€${totalValue.toFixed(0)}</div>
                   </div>
-                  <div class="stat-item">
+                  <div class="stat-item" style="display: none;">
                     <div class="stat-label">低库存</div>
                     <div class="stat-value" style="color: ${lowStockCount > 0 ? '#e53e3e' : '#48bb78'}">${lowStockCount}</div>
                   </div>
