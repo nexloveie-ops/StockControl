@@ -11,9 +11,22 @@ exports.getStoreGroups = async (req, res) => {
       .populate('createdBy', 'username', 'UserNew')
       .sort({ createdAt: -1 });
     
+    // 统计每个群组的用户数量
+    const groupsWithStats = await Promise.all(storeGroups.map(async (group) => {
+      const userCount = await UserNew.countDocuments({ 
+        'retailInfo.storeGroup': group._id,
+        isActive: true 
+      });
+      
+      return {
+        ...group.toObject(),
+        userCount
+      };
+    }));
+    
     res.json({
       success: true,
-      data: storeGroups
+      data: groupsWithStats
     });
   } catch (error) {
     res.status(500).json({

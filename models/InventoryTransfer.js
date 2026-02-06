@@ -8,6 +8,14 @@ const inventoryTransferSchema = new mongoose.Schema({
     unique: true
   },
   
+  // 交易类型
+  transferType: {
+    type: String,
+    enum: ['INTERNAL_TRANSFER', 'INTER_COMPANY_SALE'],
+    required: true,
+    default: 'INTERNAL_TRANSFER'
+  },
+  
   // 调出方信息
   fromMerchant: {
     type: String,
@@ -20,6 +28,21 @@ const inventoryTransferSchema = new mongoose.Schema({
   fromStore: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Store'
+  },
+  // 调出方公司信息
+  fromCompany: {
+    companyName: String,
+    registrationNumber: String,
+    vatNumber: String,
+    address: {
+      street: String,
+      city: String,
+      state: String,
+      postalCode: String,
+      country: String
+    },
+    contactPhone: String,
+    contactEmail: String
   },
   
   // 调入方信息
@@ -34,6 +57,21 @@ const inventoryTransferSchema = new mongoose.Schema({
   toStore: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Store'
+  },
+  // 调入方公司信息
+  toCompany: {
+    companyName: String,
+    registrationNumber: String,
+    vatNumber: String,
+    address: {
+      street: String,
+      city: String,
+      state: String,
+      postalCode: String,
+      country: String
+    },
+    contactPhone: String,
+    contactEmail: String
   },
   
   // 所属店面组
@@ -70,7 +108,12 @@ const inventoryTransferSchema = new mongoose.Schema({
     barcode: String,
     serialNumber: String,
     color: String,
-    condition: String
+    condition: String,
+    taxClassification: {
+      type: String,
+      default: 'VAT_23'
+    },
+    retailPrice: Number  // 保存原产品的零售价
   }],
   
   // 金额信息
@@ -79,6 +122,29 @@ const inventoryTransferSchema = new mongoose.Schema({
     required: true,
     min: 0
   },
+  
+  // 财务信息（仅公司间销售）
+  financialInfo: {
+    subtotal: Number,        // 小计
+    vatRate: Number,         // VAT税率
+    vatAmount: Number,       // VAT金额
+    totalAmount: Number,     // 总金额
+    paymentStatus: {
+      type: String,
+      enum: ['pending', 'paid', 'partial'],
+      default: 'pending'
+    },
+    paymentMethod: String,   // 付款方式
+    paidAmount: Number,      // 已付金额
+    paidAt: Date            // 付款时间
+  },
+  
+  // 关联销售发票（仅公司间销售）
+  salesInvoiceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'SalesInvoice'
+  },
+  salesInvoiceNumber: String,
   
   // 状态
   status: {

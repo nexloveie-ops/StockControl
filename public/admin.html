@@ -557,9 +557,14 @@
             </div>
             
             <div style="display: flex; gap: 15px; justify-content: space-between; margin-top: 20px;">
-              <button onclick="addManualProduct()" class="btn btn-success">
-                ➕ 添加产品
-              </button>
+              <div style="display: flex; gap: 10px;">
+                <button onclick="addManualProduct()" class="btn btn-success">
+                  ➕ 添加产品
+                </button>
+                <button onclick="showBatchCreateVariantsModal()" class="btn" style="background: #667eea; color: white;">
+                  📦 批量创建变体
+                </button>
+              </div>
               <div>
                 <button onclick="clearManualForm()" class="btn" style="background: #f7fafc; color: #4a5568; border: 1px solid #e2e8f0;">
                   🗑️ 清空
@@ -698,6 +703,83 @@
           </div>
         </div>
         
+        <!-- 公司信息 -->
+        <div style="margin-bottom: 25px;">
+          <h3 style="font-size: 16px; margin-bottom: 15px; color: #4a5568;">🏢 公司信息</h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">公司名称</label>
+              <input type="text" id="userCompanyName"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;"
+                     placeholder="例如: Murray Mobile Ltd">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">公司注册号</label>
+              <input type="text" id="userRegistrationNumber"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;"
+                     placeholder="例如: IE123456">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">VAT号</label>
+              <input type="text" id="userVatNumber"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;"
+                     placeholder="例如: IE1234567X">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">联系电话</label>
+              <input type="tel" id="userCompanyPhone"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;"
+                     placeholder="例如: +353 1 234 5678">
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">联系邮箱</label>
+              <input type="email" id="userCompanyEmail"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;"
+                     placeholder="例如: info@company.com">
+            </div>
+          </div>
+          
+          <h4 style="font-size: 14px; margin: 15px 0 10px; color: #4a5568;">公司地址</h4>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div style="grid-column: 1 / -1;">
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">街道地址</label>
+              <input type="text" id="userCompanyStreet"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;"
+                     placeholder="例如: 123 Main Street">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">城市</label>
+              <input type="text" id="userCompanyCity"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;"
+                     placeholder="例如: Dublin">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">州/省</label>
+              <input type="text" id="userCompanyState"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;"
+                     placeholder="例如: Dublin">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">邮政编码</label>
+              <input type="text" id="userCompanyPostalCode"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;"
+                     placeholder="例如: D01 ABC1">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">国家</label>
+              <input type="text" id="userCompanyCountry"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;"
+                     placeholder="例如: Ireland">
+            </div>
+          </div>
+          
+          <div style="margin-top: 15px; padding: 12px; background: #f0f9ff; border-radius: 6px; border-left: 4px solid #3b82f6;">
+            <p style="margin: 0; font-size: 13px; color: #1e40af;">
+              <strong>💡 提示：</strong> 公司信息用于判断调货类型。同一公司内部调拨使用成本价，不同公司间交易将生成销售发票。
+            </p>
+          </div>
+        </div>
+        
         <!-- 普通用户特殊字段 -->
         <div id="retailFields" style="display: none; margin-bottom: 25px;">
           <h3 style="font-size: 16px; margin-bottom: 15px; color: #4a5568;">群组设置</h3>
@@ -832,6 +914,153 @@
           </button>
           <button type="submit" class="btn btn-success">
             保存
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 批量创建变体模态框 -->
+  <div id="batchVariantsModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1001; overflow-y: auto;">
+    <div style="max-width: 800px; margin: 50px auto; background: white; border-radius: 12px; padding: 30px;">
+      <h2 style="margin-bottom: 20px;">📦 批量创建产品变体</h2>
+      <p style="color: #718096; margin-bottom: 25px;">适用于配件类产品（手机壳、屏幕保护膜、数据线等），支持型号和颜色两个维度的组合</p>
+      
+      <form id="batchVariantsForm" onsubmit="createBatchVariants(event)" style="margin-top: 25px;">
+        <!-- 基本信息 -->
+        <div style="margin-bottom: 25px;">
+          <h3 style="font-size: 16px; margin-bottom: 15px; color: #4a5568;">基本信息</h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">产品名称 *</label>
+              <input type="text" id="batchProductName" required placeholder="例如: iPhone Clear Case"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">品牌</label>
+              <input type="text" id="batchBrand" placeholder="例如: Generic"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+            </div>
+          </div>
+          <div style="margin-top: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 500;">分类 *</label>
+            <select id="batchCategory" required
+                    style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+              <option value="">请选择分类</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 维度1 -->
+        <div style="margin-bottom: 25px;">
+          <h3 style="font-size: 16px; margin-bottom: 15px; color: #4a5568;">维度1（型号/尺寸/容量/功率等）</h3>
+          <div style="margin-bottom: 10px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 500;">维度标签</label>
+            <select id="batchDimension1Label"
+                    style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+              <option value="Model">型号 (Model)</option>
+              <option value="Size">尺寸 (Size)</option>
+              <option value="Capacity">容量 (Capacity)</option>
+              <option value="Power">功率 (Power)</option>
+              <option value="Length">长度 (Length)</option>
+            </select>
+          </div>
+          <div>
+            <label style="display: block; margin-bottom: 5px; font-weight: 500;">选项列表（每行一个）*</label>
+            <textarea id="batchDimension1Values" required rows="4" placeholder="例如:&#10;iPhone 13&#10;iPhone 14&#10;iPhone 14 Pro"
+                      oninput="updateVariantPreview()"
+                      style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-family: monospace;"></textarea>
+          </div>
+        </div>
+
+        <!-- 维度2 -->
+        <div style="margin-bottom: 25px;">
+          <h3 style="font-size: 16px; margin-bottom: 15px; color: #4a5568;">维度2（颜色/类型/材质等）</h3>
+          <div style="margin-bottom: 10px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 500;">维度标签</label>
+            <select id="batchDimension2Label"
+                    style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+              <option value="Color">颜色 (Color)</option>
+              <option value="Type">类型 (Type)</option>
+              <option value="Material">材质 (Material)</option>
+              <option value="Finish">表面处理 (Finish)</option>
+            </select>
+          </div>
+          <div>
+            <label style="display: block; margin-bottom: 5px; font-weight: 500;">选项列表（每行一个）*</label>
+            <textarea id="batchDimension2Values" required rows="4" placeholder="例如:&#10;Clear&#10;Black&#10;Blue"
+                      oninput="updateVariantPreview()"
+                      style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-family: monospace;"></textarea>
+          </div>
+        </div>
+
+        <!-- 统一价格 -->
+        <div style="margin-bottom: 25px;">
+          <h3 style="font-size: 16px; margin-bottom: 15px; color: #4a5568;">统一价格（所有变体使用相同价格）</h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">成本价 (€) *</label>
+              <input type="number" id="batchCostPrice" required step="0.01" min="0" placeholder="5.00"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">批发价 (€) *</label>
+              <input type="number" id="batchWholesalePrice" required step="0.01" min="0" placeholder="8.00"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">零售价 (€) *</label>
+              <input type="number" id="batchRetailPrice" required step="0.01" min="0" placeholder="12.00"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+            </div>
+          </div>
+        </div>
+
+        <!-- 其他设置 -->
+        <div style="margin-bottom: 25px;">
+          <h3 style="font-size: 16px; margin-bottom: 15px; color: #4a5568;">其他设置</h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">税务分类 *</label>
+              <select id="batchTaxClassification" required
+                      style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                <option value="">请选择税率</option>
+              </select>
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">成色 *</label>
+              <select id="batchCondition" required
+                      style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                <option value="">请选择成色</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 500;">初始库存</label>
+            <input type="number" id="batchInitialQuantity" value="0" min="0"
+                   style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+            <small style="color: #718096;">默认为0，后续通过入库增加库存</small>
+          </div>
+          <div style="margin-top: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 500;">备注</label>
+            <textarea id="batchNotes" rows="2" placeholder="可选"
+                      style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;"></textarea>
+          </div>
+        </div>
+
+        <!-- 预览 -->
+        <div id="variantPreview" style="margin-bottom: 25px; padding: 15px; background: #f7fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+          <h3 style="font-size: 16px; margin-bottom: 10px; color: #4a5568;">📊 预览</h3>
+          <p id="variantPreviewText" style="color: #718096; font-size: 14px;">请填写维度选项以查看预览</p>
+        </div>
+
+        <!-- 按钮 -->
+        <div style="display: flex; gap: 15px; justify-content: flex-end;">
+          <button type="button" onclick="closeBatchVariantsModal()" class="btn btn-secondary">
+            取消
+          </button>
+          <button type="submit" class="btn" style="background: #667eea; color: white;">
+            批量创建所有变体
           </button>
         </div>
       </form>
@@ -2352,6 +2581,192 @@
         else if (tabName.includes('用户') || tabName.includes('User')) loadUsers();
       }
     });
+
+    // ==================== 批量创建变体功能 ====================
+    
+    // 显示批量创建变体模态框
+    function showBatchCreateVariantsModal() {
+      document.getElementById('batchVariantsModal').style.display = 'block';
+      
+      // 填充分类下拉框
+      const categorySelect = document.getElementById('batchCategory');
+      categorySelect.innerHTML = '<option value="">请选择分类</option>';
+      allCategories.forEach(cat => {
+        const option = document.createElement('option');
+        // 使用 type 或 name 字段（兼容不同的数据结构）
+        const categoryName = cat.name || cat.type || cat.category;
+        option.value = categoryName;
+        option.textContent = categoryName;
+        categorySelect.appendChild(option);
+      });
+      
+      // 填充税率下拉框
+      const taxSelect = document.getElementById('batchTaxClassification');
+      taxSelect.innerHTML = '<option value="">请选择税率</option>';
+      availableVatRates.forEach(rate => {
+        const option = document.createElement('option');
+        option.value = rate.code;
+        option.textContent = `${rate.name} (${rate.rate}%)`;
+        taxSelect.appendChild(option);
+      });
+      
+      // 填充成色下拉框
+      const conditionSelect = document.getElementById('batchCondition');
+      conditionSelect.innerHTML = '<option value="">请选择成色</option>';
+      allConditions.forEach(cond => {
+        const option = document.createElement('option');
+        option.value = cond.code;
+        option.textContent = cond.name;
+        conditionSelect.appendChild(option);
+      });
+      
+      // 重置表单
+      document.getElementById('batchVariantsForm').reset();
+      updateVariantPreview();
+    }
+    
+    // 关闭批量创建变体模态框
+    function closeBatchVariantsModal() {
+      document.getElementById('batchVariantsModal').style.display = 'none';
+    }
+    
+    // 更新变体预览
+    function updateVariantPreview() {
+      const dim1Values = document.getElementById('batchDimension1Values').value
+        .split('\n')
+        .map(v => v.trim())
+        .filter(v => v);
+      
+      const dim2Values = document.getElementById('batchDimension2Values').value
+        .split('\n')
+        .map(v => v.trim())
+        .filter(v => v);
+      
+      const previewText = document.getElementById('variantPreviewText');
+      
+      if (dim1Values.length === 0 || dim2Values.length === 0) {
+        previewText.textContent = '请填写维度选项以查看预览';
+        previewText.style.color = '#718096';
+        return;
+      }
+      
+      const totalVariants = dim1Values.length * dim2Values.length;
+      const dim1Label = document.getElementById('batchDimension1Label').value;
+      const dim2Label = document.getElementById('batchDimension2Label').value;
+      
+      previewText.innerHTML = `
+        <strong style="color: #667eea; font-size: 16px;">将创建 ${totalVariants} 个变体</strong><br>
+        <span style="color: #4a5568;">${dim1Values.length} 个${dim1Label} × ${dim2Values.length} 个${dim2Label}</span><br><br>
+        <span style="color: #718096; font-size: 13px;">示例变体：</span><br>
+        <span style="color: #2d3748; font-size: 13px;">
+          • ${dim1Values[0]} - ${dim2Values[0]}<br>
+          • ${dim1Values[0]} - ${dim2Values[1] || dim2Values[0]}<br>
+          ${dim1Values.length > 1 ? `• ${dim1Values[1]} - ${dim2Values[0]}<br>` : ''}
+          ${totalVariants > 3 ? `<span style="color: #a0aec0;">... 还有 ${totalVariants - 3} 个变体</span>` : ''}
+        </span>
+      `;
+    }
+    
+    // 批量创建变体
+    async function createBatchVariants(event) {
+      event.preventDefault();
+      
+      // 获取表单数据
+      const productName = document.getElementById('batchProductName').value.trim();
+      const brand = document.getElementById('batchBrand').value.trim() || 'Generic';
+      const category = document.getElementById('batchCategory').value;
+      
+      const dimension1Label = document.getElementById('batchDimension1Label').value;
+      const dimension1Values = document.getElementById('batchDimension1Values').value
+        .split('\n')
+        .map(v => v.trim())
+        .filter(v => v);
+      
+      const dimension2Label = document.getElementById('batchDimension2Label').value;
+      const dimension2Values = document.getElementById('batchDimension2Values').value
+        .split('\n')
+        .map(v => v.trim())
+        .filter(v => v);
+      
+      const costPrice = parseFloat(document.getElementById('batchCostPrice').value) || 0;
+      const wholesalePrice = parseFloat(document.getElementById('batchWholesalePrice').value) || 0;
+      const retailPrice = parseFloat(document.getElementById('batchRetailPrice').value) || 0;
+      
+      const taxClassification = document.getElementById('batchTaxClassification').value;
+      const condition = document.getElementById('batchCondition').value;
+      const initialQuantity = parseInt(document.getElementById('batchInitialQuantity').value) || 0;
+      const notes = document.getElementById('batchNotes').value.trim();
+      
+      // 验证
+      if (!productName || !category) {
+        alert('请填写产品名称和分类');
+        return;
+      }
+      
+      if (dimension1Values.length === 0 || dimension2Values.length === 0) {
+        alert('请至少填写一个维度1和维度2的选项');
+        return;
+      }
+      
+      if (!taxClassification || !condition) {
+        alert('请选择税务分类和成色');
+        return;
+      }
+      
+      const totalVariants = dimension1Values.length * dimension2Values.length;
+      
+      // 确认
+      if (!confirm(`确认创建 ${totalVariants} 个产品变体吗？\n\n产品名称: ${productName}\n${dimension1Label}: ${dimension1Values.length} 个\n${dimension2Label}: ${dimension2Values.length} 个`)) {
+        return;
+      }
+      
+      try {
+        // 调用API
+        const response = await fetch(`${API_BASE}/admin/inventory/batch-create-variants`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            merchantId: 'admin',
+            productName,
+            brand,
+            category,
+            dimension1Label,
+            dimension1Values,
+            dimension2Label,
+            dimension2Values,
+            costPrice,
+            wholesalePrice,
+            retailPrice,
+            taxClassification,
+            condition,
+            initialQuantity,
+            notes
+          })
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert(`✅ 批量创建成功！\n\n创建了 ${result.data.created} 个产品变体\n产品名称: ${result.data.productName}\n${dimension1Label}数量: ${result.data.dimension1Count}\n${dimension2Label}数量: ${result.data.dimension2Count}`);
+          closeBatchVariantsModal();
+          loadStats(); // 刷新统计数据
+        } else {
+          throw new Error(result.message || '创建失败');
+        }
+      } catch (error) {
+        console.error('批量创建变体失败:', error);
+        alert(`❌ 批量创建失败: ${error.message}`);
+      }
+    }
+    
+    // ==================== 批量创建变体功能结束 ====================
   </script>
 </body>
 </html>

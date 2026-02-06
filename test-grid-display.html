@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>测试网格显示</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+  </style>
+</head>
+<body>
+  <h1>测试产品网格显示</h1>
+  <div id="productList"></div>
+
+  <script>
+    // 模拟产品数据
+    const products = [
+      {
+        productName: 'Data Cable',
+        brand: 'Generic',
+        category: 'Cable',
+        retailPrice: 2.50,
+        totalQuantity: 30,
+        hasVariants: true,
+        isDevice: false,
+        items: [
+          { model: 'USB-C TO USB-C', color: 'BLACK', quantity: 10 },
+          { model: 'USB-C TO Lightning', color: 'BLACK', quantity: 10 },
+          { model: 'Lightning TO USB-C', color: 'WHITE', quantity: 10 }
+        ],
+        taxClassification: 'VAT_23'
+      },
+      {
+        productName: 'iPhone Clear Case',
+        brand: 'Apple',
+        category: 'Phone Case',
+        retailPrice: 2.75,
+        totalQuantity: 15,
+        hasVariants: true,
+        isDevice: false,
+        items: [
+          { model: 'iPhone 12', color: 'Clear', quantity: 5 },
+          { model: 'iPhone 13', color: 'Clear', quantity: 5 },
+          { model: 'iPhone 14', color: 'Clear', quantity: 5 }
+        ],
+        taxClassification: 'VAT_23'
+      },
+      {
+        productName: 'Screen Protector',
+        brand: 'Generic',
+        category: 'Screen Saver',
+        retailPrice: 1.50,
+        totalQuantity: 20,
+        hasVariants: false,
+        isDevice: false,
+        items: [
+          { model: 'Universal', color: 'Clear', quantity: 20 }
+        ],
+        taxClassification: 'VAT_23'
+      }
+    ];
+
+    // 渲染产品
+    const html = `
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
+        ${products.map((product, index) => {
+          return `
+          <div style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05);"
+            onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 16px rgba(0,0,0,0.1)';"
+            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
+            
+            <h4 style="font-size: 18px; margin-bottom: 10px; color: #1f2937; font-weight: 700;">${product.productName}</h4>
+            
+            <div style="color: #666; font-size: 13px; margin-bottom: 10px;">
+              <span style="background: #f3f4f6; padding: 3px 10px; border-radius: 12px; font-size: 12px; margin-right: 6px; font-weight: 600;">${product.category}</span>
+              <span style="color: #6b7280;">品牌: ${product.brand}</span>
+            </div>
+            
+            ${product.hasVariants ? `
+              <div style="color: #666; font-size: 12px; margin-bottom: 12px; background: #f0f9ff; padding: 10px; border-radius: 8px; border-left: 3px solid #3b82f6; flex-grow: 1;">
+                <div style="font-weight: 600; color: #1e40af; margin-bottom: 6px; font-size: 13px;">📦 可选变体</div>
+                ${(() => {
+                  const models = new Set();
+                  const colors = new Set();
+                  product.items.forEach(item => {
+                    if (item.model) models.add(item.model);
+                    if (item.color) colors.add(item.color);
+                  });
+                  const modelList = Array.from(models);
+                  const colorList = Array.from(colors);
+                  
+                  let html = '';
+                  if (modelList.length > 0) {
+                    html += `<div style="margin-bottom: 4px; line-height: 1.5;">
+                      <span style="color: #1e40af; font-weight: 600;">型号:</span> 
+                      <span style="color: #374151;">${modelList.join(', ')}</span>
+                    </div>`;
+                  }
+                  if (colorList.length > 0) {
+                    html += `<div style="line-height: 1.5;">
+                      <span style="color: #1e40af; font-weight: 600;">颜色:</span> 
+                      <span style="color: #374151;">${colorList.join(', ')}</span>
+                    </div>`;
+                  }
+                  return html;
+                })()}
+              </div>
+            ` : `
+              <div style="flex-grow: 1;"></div>
+            `}
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-top: 10px; border-top: 1px solid #e5e7eb;">
+              <span style="background: #dbeafe; color: #1e40af; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 700;">
+                库存: ${product.totalQuantity}
+              </span>
+              <span style="color: #10b981; font-size: 22px; font-weight: 800;">
+                €${product.retailPrice.toFixed(2)}
+              </span>
+            </div>
+            
+            <button onclick="alert('添加到购物车: ${product.productName}')" 
+              style="width: 100%; padding: 12px; background: ${product.hasVariants ? '#667eea' : '#10b981'}; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; transition: background 0.2s;">
+              ${product.hasVariants ? '🎨 选择型号和颜色' : '➕ 加入购物车'}
+            </button>
+          </div>
+        `}).join('')}
+      </div>
+    `;
+
+    document.getElementById('productList').innerHTML = html;
+  </script>
+</body>
+</html>

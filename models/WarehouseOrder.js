@@ -43,6 +43,14 @@ const warehouseOrderSchema = new mongoose.Schema({
       type: String,
       default: ''
     },
+    color: {
+      type: String,
+      default: ''
+    },
+    condition: {
+      type: String,
+      default: ''
+    },
     quantity: {
       type: Number,
       required: true,
@@ -66,6 +74,10 @@ const warehouseOrderSchema = new mongoose.Schema({
     taxAmount: {
       type: Number,
       default: 0
+    },
+    source: {
+      type: String,
+      default: 'ProductNew'
     }
   }],
   

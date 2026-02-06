@@ -78,6 +78,16 @@ const merchantSaleSchema = new mongoose.Schema({
   }],
   
   // 总计
+  subtotal: {
+    type: Number,
+    default: null,  // 原始小计（打折前）
+    min: 0
+  },
+  discount: {
+    type: Number,
+    default: 0,  // 折扣金额
+    min: 0
+  },
   totalAmount: {
     type: Number,
     required: true,

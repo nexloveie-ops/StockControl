@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>测试批量创建变体界面</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f7fa;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    h1 {
+      color: #2d3748;
+      margin-bottom: 20px;
+    }
+    .test-section {
+      margin-bottom: 30px;
+      padding: 20px;
+      background: #f7fafc;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+    }
+    .test-section h2 {
+      color: #4a5568;
+      font-size: 18px;
+      margin-bottom: 15px;
+    }
+    .test-result {
+      padding: 15px;
+      border-radius: 6px;
+      margin-top: 10px;
+    }
+    .success {
+      background: #c6f6d5;
+      color: #22543d;
+      border: 1px solid #9ae6b4;
+    }
+    .error {
+      background: #fed7d7;
+      color: #742a2a;
+      border: 1px solid #fc8181;
+    }
+    .info {
+      background: #bee3f8;
+      color: #2c5282;
+      border: 1px solid #90cdf4;
+    }
+    button {
+      padding: 10px 20px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 10px;
+    }
+    button:hover {
+      background: #5a67d8;
+    }
+    .btn-secondary {
+      background: #718096;
+    }
+    .btn-secondary:hover {
+      background: #4a5568;
+    }
+    pre {
+      background: #2d3748;
+      color: #e2e8f0;
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>📦 批量创建变体界面测试</h1>
+    
+    <div class="test-section">
+      <h2>测试1: 访问管理员页面</h2>
+      <p>点击下面的按钮访问管理员页面，查看"批量创建变体"按钮是否显示</p>
+      <button onclick="window.open('/admin.html', '_blank')">打开管理员页面</button>
+      <div class="test-result info">
+        <strong>验证要点：</strong><br>
+        1. 登录管理员账号（admin / admin123）<br>
+        2. 进入"入库管理"标签<br>
+        3. 查看"添加产品"按钮旁边是否有"📦 批量创建变体"按钮<br>
+        4. 按钮颜色应为紫色
+      </div>
+    </div>
+
+    <div class="test-section">
+      <h2>测试2: 打开批量创建模态框</h2>
+      <p>在管理员页面点击"批量创建变体"按钮，查看模态框是否正常显示</p>
+      <div class="test-result info">
+        <strong>验证要点：</strong><br>
+        1. 模态框应该弹出<br>
+        2. 标题显示"📦 批量创建产品变体"<br>
+        3. 分类下拉框应该有数据<br>
+        4. 税率下拉框应该有数据<br>
+        5. 成色下拉框应该有数据<br>
+        6. 预览区域显示"请填写维度选项以查看预览"
+      </div>
+    </div>
+
+    <div class="test-section">
+      <h2>测试3: 实时预览功能</h2>
+      <p>填写维度选项，查看预览是否实时更新</p>
+      <div class="test-result info">
+        <strong>测试步骤：</strong><br>
+        1. 在维度1文本框输入：<br>
+        <pre>iPhone 13
+iPhone 14
+iPhone 14 Pro</pre>
+        2. 在维度2文本框输入：<br>
+        <pre>Clear
+Black
+Blue</pre>
+        3. 预览区域应该显示"将创建 9 个变体"<br>
+        4. 显示"3 个Model × 3 个Color"<br>
+        5. 显示示例变体
+      </div>
+    </div>
+
+    <div class="test-section">
+      <h2>测试4: 创建手机壳变体</h2>
+      <button onclick="testCreatePhoneCase()">执行测试</button>
+      <button class="btn-secondary" onclick="clearResult('result4')">清除结果</button>
+      <div id="result4"></div>
+    </div>
+
+    <div class="test-section">
+      <h2>测试5: 创建屏幕保护膜变体</h2>
+      <button onclick="testCreateScreenProtector()">执行测试</button>
+      <button class="btn-secondary" onclick="clearResult('result5')">清除结果</button>
+      <div id="result5"></div>
+    </div>
+
+    <div class="test-section">
+      <h2>测试6: 创建数据线变体</h2>
+      <button onclick="testCreateCable()">执行测试</button>
+      <button class="btn-secondary" onclick="clearResult('result6')">清除结果</button>
+      <div id="result6"></div>
+    </div>
+
+    <div class="test-section">
+      <h2>测试7: 表单验证</h2>
+      <p>测试各种验证场景</p>
+      <div class="test-result info">
+        <strong>验证场景：</strong><br>
+        1. 不填写产品名称 → 应该提示错误<br>
+        2. 不选择分类 → 应该提示错误<br>
+        3. 维度1为空 → 应该提示错误<br>
+        4. 维度2为空 → 应该提示错误<br>
+        5. 不选择税务分类 → 应该提示错误<br>
+        6. 不选择成色 → 应该提示错误
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+
+    function clearResult(id) {
+      document.getElementById(id).innerHTML = '';
+    }
+
+    async function testCreatePhoneCase() {
+      const resultDiv = document.getElementById('result4');
+      resultDiv.innerHTML = '<div class="test-result info">测试中...</div>';
+
+      try {
+        const response = await fetch(`${API_BASE}/admin/inventory/batch-create-variants`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            merchantId: 'admin',
+            productName: 'iPhone Clear Case (UI Test)',
+            brand: 'Generic',
+            category: 'Phone Case',
+            dimension1Label: 'Model',
+            dimension1Values: ['iPhone 13', 'iPhone 14', 'iPhone 14 Pro'],
+            dimension2Label: 'Color',
+            dimension2Values: ['Clear', 'Black', 'Blue'],
+            costPrice: 5.00,
+            wholesalePrice: 8.00,
+            retailPrice: 12.00,
+            taxClassification: 'VAT_23',
+            condition: 'BRAND_NEW',
+            initialQuantity: 0,
+            notes: 'UI测试 - 手机壳变体'
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          resultDiv.innerHTML = `
+            <div class="test-result success">
+              <strong>✅ 测试成功！</strong><br>
+              创建了 ${result.data.created} 个变体<br>
+              产品名称: ${result.data.productName}<br>
+              维度1数量: ${result.data.dimension1Count}<br>
+              维度2数量: ${result.data.dimension2Count}
+            </div>
+            <pre>${JSON.stringify(result, null, 2)}</pre>
+          `;
+        } else {
+          throw new Error(result.message || '创建失败');
+        }
+      } catch (error) {
+        resultDiv.innerHTML = `
+          <div class="test-result error">
+            <strong>❌ 测试失败</strong><br>
+            ${error.message}
+          </div>
+        `;
+      }
+    }
+
+    async function testCreateScreenProtector() {
+      const resultDiv = document.getElementById('result5');
+      resultDiv.innerHTML = '<div class="test-result info">测试中...</div>';
+
+      try {
+        const response = await fetch(`${API_BASE}/admin/inventory/batch-create-variants`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            merchantId: 'admin',
+            productName: 'Tempered Glass Screen Protector (UI Test)',
+            brand: 'Generic',
+            category: 'Screen Protector',
+            dimension1Label: 'Model',
+            dimension1Values: ['iPhone 13', 'iPhone 14'],
+            dimension2Label: 'Type',
+            dimension2Values: ['Clear', 'Privacy'],
+            costPrice: 3.00,
+            wholesalePrice: 5.00,
+            retailPrice: 8.00,
+            taxClassification: 'VAT_23',
+            condition: 'BRAND_NEW',
+            initialQuantity: 0,
+            notes: 'UI测试 - 屏幕保护膜变体'
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          resultDiv.innerHTML = `
+            <div class="test-result success">
+              <strong>✅ 测试成功！</strong><br>
+              创建了 ${result.data.created} 个变体<br>
+              产品名称: ${result.data.productName}<br>
+              维度1数量: ${result.data.dimension1Count}<br>
+              维度2数量: ${result.data.dimension2Count}
+            </div>
+            <pre>${JSON.stringify(result, null, 2)}</pre>
+          `;
+        } else {
+          throw new Error(result.message || '创建失败');
+        }
+      } catch (error) {
+        resultDiv.innerHTML = `
+          <div class="test-result error">
+            <strong>❌ 测试失败</strong><br>
+            ${error.message}
+          </div>
+        `;
+      }
+    }
+
+    async function testCreateCable() {
+      const resultDiv = document.getElementById('result6');
+      resultDiv.innerHTML = '<div class="test-result info">测试中...</div>';
+
+      try {
+        const response = await fetch(`${API_BASE}/admin/inventory/batch-create-variants`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            merchantId: 'admin',
+            productName: 'USB-C to Lightning Cable (UI Test)',
+            brand: 'Generic',
+            category: 'Cable',
+            dimension1Label: 'Length',
+            dimension1Values: ['1m', '2m', '3m'],
+            dimension2Label: 'Color',
+            dimension2Values: ['White', 'Black'],
+            costPrice: 2.00,
+            wholesalePrice: 4.00,
+            retailPrice: 6.00,
+            taxClassification: 'VAT_23',
+            condition: 'BRAND_NEW',
+            initialQuantity: 0,
+            notes: 'UI测试 - 数据线变体'
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          resultDiv.innerHTML = `
+            <div class="test-result success">
+              <strong>✅ 测试成功！</strong><br>
+              创建了 ${result.data.created} 个变体<br>
+              产品名称: ${result.data.productName}<br>
+              维度1数量: ${result.data.dimension1Count}<br>
+              维度2数量: ${result.data.dimension2Count}
+            </div>
+            <pre>${JSON.stringify(result, null, 2)}</pre>
+          `;
+        } else {
+          throw new Error(result.message || '创建失败');
+        }
+      } catch (error) {
+        resultDiv.innerHTML = `
+          <div class="test-result error">
+            <strong>❌ 测试失败</strong><br>
+            ${error.message}
+          </div>
+        `;
+      }
+    }
+  </script>
+</body>
+</html>

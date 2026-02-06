@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>测试库存显示</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .section {
+      margin-bottom: 30px;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+    h2 {
+      margin-top: 0;
+    }
+    .product-card {
+      background: #f5f5f5;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 6px;
+    }
+    .category-card {
+      background: #e3f2fd;
+      padding: 20px;
+      margin: 10px 0;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .category-card:hover {
+      background: #bbdefb;
+    }
+    pre {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    .success { color: green; }
+    .error { color: red; }
+  </style>
+</head>
+<body>
+  <h1>📦 库存显示测试</h1>
+
+  <div class="section">
+    <h2>1. API 响应测试</h2>
+    <button onclick="testAPI()">🔍 测试 /api/products API</button>
+    <div id="apiResult"></div>
+  </div>
+
+  <div class="section">
+    <h2>2. 产品列表（原始数据）</h2>
+    <div id="productList"></div>
+  </div>
+
+  <div class="section">
+    <h2>3. 按分类分组显示</h2>
+    <div id="categoryGroups"></div>
+  </div>
+
+  <script>
+    async function testAPI() {
+      const resultDiv = document.getElementById('apiResult');
+      const productListDiv = document.getElementById('productList');
+      const categoryGroupsDiv = document.getElementById('categoryGroups');
+      
+      resultDiv.innerHTML = '<p>⏳ 加载中...</p>';
+      
+      try {
+        console.log('🔍 开始测试 API...');
+        
+        const response = await fetch('/api/products');
+        console.log('📥 API 响应状态:', response.status);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('📦 API 响应数据:', result);
+        
+        // 显示 API 响应摘要
+        resultDiv.innerHTML = `
+          <div class="success">
+            <p>✅ API 调用成功</p>
+            <p><strong>总产品数:</strong> ${result.data?.length || 0}</p>
+            <p><strong>ProductNew:</strong> ${result.summary?.productNew || 0}</p>
+            <p><strong>AdminInventory:</strong> ${result.summary?.adminInventory || 0}</p>
+          </div>
+        `;
+        
+        // 显示产品列表
+        if (result.data && result.data.length > 0) {
+          const products = result.data;
+          
+          // 原始产品列表
+          productListDiv.innerHTML = `
+            <p><strong>共 ${products.length} 个产品：</strong></p>
+            ${products.map((p, i) => `
+              <div class="product-card">
+                <strong>${i + 1}. ${p.name}</strong><br>
+                分类: ${p.productType || '未分类'}<br>
+                来源: ${p.source}<br>
+                库存: ${p.stockQuantity || p.quantity || 0}<br>
+                价格: €${p.retailPrice || 0}
+              </div>
+            `).join('')}
+          `;
+          
+          // 按分类分组
+          const categories = {};
+          products.forEach(product => {
+            const category = product.productType || '未分类';
+            if (!categories[category]) {
+              categories[category] = [];
+            }
+            categories[category].push(product);
+          });
+          
+          console.log('📊 分类统计:', categories);
+          
+          categoryGroupsDiv.innerHTML = `
+            <p><strong>共 ${Object.keys(categories).length} 个分类：</strong></p>
+            ${Object.entries(categories).map(([category, categoryProducts]) => {
+              const totalQuantity = categoryProducts.reduce((sum, p) => sum + (p.stockQuantity || p.quantity || 0), 0);
+              return `
+                <div class="category-card" onclick="alert('${category}: ${categoryProducts.length} 个产品')">
+                  <strong>📦 ${category}</strong><br>
+                  产品数量: ${categoryProducts.length}<br>
+                  总库存: ${totalQuantity}
+                </div>
+              `;
+            }).join('')}
+          `;
+          
+        } else {
+          productListDiv.innerHTML = '<p class="error">⚠️ 没有产品数据</p>';
+          categoryGroupsDiv.innerHTML = '<p class="error">⚠️ 没有分类数据</p>';
+        }
+        
+      } catch (error) {
+        console.error('❌ API 测试失败:', error);
+        resultDiv.innerHTML = `
+          <div class="error">
+            <p>❌ API 调用失败</p>
+            <p><strong>错误:</strong> ${error.message}</p>
+          </div>
+        `;
+      }
+    }
+    
+    // 页面加载时自动测试
+    window.addEventListener('DOMContentLoaded', () => {
+      console.log('📄 页面加载完成，开始自动测试...');
+      testAPI();
+    });
+  </script>
+</body>
+</html>

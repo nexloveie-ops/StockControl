@@ -118,6 +118,35 @@ const userSchema = new mongoose.Schema({
       default: false
     }
   },
+  // 公司信息
+  companyInfo: {
+    // 公司名称
+    companyName: {
+      type: String,
+      trim: true
+    },
+    // 公司注册号
+    registrationNumber: {
+      type: String,
+      trim: true
+    },
+    // 税号/VAT号
+    vatNumber: {
+      type: String,
+      trim: true
+    },
+    // 公司地址
+    address: {
+      street: String,
+      city: String,
+      state: String,
+      postalCode: String,
+      country: String
+    },
+    // 联系信息
+    contactPhone: String,
+    contactEmail: String
+  },
   // 账户状态
   isActive: {
     type: Boolean,

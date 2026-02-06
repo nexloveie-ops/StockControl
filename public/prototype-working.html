@@ -667,6 +667,20 @@
           <div style="background: #f7fafc; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
             <h3>📝 手动录入产品信息</h3>
             
+            <!-- 配件产品变体说明 -->
+            <div style="background: #e7f3ff; border-left: 4px solid #2196f3; padding: 12px; margin: 15px 0; border-radius: 4px;">
+              <div style="display: flex; align-items: start; gap: 8px;">
+                <span style="font-size: 18px;">💡</span>
+                <div style="flex: 1;">
+                  <strong style="color: #1976d2; font-size: 14px;">配件产品变体说明</strong>
+                  <p style="margin: 6px 0 0 0; color: #555; font-size: 13px; line-height: 1.5;">
+                    对于配件类产品，请填写<strong>品牌</strong>、<strong>型号/规格</strong>和<strong>颜色/类型</strong>字段，用于区分不同变体。<br>
+                    例如：品牌=Generic，型号=iPhone 13，颜色=Clear
+                  </p>
+                </div>
+              </div>
+            </div>
+            
             <!-- 供应商信息 -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
               <div>
@@ -688,6 +702,9 @@
                 <thead style="background: #f7fafc;">
                   <tr>
                     <th style="padding: 12px; text-align: left;">产品名称</th>
+                    <th style="padding: 12px; text-align: left;">品牌</th>
+                    <th style="padding: 12px; text-align: left;">型号/规格</th>
+                    <th style="padding: 12px; text-align: left;">颜色/类型</th>
                     <th style="padding: 12px; text-align: left;">数量</th>
                     <th style="padding: 12px; text-align: left;">进货价</th>
                     <th style="padding: 12px; text-align: left;">批发价</th>
@@ -695,7 +712,6 @@
                     <th style="padding: 12px; text-align: left;">分类</th>
                     <th style="padding: 12px; text-align: left;">税务分类</th>
                     <th style="padding: 12px; text-align: left;">条码/序列号</th>
-                    <th style="padding: 12px; text-align: left;">颜色</th>
                     <th style="padding: 12px; text-align: left;">成色</th>
                     <th style="padding: 12px; text-align: left;">操作</th>
                   </tr>
@@ -707,9 +723,14 @@
             </div>
             
             <div style="display: flex; gap: 15px; justify-content: space-between; margin-top: 20px;">
-              <button onclick="addManualProduct()" class="btn btn-success">
-                ➕ 添加产品
-              </button>
+              <div style="display: flex; gap: 10px;">
+                <button onclick="addManualProduct()" class="btn btn-success">
+                  ➕ 添加产品
+                </button>
+                <button onclick="showBatchCreateVariantsModal()" class="btn" style="background: #9f7aea; color: white;">
+                  📦 批量创建变体
+                </button>
+              </div>
               <div>
                 <button onclick="clearManualForm()" class="btn" style="background: #f7fafc; color: #4a5568; border: 1px solid #e2e8f0;">
                   🗑️ 清空
@@ -933,6 +954,156 @@
     </div>
   </div>
 
+  <!-- 批量创建变体模态框 -->
+  <div id="batchVariantsModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1001; overflow-y: auto;">
+    <div style="max-width: 800px; margin: 50px auto; background: white; border-radius: 12px; padding: 30px;">
+      <h2 style="margin-bottom: 20px;">📦 批量创建产品变体</h2>
+      <p style="color: #718096; margin-bottom: 25px;">适用于配件类产品（手机壳、屏幕保护膜、数据线等），支持型号和颜色两个维度的组合</p>
+      
+      <form id="batchVariantsForm" onsubmit="createBatchVariants(event)" style="margin-top: 25px;">
+        <!-- 基本信息 -->
+        <div style="margin-bottom: 25px;">
+          <h3 style="font-size: 16px; margin-bottom: 15px; color: #4a5568;">基本信息</h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">产品名称 *</label>
+              <input type="text" id="batchProductName" required placeholder="例如: iPhone Clear Case"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">品牌</label>
+              <input type="text" id="batchBrand" placeholder="例如: Generic"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+            </div>
+          </div>
+          <div style="margin-top: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 500;">分类 *</label>
+            <select id="batchCategory" required
+                    style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+              <option value="">请选择分类</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 维度1 -->
+        <div style="margin-bottom: 25px;">
+          <h3 style="font-size: 16px; margin-bottom: 15px; color: #4a5568;">维度1（型号/尺寸/容量/功率等）</h3>
+          <div style="margin-bottom: 10px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 500;">维度标签</label>
+            <select id="batchDimension1Label"
+                    style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+              <option value="Model">型号 (Model)</option>
+              <option value="Size">尺寸 (Size)</option>
+              <option value="Capacity">容量 (Capacity)</option>
+              <option value="Power">功率 (Power)</option>
+              <option value="Length">长度 (Length)</option>
+            </select>
+          </div>
+          <div>
+            <label style="display: block; margin-bottom: 5px; font-weight: 500;">选项列表（每行一个）*</label>
+            <textarea id="batchDimension1Values" required rows="4" placeholder="例如:&#10;iPhone 13&#10;iPhone 14&#10;iPhone 14 Pro"
+                      oninput="updateVariantPreview()"
+                      style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-family: monospace;"></textarea>
+          </div>
+        </div>
+
+        <!-- 维度2 -->
+        <div style="margin-bottom: 25px;">
+          <h3 style="font-size: 16px; margin-bottom: 15px; color: #4a5568;">维度2（颜色/类型/材质等）</h3>
+          <div style="margin-bottom: 10px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 500;">维度标签</label>
+            <select id="batchDimension2Label"
+                    style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+              <option value="Color">颜色 (Color)</option>
+              <option value="Type">类型 (Type)</option>
+              <option value="Material">材质 (Material)</option>
+              <option value="Finish">表面处理 (Finish)</option>
+            </select>
+          </div>
+          <div>
+            <label style="display: block; margin-bottom: 5px; font-weight: 500;">选项列表（每行一个）*</label>
+            <textarea id="batchDimension2Values" required rows="4" placeholder="例如:&#10;Clear&#10;Black&#10;Blue"
+                      oninput="updateVariantPreview()"
+                      style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-family: monospace;"></textarea>
+          </div>
+        </div>
+
+        <!-- 统一价格 -->
+        <div style="margin-bottom: 25px;">
+          <h3 style="font-size: 16px; margin-bottom: 15px; color: #4a5568;">统一价格（所有变体使用相同价格）</h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">成本价 (€) *</label>
+              <input type="number" id="batchCostPrice" required step="0.01" min="0" placeholder="5.00"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">批发价 (€) *</label>
+              <input type="number" id="batchWholesalePrice" required step="0.01" min="0" placeholder="8.00"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">零售价 (€) *</label>
+              <input type="number" id="batchRetailPrice" required step="0.01" min="0" placeholder="12.00"
+                     style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+            </div>
+          </div>
+        </div>
+
+        <!-- 其他设置 -->
+        <div style="margin-bottom: 25px;">
+          <h3 style="font-size: 16px; margin-bottom: 15px; color: #4a5568;">其他设置</h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">税务分类 *</label>
+              <select id="batchTaxClassification" required
+                      style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                <option value="">请选择税率</option>
+                <option value="VAT 23%">VAT 23%</option>
+                <option value="VAT 13.5%">VAT 13.5%</option>
+                <option value="VAT 0%">VAT 0%</option>
+              </select>
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 500;">成色 *</label>
+              <select id="batchCondition" required
+                      style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                <option value="">请选择成色</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 500;">初始库存</label>
+            <input type="number" id="batchInitialQuantity" value="0" min="0"
+                   style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+            <small style="color: #718096;">默认为0，后续通过入库增加库存</small>
+          </div>
+          <div style="margin-top: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 500;">备注</label>
+            <textarea id="batchNotes" rows="2" placeholder="可选"
+                      style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;"></textarea>
+          </div>
+        </div>
+
+        <!-- 预览 -->
+        <div id="variantPreview" style="margin-bottom: 25px; padding: 15px; background: #f7fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+          <h3 style="font-size: 16px; margin-bottom: 10px; color: #4a5568;">📊 预览</h3>
+          <p id="variantPreviewText" style="color: #718096; font-size: 14px;">请填写维度选项以查看预览</p>
+        </div>
+
+        <!-- 按钮 -->
+        <div style="display: flex; gap: 15px; justify-content: flex-end;">
+          <button type="button" onclick="closeBatchVariantsModal()" class="btn btn-secondary">
+            取消
+          </button>
+          <button type="submit" class="btn" style="background: #9f7aea; color: white;">
+            批量创建所有变体
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     const API_BASE = '/api/admin';
     // debugVisible variable removed since debug panel is removed
@@ -1115,9 +1286,15 @@
       return icons[category] || '📋';
     }
 
+    // 全局变量：当前查看的分类
+    let currentViewingCategory = null;
+
     // 显示分类下的产品
     function showCategoryProducts(category) {
       debugLog(`显示分类产品: ${category}`);
+      
+      // 保存当前分类
+      currentViewingCategory = category;
       
       const content = `
         <div style="background: white; border-radius: 12px; padding: 25px; max-width: 98vw; width: 1500px; max-height: 90vh; overflow-y: auto;">
@@ -1144,6 +1321,7 @@
       const modal = document.getElementById('categoryModal');
       if (modal) {
         modal.remove();
+        currentViewingCategory = null; // 清除当前分类
         debugLog('分类弹窗已关闭');
       }
     }
@@ -1161,21 +1339,52 @@
         
         debugLog(`分类 "${category}" 的产品数量: ${products.length}`);
         
-        // 调试：检查产品是否包含序列号数据
-        if (products.length > 0) {
-          products.forEach(p => {
-            debugLog(`  产品 "${p.name}": 序列号数组=${p.serialNumbers ? `存在(${p.serialNumbers.length}个)` : '不存在'}`);
-            if (p.serialNumbers && p.serialNumbers.length > 0) {
-              debugLog(`    → 有 ${p.serialNumbers.length} 个序列号`);
-            }
-          });
-        }
-        
         const container = document.getElementById('categoryProductsContainer');
         if (products.length === 0) {
           container.innerHTML = '<div>该分类下暂无产品</div>';
           return;
         }
+        
+        // 按产品名称分组（用于配件变体）
+        const productGroups = {};
+        products.forEach(product => {
+          const productName = product.name;
+          const hasVariants = product.source === 'AdminInventory' && (product.model || product.color);
+          
+          if (hasVariants) {
+            // 配件产品：按名称分组
+            if (!productGroups[productName]) {
+              productGroups[productName] = {
+                name: productName,
+                variants: [],
+                totalQuantity: 0,
+                avgCostPrice: 0,
+                avgWholesalePrice: 0,
+                avgRetailPrice: 0,
+                isVariantGroup: true
+              };
+            }
+            productGroups[productName].variants.push(product);
+            productGroups[productName].totalQuantity += (product.stockQuantity || product.quantity || 0);
+          } else {
+            // 普通产品：单独显示
+            const key = `${productName}_${product._id}`;
+            productGroups[key] = {
+              name: productName,
+              product: product,
+              isVariantGroup: false
+            };
+          }
+        });
+        
+        // 计算变体组的平均价格
+        Object.values(productGroups).forEach(group => {
+          if (group.isVariantGroup && group.variants.length > 0) {
+            group.avgCostPrice = group.variants.reduce((sum, v) => sum + (v.costPrice || 0), 0) / group.variants.length;
+            group.avgWholesalePrice = group.variants.reduce((sum, v) => sum + (v.wholesalePrice || 0), 0) / group.variants.length;
+            group.avgRetailPrice = group.variants.reduce((sum, v) => sum + (v.retailPrice || 0), 0) / group.variants.length;
+          }
+        });
         
         const html = `
           <div style="overflow-x: auto;">
@@ -1193,84 +1402,159 @@
                 </tr>
               </thead>
               <tbody>
-                ${products.map(product => {
-                  // 调试：在渲染时输出序列号信息
-                  console.log(`[TABLE渲染] ${product.name}: serialNumbers=${product.serialNumbers ? `[${product.serialNumbers.length}个]` : 'undefined'}`);
-                  
-                  const stockQuantity = product.stockQuantity || product.quantity || 0;
-                  const hasSerialNumbers = product.serialNumbers && product.serialNumbers.length > 0;
-                  const statusBadge = stockQuantity > 0 ? 
-                    '<span class="status-badge status-received">✅ 有库存</span>' :
-                    '<span class="status-badge status-pending">❌ 缺货</span>';
-                  
-                  // 显示位置信息
-                  const locationDisplay = product.location?.fullLocation || '未设置';
-                  
-                  // 显示序列号信息（隐藏，点击显示）- 只显示可销售的
-                  let serialInfo = '';
-                  if (hasSerialNumbers) {
-                    // 只显示状态为 available 的序列号
-                    const availableSerialNumbers = product.serialNumbers
-                      .filter(sn => sn.status === 'available')
-                      .map(sn => sn.serialNumber);
-                    const serialCount = availableSerialNumbers.length;
-                    serialInfo = `
-                      <br>
-                      <small style="color: #6b7280; cursor: pointer;" onclick="toggleSerialNumbers('${product._id}')">
-                        📱 可销售序列号 (${serialCount}个)${product.color ? ` - ${product.color}` : ''} 
-                        <span style="color: #3b82f6;">点击查看</span>
-                      </small>
-                      <div id="serial-${product._id}" style="display: none; margin-top: 5px; padding: 8px; background: #f8fafc; border-radius: 4px; font-size: 11px;">
-                        ${availableSerialNumbers.map((sn, index) => `
-                          <div style="cursor: pointer; padding: 2px 4px; border-radius: 3px; margin-bottom: 2px; background: #e0f2fe;" 
-                               onclick="editProductBySerial('${product._id}', '${sn}', '${product.name.replace(/'/g, "\\'")}')">
-                            ${index + 1}. ${sn}${product.color ? ` - ${product.color}` : ''} 
-                            <span style="color: #0369a1; font-size: 10px;">点击编辑</span>
+                ${Object.entries(productGroups).map(([key, group]) => {
+                  if (group.isVariantGroup) {
+                    // 变体组：显示汇总行 + 可展开的变体列表
+                    const groupId = key.replace(/\s+/g, '-');
+                    const statusBadge = group.totalQuantity > 0 ? 
+                      '<span class="status-badge status-received">✅ 有库存</span>' :
+                      '<span class="status-badge status-pending">❌ 缺货</span>';
+                    
+                    return `
+                      <tr style="background: #f8fafc; cursor: pointer;" onclick="toggleVariants('${groupId}')">
+                        <td style="font-weight: 600;">
+                          <span style="color: #667eea;">
+                            ▶ ${group.name}
+                          </span>
+                          <br>
+                          <small style="color: #6b7280;">${group.variants.length} 个变体</small>
+                        </td>
+                        <td style="text-align: center; font-weight: 600; color: #059669;">
+                          ${group.totalQuantity}
+                        </td>
+                        <td style="color: #059669;">€${group.avgCostPrice.toFixed(2)}</td>
+                        <td style="color: #d69e2e;">€${group.avgWholesalePrice.toFixed(2)}</td>
+                        <td style="color: #7c3aed;">€${group.avgRetailPrice.toFixed(2)}</td>
+                        <td>-</td>
+                        <td>${statusBadge}</td>
+                        <td>
+                          <button onclick="event.stopPropagation(); toggleVariants('${groupId}')" class="btn" style="padding: 4px 8px; font-size: 12px; background: #667eea; color: white;">
+                            📋 查看变体
+                          </button>
+                        </td>
+                      </tr>
+                      <tr id="variants-${groupId}" style="display: none;">
+                        <td colspan="8" style="padding: 0;">
+                          <div style="background: #f1f5f9; padding: 15px;">
+                            <table style="width: 100%; margin: 0;">
+                              <thead>
+                                <tr style="background: #e2e8f0;">
+                                  <th>型号</th>
+                                  <th>颜色</th>
+                                  <th>数量</th>
+                                  <th>进货价</th>
+                                  <th>批发价</th>
+                                  <th>零售价</th>
+                                  <th>操作</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                ${group.variants.map(variant => {
+                                  const stockQuantity = variant.stockQuantity || variant.quantity || 0;
+                                  return `
+                                    <tr>
+                                      <td>${variant.model || '-'}</td>
+                                      <td>${variant.color || '-'}</td>
+                                      <td style="text-align: center; font-weight: 600; color: ${stockQuantity > 0 ? '#059669' : '#c53030'};">
+                                        ${stockQuantity}
+                                      </td>
+                                      <td style="color: #059669;">€${(variant.costPrice || 0).toFixed(2)}</td>
+                                      <td style="color: #d69e2e;">€${(variant.wholesalePrice || 0).toFixed(2)}</td>
+                                      <td style="color: #7c3aed;">€${(variant.retailPrice || 0).toFixed(2)}</td>
+                                      <td>
+                                        <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                                          <button onclick="adjustPrice('${variant._id}')" class="btn" style="padding: 4px 8px; font-size: 12px; background: #667eea; color: white;">
+                                            💰 调价
+                                          </button>
+                                          <button onclick="adjustQuantity('${variant._id}')" class="btn" style="padding: 4px 8px; font-size: 12px; background: #48bb78; color: white;">
+                                            📊 调量
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  `;
+                                }).join('')}
+                              </tbody>
+                            </table>
                           </div>
-                        `).join('')}
-                      </div>
+                        </td>
+                      </tr>
                     `;
-                  } else if (product.barcode) {
-                    serialInfo = `<br><small style="color: #6b7280;">条码: ${product.barcode}${product.color ? ` - ${product.color}` : ''}</small>`;
-                  }
-                  
-                  return `
-                    <tr>
-                      <td style="font-weight: 600;">
-                        <span style="color: #667eea; cursor: pointer; text-decoration: underline;" 
-                              onclick="showProductInvoices('${product._id}', '${product.name.replace(/'/g, "\\'")}')">
-                          ${product.name}
-                        </span>
-                        ${serialInfo}
-                      </td>
-                      <td style="text-align: center; font-weight: 600; color: ${stockQuantity > 0 ? '#059669' : '#c53030'};">
-                        ${stockQuantity}
-                      </td>
-                      <td style="color: #059669;">€${(product.costPrice || product.purchasePrice || 0).toFixed(2)}</td>
-                      <td style="color: #d69e2e;">€${(product.wholesalePrice || 0).toFixed(2)}</td>
-                      <td style="color: #7c3aed;">€${(product.retailPrice || product.suggestedRetailPrice || 0).toFixed(2)}</td>
-                      <td>${locationDisplay}</td>
-                      <td>${statusBadge}</td>
-                      <td>
-                        <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-                          <button onclick="adjustPrice('${product._id}')" class="btn" style="padding: 4px 8px; font-size: 12px; background: #667eea; color: white;">
-                            💰 调价
-                          </button>
-                          ${!hasSerialNumbers ? `
-                          <button onclick="adjustQuantity('${product._id}')" class="btn" style="padding: 4px 8px; font-size: 12px; background: #48bb78; color: white;">
-                            📊 调量
-                          </button>
-                          ` : ''}
-                          <button onclick="setLocation('${product._id}')" class="btn" style="padding: 4px 8px; font-size: 12px; background: #ed8936; color: white;">
-                            📍 位置
-                          </button>
-                          <button onclick="changeStatus('${product._id}')" class="btn" style="padding: 4px 8px; font-size: 12px; background: #9f7aea; color: white;">
-                            🏷️ 状态
-                          </button>
+                  } else {
+                    // 普通产品：原有显示逻辑
+                    const product = group.product;
+                    const stockQuantity = product.stockQuantity || product.quantity || 0;
+                    const hasSerialNumbers = product.serialNumbers && product.serialNumbers.length > 0;
+                    const statusBadge = stockQuantity > 0 ? 
+                      '<span class="status-badge status-received">✅ 有库存</span>' :
+                      '<span class="status-badge status-pending">❌ 缺货</span>';
+                    
+                    const locationDisplay = product.location?.fullLocation || '未设置';
+                    
+                    let serialInfo = '';
+                    if (hasSerialNumbers) {
+                      const availableSerialNumbers = product.serialNumbers
+                        .filter(sn => sn.status === 'available')
+                        .map(sn => sn.serialNumber);
+                      const serialCount = availableSerialNumbers.length;
+                      serialInfo = `
+                        <br>
+                        <small style="color: #6b7280; cursor: pointer;" onclick="toggleSerialNumbers('${product._id}')">
+                          📱 可销售序列号 (${serialCount}个)${product.color ? ` - ${product.color}` : ''} 
+                          <span style="color: #3b82f6;">点击查看</span>
+                        </small>
+                        <div id="serial-${product._id}" style="display: none; margin-top: 5px; padding: 8px; background: #f8fafc; border-radius: 4px; font-size: 11px;">
+                          ${availableSerialNumbers.map((sn, index) => `
+                            <div style="cursor: pointer; padding: 2px 4px; border-radius: 3px; margin-bottom: 2px; background: #e0f2fe;" 
+                                 onclick="editProductBySerial('${product._id}', '${sn}', '${product.name.replace(/'/g, "\\'")}')">
+                              ${index + 1}. ${sn}${product.color ? ` - ${product.color}` : ''} 
+                              <span style="color: #0369a1; font-size: 10px;">点击编辑</span>
+                            </div>
+                          `).join('')}
                         </div>
-                      </td>
-                    </tr>
-                  `;
+                      `;
+                    } else if (product.barcode) {
+                      serialInfo = `<br><small style="color: #6b7280;">条码: ${product.barcode}${product.color ? ` - ${product.color}` : ''}</small>`;
+                    }
+                    
+                    return `
+                      <tr>
+                        <td style="font-weight: 600;">
+                          <span style="color: #667eea; cursor: pointer; text-decoration: underline;" 
+                                onclick="showProductInvoices('${product._id}', '${product.name.replace(/'/g, "\\'")}')">
+                            ${product.name}
+                          </span>
+                          ${serialInfo}
+                        </td>
+                        <td style="text-align: center; font-weight: 600; color: ${stockQuantity > 0 ? '#059669' : '#c53030'};">
+                          ${stockQuantity}
+                        </td>
+                        <td style="color: #059669;">€${(product.costPrice || product.purchasePrice || 0).toFixed(2)}</td>
+                        <td style="color: #d69e2e;">€${(product.wholesalePrice || 0).toFixed(2)}</td>
+                        <td style="color: #7c3aed;">€${(product.retailPrice || product.suggestedRetailPrice || 0).toFixed(2)}</td>
+                        <td>${locationDisplay}</td>
+                        <td>${statusBadge}</td>
+                        <td>
+                          <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                            <button onclick="adjustPrice('${product._id}')" class="btn" style="padding: 4px 8px; font-size: 12px; background: #667eea; color: white;">
+                              💰 调价
+                            </button>
+                            ${!hasSerialNumbers ? `
+                            <button onclick="adjustQuantity('${product._id}')" class="btn" style="padding: 4px 8px; font-size: 12px; background: #48bb78; color: white;">
+                              📊 调量
+                            </button>
+                            ` : ''}
+                            <button onclick="setLocation('${product._id}')" class="btn" style="padding: 4px 8px; font-size: 12px; background: #ed8936; color: white;">
+                              📍 位置
+                            </button>
+                            <button onclick="changeStatus('${product._id}')" class="btn" style="padding: 4px 8px; font-size: 12px; background: #9f7aea; color: white;">
+                              🏷️ 状态
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    `;
+                  }
                 }).join('')}
               </tbody>
             </table>
@@ -1281,6 +1565,21 @@
       } catch (error) {
         debugLog(`❌ 加载分类产品失败: ${error.message}`);
         document.getElementById('categoryProductsContainer').innerHTML = `<div class="error">加载失败: ${error.message}</div>`;
+      }
+    }
+    
+    // 切换变体显示
+    function toggleVariants(groupId) {
+      const variantsRow = document.getElementById(`variants-${groupId}`);
+      const mainRow = variantsRow.previousElementSibling;
+      const arrow = mainRow.querySelector('span');
+      
+      if (variantsRow.style.display === 'none') {
+        variantsRow.style.display = 'table-row';
+        arrow.textContent = arrow.textContent.replace('▶', '▼');
+      } else {
+        variantsRow.style.display = 'none';
+        arrow.textContent = arrow.textContent.replace('▼', '▶');
       }
     }
 
@@ -1940,18 +2239,7 @@
 
     // 获取当前分类（用于刷新）
     function getCurrentCategory() {
-      // 从当前显示的模态窗口标题中提取分类名称
-      const modal = document.getElementById('categoryModal');
-      if (modal) {
-        const title = modal.querySelector('h3');
-        if (title) {
-          const match = title.textContent.match(/^[^-]+ (.+) - 产品管理$/);
-          if (match) {
-            return match[1];
-          }
-        }
-      }
-      return null;
+      return currentViewingCategory;
     }
 
     // 显示产品的采购发票
@@ -3317,6 +3605,21 @@
                  onchange="updateManualProduct(${index}, 'name', this.value)">
         </td>
         <td style="padding: 8px;">
+          <input type="text" placeholder="品牌" 
+                 style="width: 100%; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px;"
+                 onchange="updateManualProduct(${index}, 'brand', this.value)">
+        </td>
+        <td style="padding: 8px;">
+          <input type="text" placeholder="型号/规格" 
+                 style="width: 100%; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px;"
+                 onchange="updateManualProduct(${index}, 'model', this.value)">
+        </td>
+        <td style="padding: 8px;">
+          <input type="text" placeholder="颜色/类型"
+                 style="width: 100%; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px;"
+                 onchange="updateManualProduct(${index}, 'color', this.value)">
+        </td>
+        <td style="padding: 8px;">
           <input type="number" value="1" min="1"
                  style="width: 80px; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px;"
                  onchange="updateManualProduct(${index}, 'quantity', this.value); updateManualProductRow(${index})">
@@ -3359,11 +3662,6 @@
           </div>
         </td>
         <td style="padding: 8px;">
-          <input type="text" placeholder="颜色"
-                 style="width: 80px; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px;"
-                 onchange="updateManualProduct(${index}, 'color', this.value)">
-        </td>
-        <td style="padding: 8px;">
           <select onchange="updateManualProduct(${index}, 'condition', this.value)"
                   style="width: 100%; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px;">
             ${generateConditionOptions(conditions, 'BRAND NEW')}
@@ -3385,6 +3683,9 @@
       }
       window.manualProducts[index] = {
         name: '',
+        brand: '',
+        model: '',
+        color: '',
         quantity: 1,
         purchasePrice: 0,
         wholesalePrice: 0,
@@ -3393,7 +3694,6 @@
         vatRate: 'VAT 23%',
         condition: 'BRAND NEW',
         barcode: '',
-        color: '',
         serialNumbers: []
       };
       
@@ -7052,22 +7352,44 @@
           <thead>
             <tr style="background: #f9fafb;">
               <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">产品名称</th>
-              <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">SKU</th>
+              <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">变体信息</th>
               <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb;">数量</th>
               <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb;">批发价</th>
               <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb;">小计</th>
             </tr>
           </thead>
           <tbody>
-            ${order.items.map(item => `
+            ${order.items.map(item => {
+              // 构建变体信息显示
+              let variantBadges = [];
+              if (item.model) {
+                variantBadges.push(`<span style="background: #dbeafe; color: #1e40af; padding: 3px 8px; border-radius: 4px; font-size: 12px; margin-right: 4px; display: inline-block; margin-bottom: 4px;">型号: ${item.model}</span>`);
+              }
+              if (item.color) {
+                variantBadges.push(`<span style="background: #fef3c7; color: #92400e; padding: 3px 8px; border-radius: 4px; font-size: 12px; margin-right: 4px; display: inline-block; margin-bottom: 4px;">颜色: ${item.color}</span>`);
+              }
+              if (item.condition) {
+                variantBadges.push(`<span style="background: #dcfce7; color: #166534; padding: 3px 8px; border-radius: 4px; font-size: 12px; display: inline-block; margin-bottom: 4px;">成色: ${item.condition}</span>`);
+              }
+              
+              const variantDisplay = variantBadges.length > 0 
+                ? variantBadges.join('')
+                : '<span style="color: #9ca3af; font-size: 12px;">-</span>';
+              
+              return `
               <tr style="border-bottom: 1px solid #e5e7eb;">
-                <td style="padding: 12px;">${item.productName}</td>
-                <td style="padding: 12px; color: #6b7280;">${item.sku || 'N/A'}</td>
-                <td style="padding: 12px; text-align: right;">${item.quantity}</td>
+                <td style="padding: 12px;">
+                  <div style="font-weight: 600;">${item.productName}</div>
+                  ${item.brand ? `<div style="font-size: 12px; color: #6b7280; margin-top: 4px;">品牌: ${item.brand}</div>` : ''}
+                </td>
+                <td style="padding: 12px;">
+                  ${variantDisplay}
+                </td>
+                <td style="padding: 12px; text-align: right; font-weight: 600;">${item.quantity}</td>
                 <td style="padding: 12px; text-align: right;">€${item.wholesalePrice.toFixed(2)}</td>
                 <td style="padding: 12px; text-align: right; font-weight: 600;">€${item.subtotal.toFixed(2)}</td>
               </tr>
-            `).join('')}
+            `}).join('')}
           </tbody>
           <tfoot>
             <tr style="background: #f9fafb; font-weight: 700;">
@@ -7100,15 +7422,57 @@
           </div>
         ` : ''}
         
-        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
-          ${actionButtons}
-          <button onclick="closeWarehouseOrderDetail()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-            关闭
-          </button>
+        <div style="display: flex; gap: 10px; justify-content: space-between; margin-top: 20px;">
+          <div>
+            <button onclick="downloadWarehouseOrderPDF('${order._id}')" style="padding: 10px 20px; background: #8b5cf6; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+              📄 下载 PDF
+            </button>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            ${actionButtons}
+            <button onclick="closeWarehouseOrderDetail()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+              关闭
+            </button>
+          </div>
         </div>
       `;
       
       container.innerHTML = html;
+    }
+    
+    // 下载仓库订单 PDF
+    async function downloadWarehouseOrderPDF(orderId) {
+      try {
+        debugLog(`下载订单 PDF: ${orderId}`);
+        
+        // 显示加载提示
+        const loadingMsg = document.createElement('div');
+        loadingMsg.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 20px 40px; border-radius: 8px; z-index: 10001; font-size: 16px;';
+        loadingMsg.textContent = '正在生成 PDF...';
+        document.body.appendChild(loadingMsg);
+        
+        const response = await fetch(`/api/warehouse/orders/${orderId}/pdf`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `warehouse-order-${orderId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        document.body.removeChild(loadingMsg);
+        
+        debugLog('✅ PDF 下载成功');
+      } catch (error) {
+        debugLog(`❌ 下载 PDF 失败: ${error.message}`);
+        alert(`下载 PDF 失败: ${error.message}`);
+      }
     }
     
     // 确认订单
@@ -7180,8 +7544,16 @@
       for (let i = 0; i < order.items.length; i++) {
         const item = order.items[i];
         
-        // 确保 productId 是字符串
-        const productId = typeof item.productId === 'object' ? item.productId._id || item.productId.toString() : item.productId;
+        // 确保 productId 是字符串，处理各种情况
+        let productId;
+        if (!item.productId) {
+          debugLog(`⚠️  产品 ${item.productName} 没有 productId，跳过`);
+          continue;
+        } else if (typeof item.productId === 'object' && item.productId !== null) {
+          productId = item.productId._id || item.productId.toString();
+        } else {
+          productId = item.productId.toString();
+        }
         
         debugLog(`🔍 加载产品 ${item.productName} 的可用库存...`);
         debugLog(`📡 请求: /api/warehouse/products/${productId}/available`);
@@ -7463,6 +7835,197 @@
         loadAllData();
       }, 100);
     });
+
+    // ==================== 批量创建变体功能 ====================
+    
+    // 显示批量创建变体模态框
+    async function showBatchCreateVariantsModal() {
+      document.getElementById('batchVariantsModal').style.display = 'block';
+      
+      // 填充分类下拉框
+      const categorySelect = document.getElementById('batchCategory');
+      categorySelect.innerHTML = '<option value="">请选择分类</option>';
+      
+      try {
+        const categories = await loadCategories();
+        categories.forEach(cat => {
+          const option = document.createElement('option');
+          const categoryName = cat.name || cat.type || cat.category;
+          option.value = categoryName;
+          option.textContent = categoryName;
+          categorySelect.appendChild(option);
+        });
+      } catch (error) {
+        debugLog(`加载分类失败: ${error.message}`);
+      }
+      
+      // 填充成色下拉框
+      const conditionSelect = document.getElementById('batchCondition');
+      conditionSelect.innerHTML = '<option value="">请选择成色</option>';
+      
+      try {
+        const conditions = await loadConditions();
+        conditions.forEach(cond => {
+          const option = document.createElement('option');
+          option.value = cond.code;
+          option.textContent = cond.name;
+          conditionSelect.appendChild(option);
+        });
+      } catch (error) {
+        debugLog(`加载成色失败: ${error.message}`);
+      }
+      
+      // 重置表单
+      document.getElementById('batchVariantsForm').reset();
+      updateVariantPreview();
+    }
+    
+    // 关闭批量创建变体模态框
+    function closeBatchVariantsModal() {
+      document.getElementById('batchVariantsModal').style.display = 'none';
+    }
+    
+    // 更新变体预览
+    function updateVariantPreview() {
+      const dim1Values = document.getElementById('batchDimension1Values').value
+        .split('\n')
+        .map(v => v.trim())
+        .filter(v => v);
+      
+      const dim2Values = document.getElementById('batchDimension2Values').value
+        .split('\n')
+        .map(v => v.trim())
+        .filter(v => v);
+      
+      const previewText = document.getElementById('variantPreviewText');
+      
+      if (dim1Values.length === 0 || dim2Values.length === 0) {
+        previewText.textContent = '请填写维度选项以查看预览';
+        previewText.style.color = '#718096';
+        return;
+      }
+      
+      const totalVariants = dim1Values.length * dim2Values.length;
+      const dim1Label = document.getElementById('batchDimension1Label').value;
+      const dim2Label = document.getElementById('batchDimension2Label').value;
+      
+      previewText.innerHTML = `
+        <strong style="color: #9f7aea; font-size: 16px;">将创建 ${totalVariants} 个变体</strong><br>
+        <span style="color: #4a5568;">${dim1Values.length} 个${dim1Label} × ${dim2Values.length} 个${dim2Label}</span><br><br>
+        <span style="color: #718096; font-size: 13px;">示例变体：</span><br>
+        <span style="color: #2d3748; font-size: 13px;">
+          • ${dim1Values[0]} - ${dim2Values[0]}<br>
+          • ${dim1Values[0]} - ${dim2Values[1] || dim2Values[0]}<br>
+          ${dim1Values.length > 1 ? `• ${dim1Values[1]} - ${dim2Values[0]}<br>` : ''}
+          ${totalVariants > 3 ? `<span style="color: #a0aec0;">... 还有 ${totalVariants - 3} 个变体</span>` : ''}
+        </span>
+      `;
+    }
+    
+    // 批量创建变体
+    async function createBatchVariants(event) {
+      event.preventDefault();
+      
+      // 获取表单数据
+      const productName = document.getElementById('batchProductName').value.trim();
+      const brand = document.getElementById('batchBrand').value.trim() || 'Generic';
+      const category = document.getElementById('batchCategory').value;
+      
+      const dimension1Label = document.getElementById('batchDimension1Label').value;
+      const dimension1Values = document.getElementById('batchDimension1Values').value
+        .split('\n')
+        .map(v => v.trim())
+        .filter(v => v);
+      
+      const dimension2Label = document.getElementById('batchDimension2Label').value;
+      const dimension2Values = document.getElementById('batchDimension2Values').value
+        .split('\n')
+        .map(v => v.trim())
+        .filter(v => v);
+      
+      const costPrice = parseFloat(document.getElementById('batchCostPrice').value) || 0;
+      const wholesalePrice = parseFloat(document.getElementById('batchWholesalePrice').value) || 0;
+      const retailPrice = parseFloat(document.getElementById('batchRetailPrice').value) || 0;
+      
+      const taxClassification = document.getElementById('batchTaxClassification').value;
+      const condition = document.getElementById('batchCondition').value;
+      const initialQuantity = parseInt(document.getElementById('batchInitialQuantity').value) || 0;
+      const notes = document.getElementById('batchNotes').value.trim();
+      
+      // 验证
+      if (!productName || !category) {
+        alert('请填写产品名称和分类');
+        return;
+      }
+      
+      if (dimension1Values.length === 0 || dimension2Values.length === 0) {
+        alert('请至少填写一个维度1和维度2的选项');
+        return;
+      }
+      
+      if (!taxClassification || !condition) {
+        alert('请选择税务分类和成色');
+        return;
+      }
+      
+      const totalVariants = dimension1Values.length * dimension2Values.length;
+      
+      // 确认
+      if (!confirm(`确认创建 ${totalVariants} 个产品变体吗？\n\n产品名称: ${productName}\n${dimension1Label}: ${dimension1Values.length} 个\n${dimension2Label}: ${dimension2Values.length} 个`)) {
+        return;
+      }
+      
+      try {
+        debugLog(`开始批量创建变体: ${productName}, ${totalVariants} 个变体`);
+        
+        // 调用API
+        const response = await fetch(`${API_BASE}/inventory/batch-create-variants`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            merchantId: 'admin',
+            productName,
+            brand,
+            category,
+            dimension1Label,
+            dimension1Values,
+            dimension2Label,
+            dimension2Values,
+            costPrice,
+            wholesalePrice,
+            retailPrice,
+            taxClassification,
+            condition,
+            initialQuantity,
+            notes
+          })
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert(`✅ 批量创建成功！\n\n创建了 ${result.data.created} 个产品变体\n产品名称: ${result.data.productName}\n${dimension1Label}数量: ${result.data.dimension1Count}\n${dimension2Label}数量: ${result.data.dimension2Count}`);
+          closeBatchVariantsModal();
+          loadStats(); // 刷新统计数据
+          loadCategoryCards(); // 刷新库存列表
+        } else {
+          throw new Error(result.message || '创建失败');
+        }
+      } catch (error) {
+        console.error('批量创建变体失败:', error);
+        debugLog(`❌ 批量创建变体失败: ${error.message}`);
+        alert(`❌ 批量创建失败: ${error.message}`);
+      }
+    }
+    
+    // ==================== 批量创建变体功能结束 ====================
   </script>
 </body>
 </html>

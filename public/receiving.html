@@ -251,6 +251,22 @@
     <div class="card">
       <h2>新增产品入库</h2>
       
+      <!-- 配件产品变体说明 -->
+      <div style="background: #e7f3ff; border-left: 4px solid #2196f3; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+        <div style="display: flex; align-items: start; gap: 10px;">
+          <span style="font-size: 20px;">💡</span>
+          <div>
+            <strong style="color: #1976d2;">配件产品变体说明</strong>
+            <p style="margin: 8px 0 0 0; color: #555; font-size: 14px; line-height: 1.6;">
+              对于配件类产品（手机壳、屏幕保护膜、数据线等），请填写<strong>型号/规格</strong>和<strong>颜色/类型</strong>字段：<br>
+              • <strong>型号/规格</strong>：适配机型（如 iPhone 13）、尺寸（如 1m）、容量、功率、长度等<br>
+              • <strong>颜色/类型</strong>：颜色（如 Clear, Black）、类型（如 Privacy）、材质等<br>
+              • 这些字段用于区分同一产品的不同变体，方便销售时选择
+            </p>
+          </div>
+        </div>
+      </div>
+      
       <!-- 产品类型选择 -->
       <div class="product-type-selector">
         <div class="type-btn active" onclick="selectProductType('ACCESSORY')">
@@ -290,7 +306,24 @@
           
           <!-- 配件类特有字段 -->
           <div class="form-group accessory-field">
-            <label>条码 *</label>
+            <label>品牌</label>
+            <input type="text" id="brand" placeholder="如: Generic, Apple">
+          </div>
+          
+          <div class="form-group accessory-field">
+            <label>型号/规格</label>
+            <input type="text" id="model" placeholder="如: iPhone 13, 1m, 20W">
+            <small style="color: #666; font-size: 12px; margin-top: 4px;">适配机型、尺寸、容量、功率、长度等</small>
+          </div>
+          
+          <div class="form-group accessory-field">
+            <label>颜色/类型</label>
+            <input type="text" id="color" placeholder="如: Clear, Black, Privacy">
+            <small style="color: #666; font-size: 12px; margin-top: 4px;">颜色、类型、材质等</small>
+          </div>
+          
+          <div class="form-group accessory-field">
+            <label>条码</label>
             <input type="text" id="barcode">
           </div>
           
@@ -482,7 +515,10 @@
       
       // 根据产品类型添加特定字段
       if (currentProductType === 'ACCESSORY') {
-        formData.barcode = document.getElementById('barcode').value;
+        formData.brand = document.getElementById('brand').value || '';
+        formData.model = document.getElementById('model').value || '';
+        formData.color = document.getElementById('color').value || '';
+        formData.barcode = document.getElementById('barcode').value || '';
         formData.quantity = parseInt(document.getElementById('quantity').value);
       } else {
         formData.serialNumber = document.getElementById('serialNumber').value;

@@ -92,6 +92,12 @@ const merchantInventorySchema = new mongoose.Schema({
     default: 'BRAND_NEW'
   },
   
+  // 位置信息
+  location: {
+    type: String,
+    default: ''
+  },
+  
   // 来源信息
   source: {
     type: String,

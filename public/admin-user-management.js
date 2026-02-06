@@ -1,7 +1,7 @@
 // ==================== 用户管理功能 ====================
-// 版本: 1.1 - 修复用户编辑功能
-// 更新时间: 2026-02-03
-console.log('✅ admin-user-management.js 已加载 - 版本 1.1');
+// 版本: 1.2 - 添加群组用户数量调试
+// 更新时间: 2026-02-06
+console.log('✅ admin-user-management.js 已加载 - 版本 1.2');
 
 // 全局变量
 window.allUsers = [];
@@ -159,6 +159,9 @@ async function editUser(userId) {
     }
     
     console.log('✅ 找到用户:', user.username);
+    console.log('用户完整数据:', user);
+    console.log('用户retailInfo:', user.retailInfo);
+    console.log('用户storeGroup:', user.retailInfo?.storeGroup);
     
     document.getElementById('userModalTitle').textContent = '编辑用户';
     document.getElementById('userId').value = user._id;
@@ -172,16 +175,33 @@ async function editUser(userId) {
     document.getElementById('userPhone').value = user.profile?.phone || '';
     document.getElementById('userIsActive').checked = user.isActive;
     
-    // 普通用户字段
-    if (user.role === 'retail_user') {
-      document.getElementById('userStoreGroup').value = user.retailInfo?.storeGroup?._id || '';
-      document.getElementById('userStoreType').value = user.retailInfo?.storeType || 'single_store';
-      document.getElementById('userCanViewGroupInventory').checked = user.retailInfo?.canViewGroupInventory || false;
-      document.getElementById('userCanTransferFromGroup').checked = user.retailInfo?.canTransferFromGroup || false;
-    }
+    // 公司信息
+    document.getElementById('userCompanyName').value = user.companyInfo?.companyName || '';
+    document.getElementById('userRegistrationNumber').value = user.companyInfo?.registrationNumber || '';
+    document.getElementById('userVatNumber').value = user.companyInfo?.vatNumber || '';
+    document.getElementById('userCompanyPhone').value = user.companyInfo?.contactPhone || '';
+    document.getElementById('userCompanyEmail').value = user.companyInfo?.contactEmail || '';
+    document.getElementById('userCompanyStreet').value = user.companyInfo?.address?.street || '';
+    document.getElementById('userCompanyCity').value = user.companyInfo?.address?.city || '';
+    document.getElementById('userCompanyState').value = user.companyInfo?.address?.state || '';
+    document.getElementById('userCompanyPostalCode').value = user.companyInfo?.address?.postalCode || '';
+    document.getElementById('userCompanyCountry').value = user.companyInfo?.address?.country || '';
     
     // 加载群组列表
     await loadGroupsForUserForm();
+    
+    // 普通用户字段
+    if (user.role === 'retail_user') {
+      const storeGroupId = user.retailInfo?.storeGroup?._id || user.retailInfo?.storeGroup || '';
+      console.log('设置storeGroup值:', storeGroupId);
+      
+      document.getElementById('userStoreType').value = user.retailInfo?.storeType || 'single_store';
+      document.getElementById('userStoreGroup').value = storeGroupId;
+      document.getElementById('userCanViewGroupInventory').checked = user.retailInfo?.canViewGroupInventory || false;
+      document.getElementById('userCanTransferFromGroup').checked = user.retailInfo?.canTransferFromGroup || false;
+      
+      console.log('userStoreGroup select的值已设置为:', document.getElementById('userStoreGroup').value);
+    }
     
     // 显示/隐藏普通用户字段
     toggleRetailFields();
@@ -198,16 +218,33 @@ async function saveUser(event) {
   event.preventDefault();
   
   const userId = document.getElementById('userId').value;
+  const role = document.getElementById('userRole').value;
+  
   const userData = {
     username: document.getElementById('userUsername').value,
     email: document.getElementById('userEmail').value,
-    role: document.getElementById('userRole').value,
+    role: role,
     profile: {
       firstName: document.getElementById('userFirstName').value,
       lastName: document.getElementById('userLastName').value,
       phone: document.getElementById('userPhone').value
     },
-    isActive: document.getElementById('userIsActive').checked
+    isActive: document.getElementById('userIsActive').checked,
+    // 公司信息
+    companyInfo: {
+      companyName: document.getElementById('userCompanyName').value,
+      registrationNumber: document.getElementById('userRegistrationNumber').value,
+      vatNumber: document.getElementById('userVatNumber').value,
+      contactPhone: document.getElementById('userCompanyPhone').value,
+      contactEmail: document.getElementById('userCompanyEmail').value,
+      address: {
+        street: document.getElementById('userCompanyStreet').value,
+        city: document.getElementById('userCompanyCity').value,
+        state: document.getElementById('userCompanyState').value,
+        postalCode: document.getElementById('userCompanyPostalCode').value,
+        country: document.getElementById('userCompanyCountry').value
+      }
+    }
   };
   
   // 密码（创建时必填，编辑时可选）
@@ -217,18 +254,28 @@ async function saveUser(event) {
   }
   
   // 普通用户特殊字段
-  if (userData.role === 'retail_user') {
+  if (role === 'retail_user') {
+    const storeGroupValue = document.getElementById('userStoreGroup').value;
     userData.retailInfo = {
       storeType: document.getElementById('userStoreType').value,
-      storeGroup: document.getElementById('userStoreGroup').value || null,
+      storeGroup: storeGroupValue || null,
       canViewGroupInventory: document.getElementById('userCanViewGroupInventory').checked,
       canTransferFromGroup: document.getElementById('userCanTransferFromGroup').checked
     };
+    
+    console.log('保存用户 - retailInfo:', userData.retailInfo);
+    console.log('保存用户 - storeGroup值:', storeGroupValue);
   }
+  
+  console.log('保存用户数据:', userData);
+  console.log('用户ID:', userId);
   
   try {
     const url = userId ? `${API_BASE}/admin/users/${userId}` : `${API_BASE}/admin/users`;
     const method = userId ? 'PUT' : 'POST';
+    
+    console.log('请求URL:', url);
+    console.log('请求方法:', method);
     
     const response = await fetch(url, {
       method,
@@ -236,7 +283,10 @@ async function saveUser(event) {
       body: JSON.stringify(userData)
     });
     
+    console.log('响应状态:', response.status);
+    
     const result = await response.json();
+    console.log('响应结果:', result);
     
     if (result.success) {
       alert(result.message || '保存成功');
@@ -246,6 +296,7 @@ async function saveUser(event) {
       alert('保存失败: ' + result.error);
     }
   } catch (error) {
+    console.error('保存用户错误:', error);
     alert('保存失败: ' + error.message);
   }
 }
@@ -349,7 +400,14 @@ async function loadGroups() {
     const response = await fetch(`${API_BASE}/admin/store-groups`);
     const result = await response.json();
     
+    console.log('📊 群组API返回:', result);
+    console.log('📊 群组数量:', result.data?.length);
+    
     if (result.success && result.data.length > 0) {
+      // 打印第一个群组的详细信息
+      console.log('📊 第一个群组详情:', result.data[0]);
+      console.log('📊 第一个群组userCount:', result.data[0].userCount);
+      
       const html = `
         <table>
           <thead>
@@ -365,7 +423,9 @@ async function loadGroups() {
             </tr>
           </thead>
           <tbody>
-            ${result.data.map(group => `
+            ${result.data.map(group => {
+              console.log(`渲染群组 ${group.name}, userCount: ${group.userCount}`);
+              return `
               <tr>
                 <td><strong>${group.name}</strong></td>
                 <td><span class="badge badge-info">${group.code}</span></td>
@@ -381,7 +441,8 @@ async function loadGroups() {
                   </button>
                 </td>
               </tr>
-            `).join('')}
+            `;
+            }).join('')}
           </tbody>
         </table>
       `;
@@ -390,6 +451,7 @@ async function loadGroups() {
       container.innerHTML = '<div class="empty">暂无群组</div>';
     }
   } catch (error) {
+    console.error('❌ 加载群组失败:', error);
     container.innerHTML = `<div class="empty">加载失败: ${error.message}</div>`;
   }
 }
