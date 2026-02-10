@@ -78,6 +78,24 @@ const adminInventorySchema = new mongoose.Schema({
     default: 'BRAND_NEW'
   },
   
+  // 供货商信息
+  supplier: {
+    type: String,
+    default: ''
+  },
+  
+  // 位置信息
+  location: {
+    type: String,
+    default: ''
+  },
+  
+  // 订单号
+  invoiceNumber: {
+    type: String,
+    default: ''
+  },
+  
   // 来源信息
   source: {
     type: String,
@@ -118,6 +136,8 @@ const adminInventorySchema = new mongoose.Schema({
 adminInventorySchema.index({ productName: 1, model: 1, color: 1 });
 adminInventorySchema.index({ category: 1, status: 1 });
 adminInventorySchema.index({ status: 1, salesStatus: 1 });
+adminInventorySchema.index({ invoiceNumber: 1 });
+adminInventorySchema.index({ supplier: 1 });
 
 // 虚拟字段：库存价值
 adminInventorySchema.virtual('inventoryValue').get(function() {

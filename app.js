@@ -335,12 +335,128 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
+// 获取用户profile（包括公司信息）
+app.get('/api/users/profile', async (req, res) => {
+  try {
+    const { username } = req.query;
+    
+    if (!username) {
+      return res.status(400).json({ success: false, error: '缺少用户名参数' });
+    }
+    
+    const UserNew = require('./models/UserNew');
+    const user = await UserNew.findOne({ username, isActive: true })
+      .select('-password')
+      .populate('retailInfo.storeGroup', 'name code')
+      .populate('retailInfo.store', 'name');
+    
+    if (!user) {
+      return res.status(404).json({ success: false, error: '用户不存在' });
+    }
+    
+    res.json({ success: true, data: user });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/invoices', (req, res) => {
   res.json({ success: true, data: [] }); // 暂时返回空数组
 });
 
 app.get('/api/purchase-orders', (req, res) => {
   res.json({ success: true, data: [] }); // 暂时返回空数组
+});
+
+// 获取单个采购订单/发票详情（包含AdminInventory数据）
+app.get('/api/purchase-orders/:id', checkDbConnection, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const PurchaseInvoice = require('./models/PurchaseInvoice');
+    const AdminInventory = require('./models/AdminInventory');
+    
+    console.log(`\n📋 获取发票详情: ${id}`);
+    
+    // 查询PurchaseInvoice
+    const invoice = await PurchaseInvoice.findById(id)
+      .populate('supplier', 'name code phone email address')
+      .populate('items.product', 'name sku barcode')
+      .lean();
+    
+    if (!invoice) {
+      console.log(`❌ 发票不存在: ${id}`);
+      return res.status(404).json({
+        success: false,
+        error: '发票不存在'
+      });
+    }
+    
+    console.log(`✅ 找到发票: ${invoice.invoiceNumber}`);
+    console.log(`   PurchaseInvoice items: ${invoice.items?.length || 0}`);
+    
+    // 查询AdminInventory中关联到该订单号的产品
+    const adminProducts = await AdminInventory.find({ 
+      invoiceNumber: invoice.invoiceNumber 
+    }).lean();
+    
+    console.log(`   AdminInventory products: ${adminProducts.length}`);
+    
+    // 格式化AdminInventory产品为发票items格式
+    const adminItems = adminProducts.map(product => ({
+      _id: product._id,
+      description: `${product.productName} - ${product.model} - ${product.color}`,
+      product: product._id,
+      productName: product.productName,
+      model: product.model,
+      color: product.color,
+      quantity: product.quantity,
+      unitCost: product.costPrice,
+      totalCost: product.costPrice * product.quantity,
+      vatRate: product.taxClassification === 'VAT_23' ? 'VAT 23%' : 
+               product.taxClassification === 'VAT_13_5' ? 'VAT 13.5%' : 'VAT 0%',
+      taxAmount: 0, // AdminInventory价格已含税
+      serialNumbers: product.serialNumber ? [product.serialNumber] : [],
+      location: product.location,
+      condition: product.condition,
+      source: 'AdminInventory'
+    }));
+    
+    // 合并PurchaseInvoice items和AdminInventory items
+    const allItems = [
+      ...(invoice.items || []).map(item => ({
+        ...item,
+        source: 'PurchaseInvoice'
+      })),
+      ...adminItems
+    ];
+    
+    console.log(`   合并后总items: ${allItems.length}`);
+    
+    // 重新计算总金额
+    const totalFromAdmin = adminItems.reduce((sum, item) => sum + item.totalCost, 0);
+    const totalFromInvoice = (invoice.items || []).reduce((sum, item) => sum + (item.totalCost || 0), 0);
+    
+    const responseData = {
+      ...invoice,
+      items: allItems,
+      totalAmount: totalFromInvoice + totalFromAdmin,
+      adminInventoryCount: adminItems.length,
+      purchaseInvoiceCount: (invoice.items || []).length
+    };
+    
+    console.log(`   返回数据: items=${responseData.items.length}, total=€${responseData.totalAmount}`);
+    
+    res.json({
+      success: true,
+      data: responseData
+    });
+  } catch (error) {
+    console.error('❌ 获取采购订单详情失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 // 产品分组API（用于库存管理页面）
@@ -1217,12 +1333,16 @@ app.post('/api/admin/receiving/confirm', async (req, res) => {
 app.post('/api/admin/inventory/batch-create-variants', checkDbConnection, async (req, res) => {
   try {
     const AdminInventory = require('./models/AdminInventory');
+    const PurchaseInvoice = require('./models/PurchaseInvoice');
     
     const {
       merchantId,  // 这里实际上是管理员ID，保持参数名兼容前端
       productName,
       category,
       brand,
+      invoiceNumber,  // 新增：订单号
+      supplier,       // 新增：供货商
+      location,       // 新增：位置
       dimension1Label,
       dimension1Values,
       dimension2Label,
@@ -1244,6 +1364,13 @@ app.post('/api/admin/inventory/batch-create-variants', checkDbConnection, async 
       });
     }
     
+    if (!supplier || !location) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少供货商或位置信息'
+      });
+    }
+    
     // 验证数组
     if (!Array.isArray(dimension1Values) || !Array.isArray(dimension2Values)) {
       return res.status(400).json({
@@ -1259,11 +1386,25 @@ app.post('/api/admin/inventory/batch-create-variants', checkDbConnection, async 
       });
     }
     
+    // 验证供货商是否存在（如果提供了订单号）
+    if (invoiceNumber) {
+      const SupplierNew = require('./models/SupplierNew');
+      const supplierDoc = await SupplierNew.findOne({ name: supplier });
+      
+      if (!supplierDoc) {
+        return res.status(400).json({
+          success: false,
+          error: `供货商 "${supplier}" 不存在`
+        });
+      }
+    }
+    
     // 生成所有变体组合
     const variants = [];
+    
     for (const dim1Value of dimension1Values) {
       for (const dim2Value of dimension2Values) {
-        variants.push({
+        const variant = {
           productName: productName.trim(),
           category: category.trim(),
           brand: brand ? brand.trim() : '',
@@ -1275,12 +1416,17 @@ app.post('/api/admin/inventory/batch-create-variants', checkDbConnection, async 
           retailPrice: parseFloat(retailPrice) || 0,
           taxClassification: taxClassification || 'VAT_23',
           condition: condition || 'BRAND_NEW',
-          source: 'manual',
+          supplier: supplier,
+          location: location,
+          source: invoiceNumber ? 'invoice' : 'manual',
+          invoiceNumber: invoiceNumber || undefined,
           status: 'AVAILABLE',
           salesStatus: 'UNSOLD',
           notes: notes || '',
           isActive: true
-        });
+        };
+        
+        variants.push(variant);
       }
     }
     
@@ -1289,6 +1435,11 @@ app.post('/api/admin/inventory/batch-create-variants', checkDbConnection, async 
     
     console.log(`✅ 批量创建变体成功: ${createdVariants.length} 个变体`);
     console.log(`   产品: ${productName}`);
+    console.log(`   供货商: ${supplier}`);
+    console.log(`   位置: ${location}`);
+    if (invoiceNumber) {
+      console.log(`   订单号: ${invoiceNumber}`);
+    }
     console.log(`   ${dimension1Label || 'Model'}: ${dimension1Values.join(', ')}`);
     console.log(`   ${dimension2Label || 'Color'}: ${dimension2Values.join(', ')}`);
     
@@ -1298,6 +1449,9 @@ app.post('/api/admin/inventory/batch-create-variants', checkDbConnection, async 
       data: {
         created: createdVariants.length,
         productName: productName,
+        supplier: supplier,
+        location: location,
+        invoiceNumber: invoiceNumber || null,
         dimension1Count: dimension1Values.length,
         dimension2Count: dimension2Values.length,
         variants: createdVariants
@@ -1354,17 +1508,119 @@ app.get('/api/admin/purchase-orders', async (req, res) => {
 app.get('/api/admin/purchase-orders/:invoiceId', async (req, res) => {
   try {
     const { invoiceId } = req.params;
+    const AdminInventory = require('./models/AdminInventory');
+    
+    console.log(`\n📋 [Admin API] 获取发票详情: ${invoiceId}`);
     
     const invoice = await PurchaseInvoice.findById(invoiceId)
       .populate('supplier', 'name contact.email contact.phone contact.address')
       .populate('items.product', 'name barcode serialNumbers');
     
     if (!invoice) {
+      console.log(`❌ 发票不存在: ${invoiceId}`);
       return res.status(404).json({
         success: false,
         error: '发票不存在'
       });
     }
+    
+    console.log(`✅ 找到发票: ${invoice.invoiceNumber}`);
+    console.log(`   PurchaseInvoice items: ${invoice.items?.length || 0}`);
+    
+    // 查询AdminInventory中关联到该订单号的产品
+    const adminProducts = await AdminInventory.find({ 
+      invoiceNumber: invoice.invoiceNumber 
+    }).lean();
+    
+    console.log(`   AdminInventory products: ${adminProducts.length}`);
+    
+    // 格式化PurchaseInvoice items
+    const purchaseInvoiceItems = invoice.items.map(item => {
+      // 计算含税价格
+      const vatRate = item.vatRate || 'VAT 23%';
+      let taxMultiplier = 1.0;
+      
+      if (vatRate === 'VAT 23%') {
+        taxMultiplier = 1.23;
+      } else if (vatRate === 'VAT 13.5%') {
+        taxMultiplier = 1.135;
+      } else if (vatRate === 'VAT 0%') {
+        taxMultiplier = 1.0;
+      }
+      
+      const unitCostIncludingTax = (item.unitCost || 0) * taxMultiplier;
+      const totalCostIncludingTax = (item.totalCost || 0) * taxMultiplier;
+      
+      return {
+        _id: item._id,
+        product: item.product ? item.product._id : null,
+        productName: item.product ? item.product.name : '未知产品',
+        description: item.description,
+        quantity: item.quantity,
+        unitCost: unitCostIncludingTax, // 含税单价
+        totalCost: totalCostIncludingTax, // 含税总价
+        unitCostExcludingTax: item.unitCost, // 不含税单价（备用）
+        totalCostExcludingTax: item.totalCost, // 不含税总价（备用）
+        vatRate: vatRate,
+        taxAmount: item.taxAmount || 0,
+        serialNumbers: item.serialNumbers || [],
+        barcode: item.product ? item.product.barcode : '',
+        source: 'PurchaseInvoice'
+      };
+    });
+    
+    // 格式化AdminInventory产品为发票items格式
+    const adminItems = adminProducts.map(product => {
+      // 正确映射税率
+      let vatRate = 'VAT 0%';
+      let taxMultiplier = 1.0;
+      
+      if (product.taxClassification === 'VAT_23' || product.taxClassification === 'VAT 23%') {
+        vatRate = 'VAT 23%';
+        taxMultiplier = 1.23;
+      } else if (product.taxClassification === 'VAT_13_5' || product.taxClassification === 'VAT 13.5%') {
+        vatRate = 'VAT 13.5%';
+        taxMultiplier = 1.135;
+      } else if (product.taxClassification === 'VAT_0' || product.taxClassification === 'VAT 0%') {
+        vatRate = 'VAT 0%';
+        taxMultiplier = 1.0;
+      }
+      
+      // AdminInventory的costPrice是含税价格，需要计算不含税价格和税额
+      const totalCostIncludingTax = product.costPrice * product.quantity;
+      const totalCostExcludingTax = totalCostIncludingTax / taxMultiplier;
+      const taxAmount = totalCostIncludingTax - totalCostExcludingTax;
+      const unitCostExcludingTax = product.costPrice / taxMultiplier;
+      
+      return {
+        _id: product._id,
+        product: product._id,
+        productName: product.productName,
+        description: `${product.productName} - ${product.model} - ${product.color}`,
+        quantity: product.quantity,
+        unitCost: product.costPrice, // 含税单价
+        totalCost: totalCostIncludingTax, // 含税总价
+        unitCostExcludingTax: unitCostExcludingTax, // 不含税单价
+        totalCostExcludingTax: totalCostExcludingTax, // 不含税总价
+        vatRate: vatRate,
+        taxAmount: taxAmount, // 税额
+        serialNumbers: product.serialNumber ? [product.serialNumber] : [],
+        barcode: product.barcode || '',
+        location: product.location,
+        condition: product.condition,
+        source: 'AdminInventory'
+      };
+    });
+    
+    // 合并所有items
+    const allItems = [...purchaseInvoiceItems, ...adminItems];
+    
+    console.log(`   合并后总items: ${allItems.length}`);
+    
+    // 重新计算总金额、小计和税额
+    const totalAmount = allItems.reduce((sum, item) => sum + item.totalCost, 0);
+    const subtotal = allItems.reduce((sum, item) => sum + item.totalCostExcludingTax, 0);
+    const taxAmount = allItems.reduce((sum, item) => sum + item.taxAmount, 0);
     
     const formattedInvoice = {
       _id: invoice._id,
@@ -1381,55 +1637,118 @@ app.get('/api/admin/purchase-orders/:invoiceId', async (req, res) => {
       status: invoice.status,
       paymentStatus: invoice.paymentStatus,
       receivingStatus: invoice.receivingStatus,
-      totalAmount: invoice.totalAmount,
-      subtotal: invoice.subtotal,
-      taxAmount: invoice.taxAmount,
+      totalAmount: totalAmount,
+      subtotal: subtotal,
+      taxAmount: taxAmount,
       paidAmount: invoice.paidAmount,
       notes: invoice.notes,
-      items: invoice.items.map(item => {
-        // 计算含税价格
-        const vatRate = item.vatRate || 'VAT 23%';
-        let taxMultiplier = 1.0;
-        
-        if (vatRate === 'VAT 23%') {
-          taxMultiplier = 1.23;
-        } else if (vatRate === 'VAT 13.5%') {
-          taxMultiplier = 1.135;
-        } else if (vatRate === 'VAT 0%') {
-          taxMultiplier = 1.0;
-        }
-        
-        const unitCostIncludingTax = (item.unitCost || 0) * taxMultiplier;
-        const totalCostIncludingTax = (item.totalCost || 0) * taxMultiplier;
-        
-        return {
-          _id: item._id,
-          product: item.product ? item.product._id : null,
-          productName: item.product ? item.product.name : '未知产品',
-          description: item.description,
-          quantity: item.quantity,
-          unitCost: unitCostIncludingTax, // 含税单价
-          totalCost: totalCostIncludingTax, // 含税总价
-          unitCostExcludingTax: item.unitCost, // 不含税单价（备用）
-          totalCostExcludingTax: item.totalCost, // 不含税总价（备用）
-          vatRate: vatRate,
-          taxAmount: item.taxAmount || 0,
-          serialNumbers: item.serialNumbers || [],
-          barcode: item.product ? item.product.barcode : ''
-        };
-      }),
+      items: allItems,
+      adminInventoryCount: adminItems.length,
+      purchaseInvoiceCount: purchaseInvoiceItems.length,
       payments: invoice.payments || [],
       attachments: invoice.attachments || [],
       createdAt: invoice.createdAt,
       updatedAt: invoice.updatedAt
     };
     
+    console.log(`   返回数据: items=${formattedInvoice.items.length}, total=€${formattedInvoice.totalAmount.toFixed(2)}, tax=€${formattedInvoice.taxAmount.toFixed(2)}`);
+    
     res.json({
       success: true,
       data: formattedInvoice
     });
   } catch (error) {
-    console.error('获取采购发票详情失败:', error);
+    console.error('❌ 获取采购发票详情失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 添加采购发票付款记录
+app.post('/api/admin/purchase-orders/:invoiceId/payment', async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+    const { amount, paymentMethod, reference, paymentDate, notes } = req.body;
+    
+    console.log(`\n💰 [Admin API] 添加付款记录: ${invoiceId}`);
+    console.log(`   金额: €${amount}`);
+    console.log(`   付款方式: ${paymentMethod}`);
+    console.log(`   Reference: ${reference || 'N/A'}`);
+    
+    // 验证必填字段
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: '付款金额必须大于0'
+      });
+    }
+    
+    if (!paymentMethod) {
+      return res.status(400).json({
+        success: false,
+        error: '付款方式不能为空'
+      });
+    }
+    
+    const invoice = await PurchaseInvoice.findById(invoiceId);
+    
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        error: '发票不存在'
+      });
+    }
+    
+    // 创建付款记录
+    const payment = {
+      amount: parseFloat(amount),
+      paymentMethod: paymentMethod,
+      reference: reference || '',
+      paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
+      notes: notes || '',
+      createdAt: new Date()
+    };
+    
+    // 添加到payments数组
+    if (!invoice.payments) {
+      invoice.payments = [];
+    }
+    invoice.payments.push(payment);
+    
+    // 更新已付金额
+    invoice.paidAmount = (invoice.paidAmount || 0) + parseFloat(amount);
+    
+    // 更新付款状态
+    if (invoice.paidAmount >= invoice.totalAmount) {
+      invoice.paymentStatus = 'paid';
+    } else if (invoice.paidAmount > 0) {
+      invoice.paymentStatus = 'partial';
+    } else {
+      invoice.paymentStatus = 'pending';
+    }
+    
+    await invoice.save();
+    
+    console.log(`✅ 付款记录添加成功`);
+    console.log(`   已付金额: €${invoice.paidAmount.toFixed(2)}`);
+    console.log(`   总金额: €${invoice.totalAmount.toFixed(2)}`);
+    console.log(`   付款状态: ${invoice.paymentStatus}`);
+    
+    res.json({
+      success: true,
+      message: '付款记录添加成功',
+      data: {
+        payment: payment,
+        paidAmount: invoice.paidAmount,
+        totalAmount: invoice.totalAmount,
+        remainingAmount: invoice.totalAmount - invoice.paidAmount,
+        paymentStatus: invoice.paymentStatus
+      }
+    });
+  } catch (error) {
+    console.error('❌ 添加付款记录失败:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -2014,9 +2333,15 @@ app.get('/api/warehouse/orders/:id', async (req, res) => {
 app.get('/api/warehouse/orders/:id/pdf', async (req, res) => {
   try {
     const WarehouseOrder = require('./models/WarehouseOrder');
+    const CompanyInfo = require('./models/CompanyInfo');
+    const UserNew = require('./models/UserNew');
     const PDFDocument = require('pdfkit');
     
-    const order = await WarehouseOrder.findById(req.params.id);
+    // 并行获取订单、公司信息和商户信息
+    const [order, companyInfo] = await Promise.all([
+      WarehouseOrder.findById(req.params.id),
+      CompanyInfo.findOne({ isDefault: true })
+    ]);
     
     if (!order) {
       return res.status(404).json({ 
@@ -2025,30 +2350,135 @@ app.get('/api/warehouse/orders/:id/pdf', async (req, res) => {
       });
     }
     
+    // 获取商户信息
+    const merchant = await UserNew.findOne({ username: order.merchantId });
+    
+    // 判断是否是不同公司之间的交易
+    const isDifferentCompany = merchant && 
+                                merchant.companyInfo && 
+                                merchant.companyInfo.companyName && 
+                                companyInfo && 
+                                merchant.companyInfo.companyName !== companyInfo.companyName;
+    
     // 创建 PDF 文档
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
     
     // 设置响应头
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=warehouse-order-${order.orderNumber}.pdf`);
+    res.setHeader('Content-Disposition', `attachment; filename=invoice-${order.orderNumber}.pdf`);
     
     // 将 PDF 输出到响应
     doc.pipe(res);
     
-    // 标题
-    doc.fontSize(24).font('Helvetica-Bold').text('WAREHOUSE ORDER', { align: 'center' });
+    // 标题 - 不同公司之间的交易显示INVOICE
+    doc.fontSize(22).font('Helvetica-Bold').text('INVOICE', { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(14).font('Helvetica').text(order.orderNumber, { align: 'center' });
     doc.moveDown(1.5);
+    
+    // 双方公司信息 - 左右布局
+    const infoStartY = doc.y;
+    const leftX = 50;
+    const rightX = 320;
+    
+    // FROM (仓库/卖方 - 我方公司)
+    doc.fontSize(11).font('Helvetica-Bold').text('FROM:', leftX, infoStartY);
+    let leftY = infoStartY + 15;
+    doc.fontSize(10).font('Helvetica');
+    
+    if (companyInfo) {
+      doc.font('Helvetica-Bold').text(companyInfo.companyName || 'N/A', leftX, leftY);
+      leftY += 12;
+      doc.font('Helvetica');
+      
+      if (companyInfo.address) {
+        if (companyInfo.address.street) {
+          doc.text(companyInfo.address.street, leftX, leftY, { width: 240 });
+          leftY += 12;
+        }
+        const cityLine = [
+          companyInfo.address.city,
+          companyInfo.address.state,
+          companyInfo.address.postalCode
+        ].filter(Boolean).join(', ');
+        if (cityLine) {
+          doc.text(cityLine, leftX, leftY, { width: 240 });
+          leftY += 12;
+        }
+        if (companyInfo.address.country) {
+          doc.text(companyInfo.address.country, leftX, leftY);
+          leftY += 12;
+        }
+      }
+      
+      if (companyInfo.taxNumber) {
+        doc.text(`VAT: ${companyInfo.taxNumber}`, leftX, leftY);
+        leftY += 12;
+      }
+      
+      if (companyInfo.contact?.phone) {
+        doc.text(`Tel: ${companyInfo.contact.phone}`, leftX, leftY);
+        leftY += 12;
+      }
+      
+      if (companyInfo.contact?.email) {
+        doc.text(`Email: ${companyInfo.contact.email}`, leftX, leftY);
+        leftY += 12;
+      }
+    } else {
+      doc.text('Company information not available', leftX, leftY);
+      leftY += 12;
+    }
+    
+    // TO (商户/买方)
+    doc.fontSize(11).font('Helvetica-Bold').text('TO:', rightX, infoStartY);
+    let rightY = infoStartY + 15;
+    doc.fontSize(10).font('Helvetica');
+    
+    if (merchant && merchant.companyInfo) {
+      doc.font('Helvetica-Bold').text(merchant.companyInfo.companyName || order.merchantName || order.merchantId, rightX, rightY, { width: 240 });
+      rightY += 12;
+      doc.font('Helvetica');
+      
+      if (merchant.companyInfo.address) {
+        if (merchant.companyInfo.address.street) {
+          doc.text(merchant.companyInfo.address.street, rightX, rightY, { width: 240 });
+          rightY += 12;
+        }
+        const cityLine = [
+          merchant.companyInfo.address.city,
+          merchant.companyInfo.address.state,
+          merchant.companyInfo.address.postalCode
+        ].filter(Boolean).join(', ');
+        if (cityLine) {
+          doc.text(cityLine, rightX, rightY, { width: 240 });
+          rightY += 12;
+        }
+        if (merchant.companyInfo.address.country) {
+          doc.text(merchant.companyInfo.address.country, rightX, rightY);
+          rightY += 12;
+        }
+      }
+      
+      if (merchant.companyInfo.taxNumber) {
+        doc.text(`VAT: ${merchant.companyInfo.taxNumber}`, rightX, rightY);
+        rightY += 12;
+      }
+    } else {
+      doc.font('Helvetica-Bold').text(order.merchantName || order.merchantId, rightX, rightY);
+      rightY += 12;
+      doc.font('Helvetica').text('Merchant ID: ' + order.merchantId, rightX, rightY);
+      rightY += 12;
+    }
+    
+    // 移动到两列中较低的位置
+    doc.y = Math.max(leftY, rightY) + 10;
     
     // 订单信息
     doc.fontSize(10).font('Helvetica');
-    const startY = doc.y;
+    doc.text(`Invoice Date: ${new Date(order.orderedAt).toLocaleString('en-IE')}`, leftX, doc.y);
+    doc.moveDown(0.5);
     
-    // 左列
-    doc.text(`Order Number: ${order.orderNumber}`, 50, startY);
-    doc.text(`Merchant: ${order.merchantName || order.merchantId}`, 50, startY + 20);
-    doc.text(`Order Date: ${new Date(order.orderedAt).toLocaleString('en-US')}`, 50, startY + 40);
-    
-    // 右列
     const statusMap = {
       'pending': 'Pending',
       'confirmed': 'Confirmed',
@@ -2056,36 +2486,18 @@ app.get('/api/warehouse/orders/:id/pdf', async (req, res) => {
       'completed': 'Completed',
       'cancelled': 'Cancelled'
     };
-    doc.text(`Status: ${statusMap[order.status] || order.status}`, 320, startY);
+    doc.text(`Status: ${statusMap[order.status] || order.status}`, leftX, doc.y);
+    doc.moveDown(0.5);
     
     const deliveryMethodMap = {
       'delivery': 'Delivery',
       'pickup': 'Pickup'
     };
-    doc.text(`Delivery Method: ${deliveryMethodMap[order.deliveryMethod] || order.deliveryMethod}`, 320, startY + 20);
-    
-    doc.moveDown(3);
-    
-    // 配送地址
-    if (order.deliveryAddress) {
-      doc.text(`Delivery Address: ${order.deliveryAddress}`);
-      doc.moveDown(0.5);
-    }
-    
-    if (order.pickupLocation) {
-      doc.text(`Pickup Location: ${order.pickupLocation}`);
-      doc.moveDown(0.5);
-    }
-    
-    if (order.notes) {
-      doc.text(`Notes: ${order.notes}`);
-      doc.moveDown(0.5);
-    }
-    
-    doc.moveDown();
+    doc.text(`Delivery Method: ${deliveryMethodMap[order.deliveryMethod] || order.deliveryMethod}`, leftX, doc.y);
+    doc.moveDown(1);
     
     // 产品表格
-    doc.fontSize(12).font('Helvetica-Bold').text('ORDER ITEMS', { underline: true });
+    doc.fontSize(12).font('Helvetica-Bold').text('ITEMS', { underline: true });
     doc.moveDown(0.5);
     
     // 表格头
@@ -2215,32 +2627,30 @@ app.get('/api/warehouse/orders/:id/pdf', async (req, res) => {
     
     currentY += 25;
     
+    // 银行信息（如果有）
+    if (companyInfo && companyInfo.bankDetails && companyInfo.bankDetails.iban) {
+      doc.fontSize(10).font('Helvetica-Bold');
+      doc.text('Bank Details:', 50, currentY);
+      currentY += 12;
+      doc.fontSize(9).font('Helvetica');
+      doc.text(`IBAN: ${companyInfo.bankDetails.iban}`, 50, currentY);
+      currentY += 10;
+      if (companyInfo.bankDetails.bic) {
+        doc.text(`BIC: ${companyInfo.bankDetails.bic}`, 50, currentY);
+        currentY += 10;
+      }
+      if (companyInfo.bankDetails.bankName) {
+        doc.text(`Bank: ${companyInfo.bankDetails.bankName}`, 50, currentY);
+        currentY += 10;
+      }
+      currentY += 10;
+    }
+    
     // 税务说明
     doc.fontSize(7).font('Helvetica').fillColor('#666666');
     doc.text('* All prices are inclusive of tax', 50, currentY);
     doc.text('* Tax amounts are calculated based on the tax classification of each item', 50, currentY + 10);
     doc.fillColor('#000000');
-    
-    currentY += 30;
-    
-    // 确认信息
-    if (order.confirmedAt) {
-      doc.fontSize(9).font('Helvetica');
-      doc.text(`Confirmed: ${new Date(order.confirmedAt).toLocaleString('en-US')}`, 50, currentY);
-      if (order.confirmedBy) {
-        doc.text(`By: ${order.confirmedBy}`, 50, currentY + 12);
-      }
-      currentY += 30;
-    }
-    
-    // 发货信息
-    if (order.shippedAt) {
-      doc.fontSize(9).font('Helvetica');
-      doc.text(`Shipped: ${new Date(order.shippedAt).toLocaleString('en-US')}`, 50, currentY);
-      if (order.shippedBy) {
-        doc.text(`By: ${order.shippedBy}`, 50, currentY + 12);
-      }
-    }
     
     // 页脚
     const pageHeight = doc.page.height;
@@ -3744,36 +4154,215 @@ app.get('/api/admin/suppliers', checkDbConnection, async (req, res) => {
 // 获取供货商的所有采购发票
 app.get('/api/admin/suppliers/:supplierId/invoices', checkDbConnection, async (req, res) => {
   try {
+    console.log('\n🔥🔥🔥 NEW API CODE IS RUNNING 🔥🔥🔥\n');
     const { supplierId } = req.params;
-    const PurchaseInvoice = require('./models/PurchaseInvoice');
+    console.log(`\n[API] Get supplier invoices: ${supplierId}`);
     
+    const PurchaseInvoice = require('./models/PurchaseInvoice');
+    const AdminInventory = require('./models/AdminInventory');
+    const SupplierNew = require('./models/SupplierNew');
+    
+    // 获取供货商信息
+    const supplier = await SupplierNew.findById(supplierId);
+    if (!supplier) {
+      console.log(`[API] Supplier not found: ${supplierId}`);
+      return res.status(404).json({
+        success: false,
+        error: '供货商不存在'
+      });
+    }
+    
+    console.log(`[API] Found supplier: ${supplier.name}`);
+    
+    // 查询PurchaseInvoice表中的发票
     const invoices = await PurchaseInvoice.find({ supplier: supplierId })
       .populate('supplier', 'name code')
       .populate('items.product', 'name sku barcode')
       .sort({ invoiceDate: -1 })
       .lean();
     
-    // 计算含税价格
+    // 查询AdminInventory表中关联到该供货商的产品（按订单号分组）
+    const adminInventoryProducts = await AdminInventory.find({ 
+      supplier: supplier.name 
+    }).lean();
+    
+    // 按订单号分组AdminInventory产品
+    const inventoryByInvoice = {};
+    adminInventoryProducts.forEach(product => {
+      const invoiceNum = product.invoiceNumber || 'N/A';
+      if (!inventoryByInvoice[invoiceNum]) {
+        inventoryByInvoice[invoiceNum] = [];
+      }
+      inventoryByInvoice[invoiceNum].push(product);
+    });
+    
+    // 合并PurchaseInvoice和AdminInventory数据
     const invoicesWithTaxIncluded = invoices.map(invoice => {
+      console.log(`[API] Processing invoice ${invoice.invoiceNumber}:`);
+      console.log(`  supplier type: ${typeof invoice.supplier}`);
+      console.log(`  supplier._id: ${invoice.supplier?._id}`);
+      console.log(`  supplier.name: ${invoice.supplier?.name}`);
+      
+      // 处理PurchaseInvoice中的items
       const itemsWithTaxIncluded = invoice.items.map(item => {
         const taxMultiplier = item.vatRate === 'VAT 23%' ? 1.23 : 
                              item.vatRate === 'VAT 13.5%' ? 1.135 : 1.0;
         return {
           ...item,
           unitCostIncludingTax: item.unitCost * taxMultiplier,
-          totalCostIncludingTax: item.totalCost * taxMultiplier
+          totalCostIncludingTax: item.totalCost * taxMultiplier,
+          source: 'PurchaseInvoice'
         };
       });
       
+      // 添加AdminInventory中的产品
+      const adminItems = inventoryByInvoice[invoice.invoiceNumber] || [];
+      const adminItemsFormatted = adminItems.map(product => {
+        // 计算税额
+        let taxMultiplier = 1.0;
+        if (product.taxClassification === 'VAT_23' || product.taxClassification === 'VAT 23%') {
+          taxMultiplier = 1.23;
+        } else if (product.taxClassification === 'VAT_13_5' || product.taxClassification === 'VAT 13.5%') {
+          taxMultiplier = 1.135;
+        }
+        
+        const totalCostIncludingTax = product.costPrice * product.quantity;
+        const totalCostExcludingTax = totalCostIncludingTax / taxMultiplier;
+        const taxAmount = totalCostIncludingTax - totalCostExcludingTax;
+        
+        return {
+          _id: product._id,
+          productName: `${product.productName} - ${product.model} - ${product.color}`,
+          product: {
+            name: product.productName,
+            sku: product.model,
+            barcode: product.barcode || ''
+          },
+          quantity: product.quantity,
+          unitCost: product.costPrice,
+          totalCost: totalCostIncludingTax,
+          totalCostExcludingTax: totalCostExcludingTax,
+          taxAmount: taxAmount,
+          vatRate: product.taxClassification === 'VAT_23' ? 'VAT 23%' : 
+                   product.taxClassification === 'VAT_13_5' ? 'VAT 13.5%' : 'VAT 0%',
+          unitCostIncludingTax: product.costPrice,
+          totalCostIncludingTax: totalCostIncludingTax,
+          location: product.location,
+          condition: product.condition,
+          source: 'AdminInventory'
+        };
+      });
+      
+      // 合并所有items
+      const allItems = [...itemsWithTaxIncluded, ...adminItemsFormatted];
+      
+      // 重新计算总金额、小计和税额
+      const totalAmount = allItems.reduce((sum, item) => sum + (item.totalCostIncludingTax || item.totalCost), 0);
+      const subtotal = allItems.reduce((sum, item) => sum + (item.totalCostExcludingTax || item.totalCost / 1.23), 0);
+      const taxAmount = totalAmount - subtotal;
+      
       return {
-        ...invoice,
-        items: itemsWithTaxIncluded
+        _id: invoice._id,
+        invoiceNumber: invoice.invoiceNumber,
+        supplier: invoice.supplier, // 明确保留supplier对象
+        invoiceDate: invoice.invoiceDate,
+        dueDate: invoice.dueDate,
+        currency: invoice.currency,
+        paymentStatus: invoice.paymentStatus,
+        paidAmount: invoice.paidAmount,
+        status: invoice.status,
+        receivingStatus: invoice.receivingStatus,
+        notes: invoice.notes,
+        payments: invoice.payments || [],
+        attachments: invoice.attachments || [],
+        createdAt: invoice.createdAt,
+        updatedAt: invoice.updatedAt,
+        items: allItems,
+        totalAmount: totalAmount,
+        subtotal: subtotal,
+        taxAmount: taxAmount,
+        adminInventoryCount: adminItems.length,
+        purchaseInvoiceCount: itemsWithTaxIncluded.length
       };
+    });
+    
+    // 添加只在AdminInventory中存在的订单（没有对应的PurchaseInvoice）
+    const existingInvoiceNumbers = new Set(invoices.map(inv => inv.invoiceNumber));
+    const additionalInvoices = [];
+    
+    Object.keys(inventoryByInvoice).forEach(invoiceNum => {
+      if (invoiceNum !== 'N/A' && !existingInvoiceNumbers.has(invoiceNum)) {
+        const products = inventoryByInvoice[invoiceNum];
+        
+        // 计算每个产品的税额
+        const formattedProducts = products.map(product => {
+          let taxMultiplier = 1.0;
+          if (product.taxClassification === 'VAT_23' || product.taxClassification === 'VAT 23%') {
+            taxMultiplier = 1.23;
+          } else if (product.taxClassification === 'VAT_13_5' || product.taxClassification === 'VAT 13.5%') {
+            taxMultiplier = 1.135;
+          }
+          
+          const totalCostIncludingTax = product.costPrice * product.quantity;
+          const totalCostExcludingTax = totalCostIncludingTax / taxMultiplier;
+          const taxAmount = totalCostIncludingTax - totalCostExcludingTax;
+          
+          return {
+            _id: product._id,
+            productName: `${product.productName} - ${product.model} - ${product.color}`,
+            product: {
+              name: product.productName,
+              sku: product.model,
+              barcode: product.barcode || ''
+            },
+            quantity: product.quantity,
+            unitCost: product.costPrice,
+            totalCost: totalCostIncludingTax,
+            totalCostExcludingTax: totalCostExcludingTax,
+            taxAmount: taxAmount,
+            vatRate: product.taxClassification === 'VAT_23' ? 'VAT 23%' : 
+                     product.taxClassification === 'VAT_13_5' ? 'VAT 13.5%' : 'VAT 0%',
+            unitCostIncludingTax: product.costPrice,
+            totalCostIncludingTax: totalCostIncludingTax,
+            location: product.location,
+            condition: product.condition,
+            source: 'AdminInventory'
+          };
+        });
+        
+        // 计算总金额、小计和税额
+        const totalAmount = formattedProducts.reduce((sum, p) => sum + p.totalCostIncludingTax, 0);
+        const subtotal = formattedProducts.reduce((sum, p) => sum + p.totalCostExcludingTax, 0);
+        const taxAmount = totalAmount - subtotal;
+        
+        additionalInvoices.push({
+          _id: `admin-${invoiceNum}`,
+          invoiceNumber: invoiceNum,
+          supplier: {
+            _id: supplierId,
+            name: supplier.name,
+            code: supplier.code
+          },
+          invoiceDate: products[0].createdAt,
+          status: 'received',
+          paymentStatus: 'pending',
+          totalAmount: totalAmount,
+          subtotal: subtotal,
+          taxAmount: taxAmount,
+          paidAmount: 0,
+          items: formattedProducts,
+          adminInventoryCount: products.length,
+          purchaseInvoiceCount: 0,
+          sourceType: 'AdminInventory-Only'
+        });
+      }
     });
     
     res.json({
       success: true,
-      data: invoicesWithTaxIncluded
+      data: [...invoicesWithTaxIncluded, ...additionalInvoices].sort((a, b) => 
+        new Date(b.invoiceDate) - new Date(a.invoiceDate)
+      )
     });
   } catch (error) {
     console.error('获取供货商发票失败:', error);
@@ -3787,6 +4376,7 @@ app.get('/api/admin/suppliers/:supplierId/invoices', checkDbConnection, async (r
 // 获取单个供货商
 app.get('/api/admin/suppliers/:id', checkDbConnection, async (req, res) => {
   try {
+    console.log(`\n⚠️ GET /api/admin/suppliers/:id called with id=${req.params.id}, path=${req.path}\n`);
     const SupplierNew = require('./models/SupplierNew');
     
     const supplier = await SupplierNew.findById(req.params.id);
@@ -5555,9 +6145,9 @@ app.get('/api/merchant/inventory', applyDataIsolation, async (req, res) => {
     const { category, search } = req.query;
     
     // 基础过滤条件（来自中间件）
+    // 移除 status: 'active' 限制，显示所有状态的库存
     let query = { 
-      ...req.dataFilter, 
-      status: 'active',
+      ...req.dataFilter,
       isActive: true 
     };
     
@@ -5586,6 +6176,26 @@ app.get('/api/merchant/inventory', applyDataIsolation, async (req, res) => {
     });
   } catch (error) {
     console.error('获取库存失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 获取产品成色列表
+app.get('/api/merchant/conditions', async (req, res) => {
+  try {
+    const ProductCondition = require('./models/ProductCondition');
+    
+    // 查询所有激活的成色，按sortOrder排序
+    const conditions = await ProductCondition.find({ isActive: true })
+      .sort({ sortOrder: 1, name: 1 })
+      .lean();
+    
+    res.json({
+      success: true,
+      data: conditions
+    });
+  } catch (error) {
+    console.error('获取成色列表失败:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -5628,6 +6238,7 @@ app.put('/api/merchant/inventory/:id', applyDataIsolation, async (req, res) => {
       'retailPrice',
       'taxClassification',
       'condition',
+      'status',
       'location',
       'notes'
     ];
@@ -5800,26 +6411,44 @@ app.get('/api/merchant/inventory/:id/timeline', async (req, res) => {
                 数量: ${inventory.quantity}`
     });
     
-    // 2. 查找销售记录
+    // 2. 查找销售记录（包括已完成和已退款的）
     const sales = await MerchantSale.find({
       'items.inventoryId': inventoryId,
-      status: 'completed'
+      status: { $in: ['completed', 'refunded'] }
     }).sort({ saleDate: 1 });
     
     sales.forEach(sale => {
       const saleItem = sale.items.find(item => item.inventoryId && item.inventoryId.toString() === inventoryId);
       if (saleItem) {
-        timeline.push({
-          type: 'sold',
-          icon: '💰',
-          title: '产品销售',
-          date: sale.saleDate,
-          description: `产品已售出`,
-          details: `销售价格: €${saleItem.price.toFixed(2)}<br>
-                    数量: ${saleItem.quantity}<br>
-                    支付方式: ${sale.paymentMethod === 'CASH' ? '现金' : sale.paymentMethod === 'CARD' ? '刷卡' : '混合支付'}<br>
-                    ${sale.customerPhone ? `客户电话: ${sale.customerPhone}` : ''}`
-        });
+        // 销售记录
+        if (sale.status === 'completed' || sale.status === 'refunded') {
+          timeline.push({
+            type: 'sold',
+            icon: '💰',
+            title: '产品销售',
+            date: sale.saleDate,
+            description: `产品已售出`,
+            details: `销售价格: €${saleItem.price.toFixed(2)}<br>
+                      数量: ${saleItem.quantity}<br>
+                      支付方式: ${sale.paymentMethod === 'CASH' ? '现金' : sale.paymentMethod === 'CARD' ? '刷卡' : '混合支付'}<br>
+                      ${sale.customerPhone ? `客户电话: ${sale.customerPhone}` : ''}`
+          });
+        }
+        
+        // 退款记录
+        if (sale.status === 'refunded' && sale.refundDate) {
+          timeline.push({
+            type: 'refunded',
+            icon: '↩️',
+            title: '产品退款',
+            date: sale.refundDate,
+            description: `产品已退款并退回库存`,
+            details: `退款金额: €${sale.totalAmount.toFixed(2)}<br>
+                      退款原因: ${sale.refundReason || '未填写'}<br>
+                      退回成色: ${saleItem.refundCondition || saleItem.condition || saleItem.originalCondition || '未知'}<br>
+                      ${sale.customerPhone ? `客户电话: ${sale.customerPhone}` : ''}`
+          });
+        }
       }
     });
     
@@ -5935,9 +6564,16 @@ app.get('/api/merchant/sales', applyDataIsolation, async (req, res) => {
         costPrice: item.costPrice,
         taxClassification: item.taxClassification,
         taxAmount: item.taxAmount,
-        serialNumber: item.serialNumber
+        serialNumber: item.serialNumber,
+        repairLocation: item.repairLocation,  // 添加维修地点
+        productId: item.productId,  // 添加产品ID
+        originalCondition: item.originalCondition,  // 原始成色
+        originalCategory: item.originalCategory  // 原始分类
       })),
-      status: sale.status
+      status: sale.status,
+      refundItems: sale.refundItems || [],  // 添加退款商品列表
+      refundDate: sale.refundDate,  // 添加退款日期
+      refundAmount: sale.refundAmount  // 添加退款金额
     }));
     
     res.json({ 
@@ -5946,6 +6582,163 @@ app.get('/api/merchant/sales', applyDataIsolation, async (req, res) => {
     });
   } catch (error) {
     console.error('获取销售记录失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 处理退款
+app.post('/api/merchant/sales/:saleId/refund', applyDataIsolation, async (req, res) => {
+  try {
+    const MerchantSale = require('./models/MerchantSale');
+    const MerchantInventory = require('./models/MerchantInventory');
+    const RepairOrder = require('./models/RepairOrder');
+    
+    const { saleId } = req.params;
+    const { merchantId, refundItems, refundTotal } = req.body;
+    
+    console.log(`\n[退款] 处理退款请求: ${saleId}`);
+    console.log(`  商户: ${merchantId}`);
+    console.log(`  退款项目数: ${refundItems.length}`);
+    console.log(`  退款总额: €${refundTotal}`);
+    
+    // 查找销售记录
+    const sale = await MerchantSale.findById(saleId);
+    
+    if (!sale) {
+      return res.status(404).json({ success: false, error: '销售记录不存在' });
+    }
+    
+    if (sale.merchantId !== merchantId) {
+      return res.status(403).json({ success: false, error: '无权操作此订单' });
+    }
+    
+    // 处理每个退款项目
+    for (const refundItem of refundItems) {
+      console.log(`\n  处理退款项目: ${refundItem.productName}`);
+      console.log(`    类型: ${refundItem.type}`);
+      
+      if (refundItem.type === 'device') {
+        // 设备产品退款
+        console.log(`    设备状态: ${refundItem.deviceStatus}`);
+        console.log(`    设备成色: ${refundItem.deviceCondition}`);
+        console.log(`    原始成色: ${refundItem.originalCondition}`);
+        console.log(`    原始分类: ${refundItem.originalCategory}`);
+        console.log(`    补回库存: ${refundItem.restock}`);
+        
+        if (refundItem.restock && refundItem.serialNumber) {
+          // 查找库存记录（通过序列号，不依赖status）
+          const inventory = await MerchantInventory.findOne({
+            merchantId: merchantId,
+            serialNumber: refundItem.serialNumber
+          });
+          
+          if (inventory) {
+            // 更新库存状态
+            inventory.status = refundItem.deviceStatus === 'available' ? 'active' : 
+                              refundItem.deviceStatus === 'damaged' ? 'damaged' : 'repairing';
+            inventory.condition = refundItem.deviceCondition;
+            inventory.quantity = 1;
+            
+            // 检查是否需要变更分类（全新变二手）
+            const wasNew = refundItem.originalCondition === 'Brand New' || 
+                          refundItem.originalCondition === '全新' || 
+                          refundItem.originalCondition === 'BRAND NEW';
+            const isNowUsed = refundItem.deviceCondition !== 'Brand New' && 
+                            refundItem.deviceCondition !== '全新';
+            
+            if (wasNew && isNowUsed) {
+              // 从全新变为二手，需要更新分类
+              const oldCategory = inventory.category;
+              
+              // 将"全新"相关分类改为"二手"相关分类
+              if (oldCategory && oldCategory.includes('全新')) {
+                inventory.category = oldCategory.replace('全新', '二手');
+              } else if (oldCategory && oldCategory.toLowerCase().includes('brand new')) {
+                inventory.category = oldCategory.replace(/brand new/gi, 'Pre-Owned');
+              } else if (oldCategory && oldCategory.toLowerCase().includes('new')) {
+                inventory.category = oldCategory.replace(/new/gi, 'Pre-Owned');
+              } else {
+                // 默认改为 Pre-Owned Devices
+                inventory.category = 'Pre-Owned Devices';
+              }
+              
+              console.log(`    📝 分类变更: ${oldCategory} → ${inventory.category}`);
+            }
+            
+            await inventory.save();
+            console.log(`    ✅ 设备已补回库存，状态: ${inventory.status}, 成色: ${inventory.condition}, 数量: ${inventory.quantity}`);
+          } else {
+            console.log(`    ⚠️  未找到库存记录: ${refundItem.serialNumber}`);
+          }
+        }
+        
+      } else if (refundItem.type === 'repair') {
+        // 维修服务退款
+        console.log(`    维修地点: ${refundItem.repairLocation}`);
+        console.log(`    已确认: ${refundItem.confirmed}`);
+        
+        // 可以在这里添加维修订单状态更新逻辑
+        // 例如：标记维修订单为已退款
+        
+      } else if (refundItem.type === 'product') {
+        // 普通产品退款
+        console.log(`    补回库存: ${refundItem.restock}`);
+        
+        if (refundItem.restock && refundItem.productId) {
+          // 查找库存记录
+          const inventory = await MerchantInventory.findOne({
+            merchantId: merchantId,
+            _id: refundItem.productId
+          });
+          
+          if (inventory) {
+            // 增加库存数量
+            inventory.quantity += refundItem.quantity;
+            inventory.salesStatus = 'UNSOLD';
+            
+            await inventory.save();
+            console.log(`    ✅ 产品已补回库存，数量: +${refundItem.quantity}`);
+          } else {
+            console.log(`    ⚠️  未找到库存记录: ${refundItem.productId}`);
+          }
+        }
+      }
+    }
+    
+    // 更新销售记录状态
+    sale.status = 'refunded';
+    sale.refundDate = new Date();
+    sale.refundAmount = refundTotal;
+    sale.refundItems = refundItems;
+    
+    // 更新销售记录中每个商品的退回成色
+    refundItems.forEach(refundItem => {
+      if (refundItem.type === 'device' && refundItem.serialNumber) {
+        // 查找销售记录中对应的商品
+        const saleItem = sale.items.find(item => item.serialNumber === refundItem.serialNumber);
+        if (saleItem) {
+          // 保存退回成色
+          saleItem.refundCondition = refundItem.deviceCondition;
+          console.log(`    📝 保存退回成色: ${refundItem.productName} → ${refundItem.deviceCondition}`);
+        }
+      }
+    });
+    
+    await sale.save();
+    
+    console.log(`\n✅ 退款处理完成`);
+    
+    res.json({
+      success: true,
+      message: '退款处理成功',
+      data: {
+        refundAmount: refundTotal,
+        refundDate: sale.refundDate
+      }
+    });
+    
+  } catch (error) {
+    console.error('退款处理失败:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -6287,7 +7080,10 @@ app.get('/api/merchant/repairs-old', async (req, res) => {
 // 生成税务报表
 app.get('/api/merchant/tax-report', async (req, res) => {
   try {
-    const merchantId = req.query.merchantId || 'merchant_001';
+    const MerchantSale = require('./models/MerchantSale');
+    const RepairOrder = require('./models/RepairOrder');
+    
+    const merchantId = req.query.merchantId;
     const { startDate, endDate } = req.query;
     
     if (!startDate || !endDate) {
@@ -6297,27 +7093,385 @@ app.get('/api/merchant/tax-report', async (req, res) => {
       });
     }
     
-    // 返回空报表数据
+    // 构建日期范围查询
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    
+    // 查询销售记录（排除已退款的订单，不区分大小写）
+    const sales = await MerchantSale.find({
+      merchantId: merchantId,
+      saleDate: { $gte: start, $lte: end },
+      status: { $nin: ['REFUNDED', 'refunded'] } // 排除已退款的订单（大小写都排除）
+    }).sort({ saleDate: 1 });
+    
+    // 查询维修订单
+    const repairs = await RepairOrder.find({
+      merchantId: merchantId,
+      createdAt: { $gte: start, $lte: end },
+      status: { $in: ['COMPLETED', 'DELIVERED'] }
+    }).sort({ createdAt: 1 });
+    
+    // 初始化税务分类统计
+    const taxByClassification = {
+      VAT_23: { sales: 0, cost: 0, outputTax: 0, inputTax: 0, due: 0 },
+      MARGIN_VAT_0: { sales: 0, cost: 0, margin: 0, due: 0 },
+      SERVICE_VAT_13_5: { sales: 0, due: 0 },
+      VAT_0: { sales: 0, due: 0 }
+    };
+    
+    // 按日期分组的销售数据
+    const dailySalesMap = {};
+    
+    // 处理销售记录
+    sales.forEach(sale => {
+      const dateKey = sale.saleDate.toISOString().split('T')[0];
+      
+      if (!dailySalesMap[dateKey]) {
+        dailySalesMap[dateKey] = {
+          date: dateKey,
+          totalSales: 0,
+          cashIncome: 0,
+          cardIncome: 0
+        };
+      }
+      
+      const saleTotal = sale.totalAmount || 0;
+      dailySalesMap[dateKey].totalSales += saleTotal;
+      
+      // 统计支付方式
+      if (sale.paymentMethod === 'CASH') {
+        dailySalesMap[dateKey].cashIncome += saleTotal;
+      } else if (sale.paymentMethod === 'CARD') {
+        dailySalesMap[dateKey].cardIncome += saleTotal;
+      } else if (sale.paymentMethod === 'MIXED') {
+        dailySalesMap[dateKey].cashIncome += (sale.cashAmount || 0);
+        dailySalesMap[dateKey].cardIncome += (sale.cardAmount || 0);
+      }
+      
+      // 处理每个销售项目的税务
+      if (sale.items && Array.isArray(sale.items)) {
+        sale.items.forEach(item => {
+          const taxClass = item.taxClassification || 'VAT_23';
+          const itemPrice = item.price || 0;
+          const itemCost = item.costPrice || 0;
+          const quantity = item.quantity || 1;
+          
+          const totalPrice = itemPrice * quantity;
+          const totalCost = itemCost * quantity;
+          
+          if (taxClass === 'VAT_23') {
+            // VAT 23%: 价格含税
+            taxByClassification.VAT_23.sales += totalPrice;
+            taxByClassification.VAT_23.cost += totalCost;
+            // 销项税 = 销售额 × 23/123
+            taxByClassification.VAT_23.outputTax += totalPrice * 23 / 123;
+            // 进项税 = 成本 × 23/123
+            taxByClassification.VAT_23.inputTax += totalCost * 23 / 123;
+          } else if (taxClass === 'MARGIN_VAT_0') {
+            // Margin VAT: 对利润征税
+            taxByClassification.MARGIN_VAT_0.sales += totalPrice;
+            taxByClassification.MARGIN_VAT_0.cost += totalCost;
+            const margin = totalPrice - totalCost;
+            taxByClassification.MARGIN_VAT_0.margin += margin;
+            // 应缴税 = 利润 × 23/123
+            taxByClassification.MARGIN_VAT_0.due += margin * 23 / 123;
+          } else if (taxClass === 'SERVICE_VAT_13_5') {
+            // Service VAT 13.5%
+            taxByClassification.SERVICE_VAT_13_5.sales += totalPrice;
+            // 应缴税 = 金额 × 13.5/113.5
+            taxByClassification.SERVICE_VAT_13_5.due += totalPrice * 13.5 / 113.5;
+          } else if (taxClass === 'VAT_0') {
+            // VAT 0%
+            taxByClassification.VAT_0.sales += totalPrice;
+          }
+        });
+      }
+    });
+    
+    // 处理维修订单（Service VAT 13.5%）
+    repairs.forEach(repair => {
+      const dateKey = repair.createdAt.toISOString().split('T')[0];
+      
+      if (!dailySalesMap[dateKey]) {
+        dailySalesMap[dateKey] = {
+          date: dateKey,
+          totalSales: 0,
+          cashIncome: 0,
+          cardIncome: 0
+        };
+      }
+      
+      const repairTotal = repair.totalAmount || 0;
+      dailySalesMap[dateKey].totalSales += repairTotal;
+      
+      // 维修订单支付方式
+      if (repair.paymentMethod === 'CASH') {
+        dailySalesMap[dateKey].cashIncome += repairTotal;
+      } else if (repair.paymentMethod === 'CARD') {
+        dailySalesMap[dateKey].cardIncome += repairTotal;
+      }
+      
+      // 维修服务使用 Service VAT 13.5%
+      taxByClassification.SERVICE_VAT_13_5.sales += repairTotal;
+      taxByClassification.SERVICE_VAT_13_5.due += repairTotal * 13.5 / 113.5;
+    });
+    
+    // 计算 VAT 23% 应缴税额
+    taxByClassification.VAT_23.due = taxByClassification.VAT_23.outputTax - taxByClassification.VAT_23.inputTax;
+    
+    // 转换为数组并排序
+    const dailySales = Object.values(dailySalesMap).sort((a, b) => 
+      new Date(a.date) - new Date(b.date)
+    );
+    
+    // 计算汇总数据
+    const summary = {
+      totalSales: dailySales.reduce((sum, day) => sum + day.totalSales, 0),
+      totalCashIncome: dailySales.reduce((sum, day) => sum + day.cashIncome, 0),
+      totalCardIncome: dailySales.reduce((sum, day) => sum + day.cardIncome, 0),
+      totalTaxDue: taxByClassification.VAT_23.due + 
+                   taxByClassification.MARGIN_VAT_0.due + 
+                   taxByClassification.SERVICE_VAT_13_5.due
+    };
+    
     res.json({
       success: true,
       data: {
         period: { startDate, endDate },
-        dailySales: [],
-        summary: {
-          totalSales: 0,
-          totalCashIncome: 0,
-          totalCardIncome: 0,
-          totalTaxDue: 0
-        },
-        taxByClassification: {
-          VAT_23: { sales: 0, cost: 0, outputTax: 0, inputTax: 0, due: 0 },
-          MARGIN_VAT_0: { sales: 0, cost: 0, due: 0 },
-          SERVICE_VAT_13_5: { sales: 0, due: 0 }
-        }
+        dailySales,
+        summary,
+        taxByClassification
       }
     });
   } catch (error) {
+    console.error('生成税务报表失败:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 导出税务报表PDF
+app.post('/api/merchant/tax-report/pdf', async (req, res) => {
+  try {
+    const PDFDocument = require('pdfkit');
+    const CompanyInfo = require('./models/CompanyInfo');
+    const UserNew = require('./models/UserNew');
+    
+    const { merchantId, startDate, endDate, data } = req.body;
+    
+    if (!data) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '缺少报表数据' 
+      });
+    }
+    
+    // 获取公司信息和商户信息
+    const [companyInfo, merchant] = await Promise.all([
+      CompanyInfo.findOne({ isDefault: true }),
+      UserNew.findOne({ username: merchantId })
+    ]);
+    
+    const { dailySales, summary, taxByClassification } = data;
+    
+    // 创建 PDF 文档
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    
+    // 设置响应头
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=tax-report-${startDate}-to-${endDate}.pdf`);
+    
+    // 将 PDF 输出到响应
+    doc.pipe(res);
+    
+    // 标题
+    doc.fontSize(20).font('Helvetica-Bold').text('TAX REPORT', { align: 'center' });
+    doc.moveDown(0.3);
+    doc.fontSize(12).font('Helvetica').text(`Period: ${startDate} to ${endDate}`, { align: 'center' });
+    doc.moveDown(1);
+    
+    // 商户信息
+    doc.fontSize(11).font('Helvetica-Bold').text('Merchant Information:', 50, doc.y);
+    doc.moveDown(0.3);
+    doc.fontSize(10).font('Helvetica');
+    
+    if (merchant && merchant.companyInfo) {
+      doc.text(`Company: ${merchant.companyInfo.companyName || merchantId}`, 50, doc.y);
+      if (merchant.companyInfo.taxNumber) {
+        doc.text(`VAT Number: ${merchant.companyInfo.taxNumber}`, 50, doc.y);
+      }
+    } else {
+      doc.text(`Merchant ID: ${merchantId}`, 50, doc.y);
+    }
+    
+    doc.moveDown(1);
+    
+    // 每日销售汇总
+    doc.fontSize(12).font('Helvetica-Bold').text('Daily Sales Summary', { underline: true });
+    doc.moveDown(0.5);
+    
+    if (dailySales.length > 0) {
+      const tableTop = doc.y;
+      const col1X = 50;
+      const col2X = 200;
+      const col3X = 320;
+      const col4X = 440;
+      
+      // 表头
+      doc.fontSize(9).font('Helvetica-Bold');
+      doc.text('Date', col1X, tableTop);
+      doc.text('Total Sales', col2X, tableTop);
+      doc.text('Cash Income', col3X, tableTop);
+      doc.text('Card Income', col4X, tableTop);
+      
+      doc.moveTo(50, tableTop + 12).lineTo(560, tableTop + 12).stroke();
+      
+      let currentY = tableTop + 20;
+      doc.fontSize(8).font('Helvetica');
+      
+      dailySales.forEach(day => {
+        if (currentY > 700) {
+          doc.addPage();
+          currentY = 50;
+        }
+        
+        doc.text(new Date(day.date).toLocaleDateString('en-IE'), col1X, currentY);
+        doc.text(`EUR ${day.totalSales.toFixed(2)}`, col2X, currentY);
+        doc.text(`EUR ${day.cashIncome.toFixed(2)}`, col3X, currentY);
+        doc.text(`EUR ${day.cardIncome.toFixed(2)}`, col4X, currentY);
+        currentY += 15;
+      });
+      
+      // 合计行
+      doc.moveTo(50, currentY).lineTo(560, currentY).stroke();
+      currentY += 8;
+      doc.fontSize(9).font('Helvetica-Bold');
+      doc.text('TOTAL', col1X, currentY);
+      doc.text(`EUR ${summary.totalSales.toFixed(2)}`, col2X, currentY);
+      doc.text(`EUR ${summary.totalCashIncome.toFixed(2)}`, col3X, currentY);
+      doc.text(`EUR ${summary.totalCardIncome.toFixed(2)}`, col4X, currentY);
+      
+      doc.y = currentY + 25;
+    } else {
+      doc.fontSize(9).font('Helvetica').fillColor('#666666');
+      doc.text('No sales data for this period', 50, doc.y);
+      doc.fillColor('#000000');
+      doc.moveDown(1);
+    }
+    
+    // 税务计算明细
+    doc.fontSize(12).font('Helvetica-Bold').text('Tax Calculation Details', { underline: true });
+    doc.moveDown(0.5);
+    
+    const taxTableTop = doc.y;
+    const tcol1X = 50;
+    const tcol2X = 150;
+    const tcol3X = 230;
+    const tcol4X = 310;
+    const tcol5X = 390;
+    const tcol6X = 470;
+    
+    // 表头
+    doc.fontSize(8).font('Helvetica-Bold');
+    doc.text('Tax Type', tcol1X, taxTableTop);
+    doc.text('Sales', tcol2X, taxTableTop);
+    doc.text('Output Tax', tcol3X, taxTableTop);
+    doc.text('Cost', tcol4X, taxTableTop);
+    doc.text('Input Tax', tcol5X, taxTableTop);
+    doc.text('Tax Due', tcol6X, taxTableTop);
+    
+    doc.moveTo(50, taxTableTop + 12).lineTo(560, taxTableTop + 12).stroke();
+    
+    let taxY = taxTableTop + 20;
+    doc.fontSize(8).font('Helvetica');
+    
+    // VAT 23%
+    if (taxByClassification.VAT_23.sales > 0) {
+      doc.text('VAT 23%', tcol1X, taxY);
+      doc.text(`${taxByClassification.VAT_23.sales.toFixed(2)}`, tcol2X, taxY);
+      doc.text(`${taxByClassification.VAT_23.outputTax.toFixed(2)}`, tcol3X, taxY);
+      doc.text(`${taxByClassification.VAT_23.cost.toFixed(2)}`, tcol4X, taxY);
+      doc.text(`${taxByClassification.VAT_23.inputTax.toFixed(2)}`, tcol5X, taxY);
+      doc.fillColor('#dc3545').text(`${taxByClassification.VAT_23.due.toFixed(2)}`, tcol6X, taxY);
+      doc.fillColor('#000000');
+      taxY += 15;
+    }
+    
+    // Service VAT 13.5%
+    if (taxByClassification.SERVICE_VAT_13_5.sales > 0) {
+      doc.text('Service VAT 13.5%', tcol1X, taxY);
+      doc.text(`${taxByClassification.SERVICE_VAT_13_5.sales.toFixed(2)}`, tcol2X, taxY);
+      doc.text('-', tcol3X, taxY);
+      doc.text('-', tcol4X, taxY);
+      doc.text('-', tcol5X, taxY);
+      doc.fillColor('#dc3545').text(`${taxByClassification.SERVICE_VAT_13_5.due.toFixed(2)}`, tcol6X, taxY);
+      doc.fillColor('#000000');
+      taxY += 15;
+    }
+    
+    // Margin VAT
+    if (taxByClassification.MARGIN_VAT_0.sales > 0) {
+      doc.text('Margin VAT', tcol1X, taxY);
+      doc.text(`${taxByClassification.MARGIN_VAT_0.sales.toFixed(2)}`, tcol2X, taxY);
+      doc.text('-', tcol3X, taxY);
+      doc.text(`${taxByClassification.MARGIN_VAT_0.cost.toFixed(2)}`, tcol4X, taxY);
+      doc.text('-', tcol5X, taxY);
+      doc.fillColor('#dc3545').text(`${taxByClassification.MARGIN_VAT_0.due.toFixed(2)}`, tcol6X, taxY);
+      doc.fillColor('#000000');
+      taxY += 15;
+    }
+    
+    // VAT 0%
+    if (taxByClassification.VAT_0.sales > 0) {
+      doc.text('VAT 0%', tcol1X, taxY);
+      doc.text(`${taxByClassification.VAT_0.sales.toFixed(2)}`, tcol2X, taxY);
+      doc.text('-', tcol3X, taxY);
+      doc.text('-', tcol4X, taxY);
+      doc.text('-', tcol5X, taxY);
+      doc.fillColor('#10b981').text('0.00', tcol6X, taxY);
+      doc.fillColor('#000000');
+      taxY += 15;
+    }
+    
+    // 总计行
+    doc.moveTo(50, taxY).lineTo(560, taxY).stroke();
+    taxY += 8;
+    doc.fontSize(10).font('Helvetica-Bold');
+    doc.text('TOTAL TAX DUE:', 390, taxY);
+    doc.fillColor('#dc3545').fontSize(12).text(`EUR ${summary.totalTaxDue.toFixed(2)}`, tcol6X, taxY);
+    doc.fillColor('#000000');
+    
+    taxY += 30;
+    doc.y = taxY;
+    
+    // 计算说明
+    doc.fontSize(9).font('Helvetica-Bold').text('Calculation Notes:', 50, doc.y);
+    doc.moveDown(0.3);
+    doc.fontSize(8).font('Helvetica').fillColor('#666666');
+    doc.text('• VAT 23%: Output Tax = Sales × 23/123, Input Tax = Cost × 23/123, Due = Output - Input', 50, doc.y);
+    doc.text('• Service VAT 13.5%: Tax Due = Amount × 13.5/113.5', 50, doc.y);
+    doc.text('• Margin VAT: Tax Due = (Sales - Cost) × 23/123', 50, doc.y);
+    doc.text('• VAT 0%: Tax-exempt goods, no VAT payable', 50, doc.y);
+    doc.fillColor('#000000');
+    
+    // 页脚
+    const pageHeight = doc.page.height;
+    doc.fontSize(8).font('Helvetica').fillColor('#666666').text(
+      `Generated on ${new Date().toLocaleString('en-IE')} | Page 1`,
+      50,
+      pageHeight - 50,
+      { align: 'center' }
+    );
+    
+    // 完成 PDF
+    doc.end();
+    
+  } catch (error) {
+    console.error('导出税务报表PDF失败:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: error.message });
+    }
   }
 });
 
@@ -6350,8 +7504,19 @@ app.get('/api/merchant/warehouse-products', async (req, res) => {
     
     // 处理 ProductNew 产品
     productNewItems.forEach(product => {
-      // 创建更详细的分组 key，包含品牌、型号和颜色
-      const key = `${product.category?.type || 'Unknown'}_${product.brand || ''}_${product.model || ''}_${product.color || ''}_${product.condition}`;
+      // 判断是否是设备类型
+      const isDevice = product.category?.type?.toLowerCase().includes('device');
+      
+      let key;
+      if (isDevice) {
+        // 设备产品：提取纯产品名称（去掉容量信息）
+        // 例如：IPHONE15128GB -> IPHONE15, IPHONE15PROMAX256GB -> IPHONE15PROMAX
+        const productName = (product.name || '').replace(/\d+(GB|TB)/gi, '').trim().replace(/\s+/g, '');
+        key = `${product.category?.type || 'Unknown'}_${productName}_${product.condition}`;
+      } else {
+        // 配件产品：按品牌+型号+颜色分组
+        key = `${product.category?.type || 'Unknown'}_${product.brand || ''}_${product.model || ''}_${product.color || ''}_${product.condition}`;
+      }
       
       if (!groupedProducts[key]) {
         groupedProducts[key] = {
@@ -6376,8 +7541,18 @@ app.get('/api/merchant/warehouse-products', async (req, res) => {
     
     // 处理 AdminInventory 产品（配件变体）
     adminInventoryItems.forEach(item => {
-      // 为配件创建分组 key
-      const key = `${item.category}_${item.brand || ''}_${item.model || ''}_${item.color || ''}_${item.condition}`;
+      // 判断是否是设备类型
+      const isDevice = item.category?.toLowerCase().includes('device');
+      
+      let key;
+      if (isDevice) {
+        // 设备产品：提取纯产品名称（去掉容量信息）
+        const productName = (item.productName || '').replace(/\d+(GB|TB)/gi, '').trim().replace(/\s+/g, '');
+        key = `${item.category}_${productName}_${item.condition}`;
+      } else {
+        // 配件产品：按品牌+型号+颜色分组
+        key = `${item.category}_${item.brand || ''}_${item.model || ''}_${item.color || ''}_${item.condition}`;
+      }
       
       if (!groupedProducts[key]) {
         groupedProducts[key] = {
@@ -6618,7 +7793,9 @@ app.post('/api/merchant/sales/complete', async (req, res) => {
             costPrice: costPrice, // 使用批发价作为成本
             taxClassification: taxClassification, // 使用标准化的税分类
             taxAmount: taxAmount,
-            serialNumber: item.serialNumber || null
+            serialNumber: item.serialNumber || null,
+            originalCondition: inventory.condition || null, // 保存原始成色
+            originalCategory: inventory.category || null    // 保存原始分类
           });
         }
       }

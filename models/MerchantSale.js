@@ -43,6 +43,10 @@ const merchantSaleSchema = new mongoose.Schema({
       ref: 'RepairOrder',
       default: null
     },
+    productId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null
+    },
     productName: {
       type: String,
       required: true
@@ -72,6 +76,24 @@ const merchantSaleSchema = new mongoose.Schema({
       min: 0
     },
     serialNumber: {
+      type: String,
+      default: null
+    },
+    repairLocation: {
+      type: String,
+      default: null
+    },
+    // 添加原始成色和分类信息（用于退款逻辑）
+    originalCondition: {
+      type: String,
+      default: null
+    },
+    originalCategory: {
+      type: String,
+      default: null
+    },
+    // 退回成色（退款时保存）
+    refundCondition: {
       type: String,
       default: null
     }
@@ -111,6 +133,21 @@ const merchantSaleSchema = new mongoose.Schema({
     type: String,
     enum: ['completed', 'refunded', 'cancelled'],
     default: 'completed'
+  },
+  
+  // 退款信息
+  refundDate: {
+    type: Date,
+    default: null
+  },
+  refundAmount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  refundItems: {
+    type: Array,
+    default: []
   },
   
   // 备注

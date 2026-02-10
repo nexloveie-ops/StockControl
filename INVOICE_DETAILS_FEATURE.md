@@ -1,439 +1,168 @@
-# 采购发票详情查看功能
+# 供货商发票详情功能改进
 
-## 修改日期
-2026-02-02 00:30
+## 完成时间
+2026-02-10
 
-## 备份信息
-- 备份文件夹：`StockControl-main-backup-20260202-003030`
-- 备份内容：完整项目文件
+## 改进内容
 
-## 功能概述
+### 1. 产品明细显示变体信息 ✅
+**问题**: 产品明细中没有显示变体信息（型号、颜色等）
 
-在供货商管理的采购发票记录中，添加了点击发票编号查看详情的功能。
+**解决方案**:
+- 使用 `description` 字段显示完整的产品信息（产品名称 - 型号 - 颜色）
+- 添加位置信息显示（📍 位置）
+- 添加产品状态显示（全新、99新等）
+- 示例：`iPhone Screen Saver - iPhone 15 Pro Max - Clear`
 
-## 新增功能
+**代码位置**: `StockControl-main/public/prototype-working.html` - `showInvoiceDetailsModal()` 函数
 
-### 1. 发票编号可点击
-- 发票编号显示为蓝色链接
-- 点击发票编号可查看完整发票详情
-- 新增"📄 查看详情"按钮
+### 2. 税率显示修复 ✅
+**问题**: 税率显示格式不正确
 
-### 2. 发票详情模态框
-显示完整的发票信息，包括：
-- 发票基本信息（供货商、日期、状态等）
-- 产品明细表格
-- 税额分解（按税率分组）
-- 金额汇总
-- 备注信息
+**解决方案**:
+- 后端API已正确映射税率格式：
+  - `VAT_23` / `VAT 23%` → `VAT 23%`
+  - `VAT_13_5` / `VAT 13.5%` → `VAT 13.5%`
+  - `VAT_0` / `VAT 0%` → `VAT 0%`
+- 前端直接显示API返回的 `vatRate` 字段
 
-## 重要逻辑说明
+**代码位置**: `StockControl-main/app.js` - `/api/admin/purchase-orders/:invoiceId` API
 
-### Invoice 税额计算逻辑
+### 3. PDF下载功能 ✅
+**问题**: 需要生成PDF下载功能
 
-**关键理解：**
-- Invoice 本身**没有单一税率**
-- Invoice 的总税额 = 所有产品项目的税额之和
-- 一张 Invoice 可能包含不同税率的产品
+**解决方案**:
+- 在发票详情对话框添加"📥 下载PDF"按钮
+- 使用jsPDF和jsPDF-autotable库生成专业PDF
+- PDF包含以下内容：
+  - 发票标题和编号
+  - 供货商信息（名称、邮箱、电话）
+  - 发票信息（日期、状态、货币）
+  - 产品明细表格（包含变体信息、位置、数量、价格、税率、数据来源）
+  - 总金额
+  - 数据来源统计（采购订单项数 + 库存系统项数）
 
-**示例：**
+**代码位置**: `StockControl-main/public/prototype-working.html` - `downloadPurchaseInvoicePDF()` 函数
+
+## 功能特点
+
+### 产品明细表格
+- **产品信息列**: 显示完整的产品名称和变体信息
+- **附加信息**: 位置、状态（全新/99新等）
+- **数量**: 产品数量
+- **单价**: 含税单价
+- **总价**: 含税总价
+- **税率**: VAT 23% / VAT 13.5% / VAT 0%
+- **序列号**: 显示产品序列号（如有）
+- **来源标签**: 
+  - 📦 库存系统（蓝色标签）
+  - 📋 采购订单（黄色标签）
+
+### 数据来源统计
+在发票详情顶部显示数据来源统计：
 ```
-Invoice #INV-001
-├─ 产品A (VAT 23%)
-│  ├─ 不含税价格: €100
-│  ├─ 税额: €23
-│  └─ 含税价格: €123
-│
-├─ 产品B (VAT 13.5%)
-│  ├─ 不含税价格: €200
-│  ├─ 税额: €27
-│  └─ 含税价格: €227
-│
-└─ 产品C (VAT 0%)
-   ├─ 不含税价格: €50
-   ├─ 税额: €0
-   └─ 含税价格: €50
-
-Invoice 汇总：
-├─ 小计（不含税）: €350 (100+200+50)
-├─ 税额合计: €50 (23+27+0)
-└─ 总金额（含税）: €400 (123+227+50)
-```
-
-### 税额分解显示
-
-发票详情中的"税额分解"部分会按税率分组显示：
-
-```
-💰 税额分解
-
-VAT 23%
-小计: €100.00 + 税额: €23.00
-€123.00
-
-VAT 13.5%
-小计: €200.00 + 税额: €27.00
-€227.00
-
-VAT 0%
-小计: €50.00 + 税额: €0.00
-€50.00
+📊 数据来源: 📋 采购订单: 1项  📦 库存系统: 220项
 ```
 
-这样用户可以清楚地看到每个税率的金额构成。
+### PDF格式
+- A4纸张大小
+- 专业表格布局
+- 蓝色主题色
+- 包含所有关键信息
+- 文件名格式：`Invoice_SI-003_2026-02-10.pdf`
 
-## 代码实现
+## API数据结构
 
-### 前端修改 (prototype-working.html)
-
-#### 1. 修改发票列表显示
-
-**修改前：**
-```html
-<td><strong>${invoice.invoiceNumber}</strong></td>
-```
-
-**修改后：**
-```html
-<td>
-  <a href="javascript:void(0)" 
-     onclick="viewInvoiceDetails('${invoice._id}')" 
-     style="color: #3b82f6; text-decoration: none; font-weight: bold;">
-    ${invoice.invoiceNumber}
-  </a>
-</td>
-```
-
-并添加操作列：
-```html
-<th>操作</th>
-...
-<td>
-  <button onclick="viewInvoiceDetails('${invoice._id}')" class="btn btn-sm btn-info">
-    📄 查看详情
-  </button>
-</td>
-```
-
-#### 2. 新增函数
-
-##### viewInvoiceDetails(invoiceId)
-```javascript
-async function viewInvoiceDetails(invoiceId) {
-  // 调用 API 获取发票详情
-  const response = await fetch(`${API_BASE}/purchase-orders/${invoiceId}`);
-  const result = await response.json();
-  
-  if (result.success && result.data) {
-    showInvoiceDetailsModal(result.data);
-  }
-}
-```
-
-##### showInvoiceDetailsModal(invoice)
-```javascript
-function showInvoiceDetailsModal(invoice) {
-  // 计算各税率的小计
-  const taxBreakdown = {};
-  invoice.items.forEach(item => {
-    const vatRate = item.vatRate || 'VAT 23%';
-    if (!taxBreakdown[vatRate]) {
-      taxBreakdown[vatRate] = {
-        subtotal: 0,
-        taxAmount: 0,
-        total: 0
-      };
-    }
-    taxBreakdown[vatRate].subtotal += item.totalCostExcludingTax || 0;
-    taxBreakdown[vatRate].taxAmount += item.taxAmount || 0;
-    taxBreakdown[vatRate].total += item.totalCost || 0;
-  });
-  
-  // 显示详情模态框
-  showUniversalModal(title, content);
-}
-```
-
-### 后端 API (已存在)
-
-**端点：** `GET /api/admin/purchase-orders/:invoiceId`
-
-**返回数据结构：**
+### 发票详情API响应
 ```javascript
 {
   success: true,
   data: {
-    _id: "...",
-    invoiceNumber: "INV-001",
+    _id: "698a7e9684f925591c77a106",
+    invoiceNumber: "SI-003",
     supplier: {
-      name: "供货商名称",
-      email: "...",
-      phone: "...",
-      address: "..."
+      name: "Mobigo Limited",
+      email: "supplier@example.com",
+      phone: "+353 1 234 5678",
+      address: "Dublin, Ireland"
     },
-    invoiceDate: "2026-02-01",
-    dueDate: "2026-03-01",
-    status: "confirmed",
-    paymentStatus: "pending",
-    subtotal: 350.00,      // 不含税小计
-    taxAmount: 50.00,      // 税额合计
-    totalAmount: 400.00,   // 含税总额
-    paidAmount: 0.00,
+    invoiceDate: "2026-02-09T00:00:00.000Z",
     items: [
       {
-        productName: "产品A",
-        quantity: 1,
-        unitCost: 123.00,              // 含税单价
-        totalCost: 123.00,             // 含税总价
-        unitCostExcludingTax: 100.00,  // 不含税单价
-        totalCostExcludingTax: 100.00, // 不含税总价
+        _id: "...",
+        productName: "iPhone Screen Saver",
+        description: "iPhone Screen Saver - iPhone 15 Pro Max - Clear",
+        quantity: 44,
+        unitCost: 5.00,
+        totalCost: 220.00,
         vatRate: "VAT 23%",
-        taxAmount: 23.00,
-        serialNumbers: [...]
-      },
-      // ... 更多产品
-    ]
+        location: "A1-S1-P1",
+        condition: "BRAND_NEW",
+        source: "AdminInventory"
+      }
+    ],
+    totalAmount: 1100.00,
+    adminInventoryCount: 220,
+    purchaseInvoiceCount: 1
   }
 }
 ```
 
-## 发票详情模态框布局
+## 测试步骤
 
-### 1. 发票基本信息
-```
-┌─────────────────────────────────────────┐
-│ 供货商: ABC公司                          │
-│ 发票日期: 2026-02-01                     │
-│ 到期日期: 2026-03-01                     │
-│ 状态: 已确认                             │
-│ 付款状态: 待付款                         │
-└─────────────────────────────────────────┘
-```
+1. **打开Prototype页面**
+   - 访问 `http://localhost:3000/prototype-working.html`
+   - 使用warehouse_manager账号登录
 
-### 2. 产品明细
-```
-┌──────────────────────────────────────────────────────┐
-│ 产品名称 │ 数量 │ 单价(含税) │ 总价(含税) │ 税率 │ 税额 │
-├──────────────────────────────────────────────────────┤
-│ 产品A    │  1   │ €123.00   │ €123.00   │ 23%  │ €23 │
-│ 产品B    │  1   │ €227.00   │ €227.00   │13.5% │ €27 │
-│ 产品C    │  1   │ €50.00    │ €50.00    │  0%  │ €0  │
-└──────────────────────────────────────────────────────┘
-```
+2. **查看发票详情**
+   - 点击"供货商/客户管理"标签
+   - 选择供货商"Mobigo Limited"
+   - 点击发票"SI-003"的"发票详情"按钮
 
-### 3. 税额分解
-```
-┌─────────────────────────────────────┐
-│ VAT 23%                             │
-│ 小计: €100.00 + 税额: €23.00        │
-│ €123.00                             │
-├─────────────────────────────────────┤
-│ VAT 13.5%                           │
-│ 小计: €200.00 + 税额: €27.00        │
-│ €227.00                             │
-├─────────────────────────────────────┤
-│ VAT 0%                              │
-│ 小计: €50.00 + 税额: €0.00          │
-│ €50.00                              │
-└─────────────────────────────────────┘
-```
+3. **验证显示内容**
+   - ✅ 产品明细显示完整变体信息（产品名称 - 型号 - 颜色）
+   - ✅ 显示位置信息（📍 A1-S1-P1）
+   - ✅ 显示产品状态（全新）
+   - ✅ 税率正确显示（VAT 23%）
+   - ✅ 显示数据来源标签（📦 库存系统 / 📋 采购订单）
+   - ✅ 显示数据来源统计
 
-### 4. 金额汇总
-```
-┌─────────────────────────────────────┐
-│ 小计（不含税）:        €350.00      │
-│ 税额合计:              €50.00       │
-│ ─────────────────────────────────   │
-│ 总金额（含税）:        €400.00      │
-│                                     │
-│ 已付金额:              €0.00        │
-│ 待付金额:              €400.00      │
-└─────────────────────────────────────┘
-```
+4. **测试PDF下载**
+   - 点击"📥 下载PDF"按钮
+   - 验证PDF文件自动下载
+   - 打开PDF验证内容：
+     - 标题和发票号
+     - 供货商信息
+     - 产品明细表格（包含变体信息）
+     - 总金额
+     - 数据来源统计
 
-## 使用流程
+## 技术细节
 
-### 查看发票详情
-1. 进入"供货商/客户管理"
-2. 点击"📦 供货商管理"
-3. 点击任意供货商的"📋 查看发票"
-4. 在发票列表中：
-   - **方式1：** 点击蓝色的发票编号链接
-   - **方式2：** 点击"📄 查看详情"按钮
-5. 弹出发票详情模态框
+### 前端库
+- **jsPDF**: PDF生成核心库
+- **jsPDF-autotable**: 表格生成插件
+- CDN引入：
+  ```html
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+  ```
 
-### 发票详情内容
-- ✅ 供货商信息
-- ✅ 发票日期和状态
-- ✅ 产品明细（含税价格）
-- ✅ 按税率分组的税额分解
-- ✅ 金额汇总（小计、税额、总额）
-- ✅ 付款信息（已付、待付）
-- ✅ 备注信息
+### 数据合并逻辑
+后端API合并两个数据源：
+1. **PurchaseInvoice表**: 传统采购订单数据
+2. **AdminInventory表**: 批量创建的变体产品数据
 
-## 特性说明
+合并规则：
+- 通过 `invoiceNumber` 字段关联
+- 统一格式化为相同的数据结构
+- 添加 `source` 字段标识数据来源
 
-### 1. 多税率支持
-- 一张发票可以包含不同税率的产品
-- 税额分解清晰显示每个税率的金额
-- 自动计算各税率的小计和税额
+## 相关文件
+- `StockControl-main/public/prototype-working.html` - 前端显示和PDF生成
+- `StockControl-main/app.js` - 后端API `/api/admin/purchase-orders/:invoiceId`
+- `StockControl-main/models/AdminInventory.js` - 库存产品模型
+- `StockControl-main/models/PurchaseInvoice.js` - 采购发票模型
 
-### 2. 价格显示
-- 产品明细显示含税价格
-- 同时保留不含税价格（用于税额分解）
-- 金额汇总显示完整的价格构成
-
-### 3. 序列号显示
-- 如果产品有序列号，显示在表格中
-- 长序列号自动截断，鼠标悬停显示完整内容
-- 没有序列号显示"-"
-
-### 4. 付款信息
-- 显示已付金额和待付金额
-- 如果未付款，不显示付款信息
-- 清晰的视觉区分（绿色=已付，红色=待付）
-
-## 测试建议
-
-### 测试场景 1: 单一税率发票
-1. 查看只包含一种税率产品的发票
-2. 验证税额分解只显示一个税率
-3. 验证金额计算正确
-
-### 测试场景 2: 多税率发票
-1. 查看包含多种税率产品的发票
-2. 验证税额分解显示所有税率
-3. 验证每个税率的小计和税额正确
-4. 验证总金额 = 所有税率的总和
-
-### 测试场景 3: 付款状态
-1. 查看未付款的发票
-2. 查看部分付款的发票
-3. 查看已付款的发票
-4. 验证付款信息显示正确
-
-### 测试场景 4: 序列号
-1. 查看有序列号的产品
-2. 查看没有序列号的产品
-3. 验证序列号显示正确
-
-## 技术要点
-
-### 1. 税额分解算法
-```javascript
-const taxBreakdown = {};
-invoice.items.forEach(item => {
-  const vatRate = item.vatRate || 'VAT 23%';
-  if (!taxBreakdown[vatRate]) {
-    taxBreakdown[vatRate] = {
-      subtotal: 0,
-      taxAmount: 0,
-      total: 0
-    };
-  }
-  taxBreakdown[vatRate].subtotal += item.totalCostExcludingTax || 0;
-  taxBreakdown[vatRate].taxAmount += item.taxAmount || 0;
-  taxBreakdown[vatRate].total += item.totalCost || 0;
-});
-```
-
-### 2. 动态内容生成
-使用模板字符串动态生成HTML内容，支持：
-- 条件渲染（如付款信息）
-- 循环渲染（产品列表、税额分解）
-- 数据格式化（日期、金额）
-
-### 3. 模态框复用
-使用通用模态框 `showUniversalModal(title, content)`：
-- 统一的样式和交互
-- 易于维护
-- 支持任意HTML内容
-
-## 数据流程
-
-```
-用户点击发票编号
-    ↓
-viewInvoiceDetails(invoiceId)
-    ↓
-GET /api/admin/purchase-orders/:invoiceId
-    ↓
-后端查询数据库
-    ↓
-计算含税价格
-    ↓
-返回完整发票数据
-    ↓
-showInvoiceDetailsModal(invoice)
-    ↓
-计算税额分解
-    ↓
-生成HTML内容
-    ↓
-显示模态框
-```
-
-## 注意事项
-
-### 1. 价格一致性
-- 产品明细显示含税价格
-- 税额分解使用不含税价格计算
-- 金额汇总显示完整构成
-
-### 2. 税率处理
-- 支持 VAT 23%, VAT 13.5%, VAT 0%
-- 如果产品没有税率，默认 VAT 23%
-- 税额分解按实际税率分组
-
-### 3. 数据完整性
-- 处理缺失的供货商信息
-- 处理缺失的产品信息
-- 处理缺失的序列号
-
-### 4. 用户体验
-- 发票编号蓝色高亮，明显可点击
-- 提供两种方式查看详情（链接+按钮）
-- 模态框内容清晰，层次分明
-- 金额显示醒目，易于阅读
-
-## 下一步优化
-
-### 1. 打印功能
-- 添加"打印发票"按钮
-- 生成适合打印的格式
-- 包含公司信息和Logo
-
-### 2. 导出功能
-- 导出为PDF
-- 导出为Excel
-- 发送邮件
-
-### 3. 编辑功能
-- 修改发票信息
-- 添加/删除产品
-- 更新付款状态
-
-### 4. 历史记录
-- 显示发票修改历史
-- 显示付款历史
-- 显示状态变更历史
-
-## 总结
-
-✅ **功能完成：**
-- 发票编号可点击查看详情
-- 完整的发票详情模态框
-- 税额分解按税率分组显示
-- 清晰的金额汇总
-
-✅ **逻辑正确：**
-- Invoice 税额 = 所有产品税额之和
-- 支持一张发票多种税率
-- 价格显示一致（含税）
-
-✅ **用户体验：**
-- 两种方式查看详情
-- 清晰的视觉层次
-- 完整的信息展示
-
-✅ **备份完成：**
-- `StockControl-main-backup-20260202-003030`
+## 下一步
+功能已完成，可以进行测试。如需调整PDF格式或添加更多信息，可以修改 `downloadPurchaseInvoicePDF()` 函数。

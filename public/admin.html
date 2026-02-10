@@ -517,6 +517,20 @@
           <div style="background: #f7fafc; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
             <h3>📝 手动录入产品信息</h3>
             
+            <!-- 产品录入说明 -->
+            <div style="background: #e7f3ff; border-left: 4px solid #2196f3; padding: 12px; margin: 15px 0; border-radius: 4px;">
+              <div style="display: flex; align-items: start; gap: 8px;">
+                <span style="font-size: 18px;">💡</span>
+                <div style="flex: 1;">
+                  <strong style="color: #1976d2; font-size: 14px;">产品录入说明</strong>
+                  <p style="margin: 6px 0 0 0; color: #555; font-size: 13px; line-height: 1.5;">
+                    <strong>• 设备产品（手机/平板/手表）：</strong>选择包含"设备"、"手机"、"Phone"等关键字的分类后，系统会自动显示IMEI/SN输入框<br>
+                    <strong>• 配件产品（手机壳/保护膜/数据线）：</strong>填写品牌、型号/规格和颜色/类型字段，用于区分不同变体
+                  </p>
+                </div>
+              </div>
+            </div>
+            
             <!-- 供应商信息 -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
               <div>
@@ -544,7 +558,7 @@
                     <th style="padding: 12px; text-align: left;">零售价</th>
                     <th style="padding: 12px; text-align: left;">分类</th>
                     <th style="padding: 12px; text-align: left;">税务分类</th>
-                    <th style="padding: 12px; text-align: left;">条码/序列号</th>
+                    <th style="padding: 12px; text-align: left;">条码/IMEI/SN</th>
                     <th style="padding: 12px; text-align: left;">颜色</th>
                     <th style="padding: 12px; text-align: left;">成色</th>
                     <th style="padding: 12px; text-align: left;">操作</th>
@@ -1749,7 +1763,18 @@
     // 更新手动录入产品行（处理设备类产品的序列号输入）
     function updateManualProductRow(index) {
       const product = window.manualProducts[index];
-      const isDevice = product?.productType?.includes('设备');
+      // 检查分类名称中是否包含设备相关关键字（不区分大小写）
+      const categoryLower = (product?.productType || '').toLowerCase();
+      const isDevice = categoryLower.includes('device') || 
+                      categoryLower.includes('设备') || 
+                      categoryLower.includes('手机') || 
+                      categoryLower.includes('phone') || 
+                      categoryLower.includes('iphone') || 
+                      categoryLower.includes('samsung') || 
+                      categoryLower.includes('tablet') || 
+                      categoryLower.includes('平板') || 
+                      categoryLower.includes('watch') || 
+                      categoryLower.includes('手表');
       const quantity = parseInt(product?.quantity) || 1;
       
       const row = document.getElementById('manualProductsTable').children[index];
