@@ -2625,6 +2625,12 @@
       try {
         debugLog(`下载采购发票PDF: ${invoiceId}`);
         
+        // 获取当前用户
+        const currentUser = localStorage.getItem('username');
+        if (!currentUser) {
+          throw new Error('User not logged in');
+        }
+        
         // 显示加载提示
         const loadingMsg = document.createElement('div');
         loadingMsg.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 20px 40px; border-radius: 8px; z-index: 10001; font-size: 16px;';
@@ -2634,7 +2640,7 @@
         // 并行获取发票详情和公司信息
         const [invoiceResponse, companyResponse] = await Promise.all([
           fetch(`${API_BASE}/purchase-orders/${invoiceId}`),
-          fetch(`${API_BASE}/company-info`)
+          fetch(`/api/users/profile?username=${currentUser}`)
         ]);
         
         if (!invoiceResponse.ok) throw new Error(`HTTP ${invoiceResponse.status}`);
@@ -2648,7 +2654,9 @@
         }
         
         const invoice = invoiceResult.data;
-        const companyInfo = companyResult.success && companyResult.data ? companyResult.data : null;
+        const companyInfo = companyResult.success && companyResult.data && companyResult.data.companyInfo 
+          ? companyResult.data.companyInfo 
+          : null;
         
         // 使用jsPDF生成PDF
         const { jsPDF } = window.jspdf;
@@ -3438,7 +3446,11 @@
       debugLog(`显示仓库订单详情: ${orderId}`);
       
       try {
-        const response = await fetch(`/api/warehouse/orders/${orderId}`);
+        // 获取当前用户
+        const currentUsername = localStorage.getItem('username');
+        
+        // 查询订单详情（后端会根据用户公司信息判断视角）
+        const response = await fetch(`/api/warehouse/orders/${orderId}?userId=${currentUsername}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const result = await response.json();
@@ -3461,6 +3473,44 @@
           
           const title = `📦 Warehouse Order Details - ${order.orderNumber}`;
           
+          // 版本标记 - 用于确认是否加载了新代码
+          console.log('🔥 NEW VERSION LOADED - 2026-02-12-04:00');
+          
+          // 调试：输出商户公司信息
+          console.log('订单数据:', order);
+          console.log('商户公司信息:', order.merchantCompanyInfo);
+          console.log('商户公司名称:', order.merchantCompanyInfo?.companyName);
+          
+          // 构建商户信息显示
+          let merchantInfoHTML = '';
+          if (order.merchantCompanyInfo && order.merchantCompanyInfo.companyName) {
+            // 显示商户公司信息
+            console.log('✅ 有商户公司信息，显示商户公司信息');
+            merchantInfoHTML = `
+              <div><strong>${order.merchantCompanyInfo.companyName}</strong></div>
+              ${order.merchantCompanyInfo.registrationNumber ? `<div>Reg No: ${order.merchantCompanyInfo.registrationNumber}</div>` : ''}
+              ${order.merchantCompanyInfo.address && order.merchantCompanyInfo.address.street ? `<div>${order.merchantCompanyInfo.address.street}</div>` : ''}
+              ${order.merchantCompanyInfo.address && order.merchantCompanyInfo.address.city ? `<div>${order.merchantCompanyInfo.address.city}, ${order.merchantCompanyInfo.address.postalCode || ''}</div>` : ''}
+              ${order.merchantCompanyInfo.address && order.merchantCompanyInfo.address.country ? `<div>${order.merchantCompanyInfo.address.country}</div>` : ''}
+              ${order.merchantCompanyInfo.vatNumber ? `<div>VAT: ${order.merchantCompanyInfo.vatNumber}</div>` : ''}
+            `;
+          } else if (order.merchantName) {
+            // 没有公司信息，显示商户名称和联系信息
+            console.log('⚠️ 没有商户公司信息，显示商户名称');
+            merchantInfoHTML = `
+              <div><strong>${order.merchantName}</strong></div>
+              ${order.merchantContact ? `<div>Contact: ${order.merchantContact}</div>` : ''}
+              ${order.merchantPhone ? `<div>Phone: ${order.merchantPhone}</div>` : ''}
+              ${order.merchantAddress ? `<div>${order.merchantAddress}</div>` : ''}
+            `;
+          } else {
+            // 最后备选：显示商户ID
+            console.log('❌ 没有任何商户信息，显示商户ID');
+            merchantInfoHTML = `
+              <div><strong>Merchant: ${order.merchantId}</strong></div>
+            `;
+          }
+          
           const content = `
             <div style="max-width: 1200px;">
               <!-- Order Header -->
@@ -3468,8 +3518,7 @@
                 <div>
                   <h3 style="margin: 0 0 15px 0; color: #1f2937;">Merchant Information</h3>
                   <div style="line-height: 1.8;">
-                    <div><strong>${order.merchantName}</strong></div>
-                    <div>Merchant ID: ${order.merchantId}</div>
+                    ${merchantInfoHTML}
                   </div>
                 </div>
                 
@@ -3575,14 +3624,26 @@
       debugLog(`显示采购发票详情: ${invoiceId}`);
       
       try {
-        const response = await fetch(`/api/admin/purchase-orders/${invoiceId}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        // 获取当前用户
+        const currentUser = localStorage.getItem('username');
         
-        const result = await response.json();
+        // 并行获取发票详情和公司信息
+        const [invoiceResponse, companyResponse] = await Promise.all([
+          fetch(`/api/admin/purchase-orders/${invoiceId}`),
+          currentUser ? fetch(`/api/users/profile?username=${currentUser}`) : Promise.resolve(null)
+        ]);
+        
+        if (!invoiceResponse.ok) throw new Error(`HTTP ${invoiceResponse.status}`);
+        
+        const result = await invoiceResponse.json();
+        const companyResult = companyResponse ? await companyResponse.json() : null;
         
         if (result.success && result.data) {
           const invoice = result.data;
           const supplier = invoice.supplier || {};
+          const companyInfo = companyResult?.success && companyResult.data?.companyInfo 
+            ? companyResult.data.companyInfo 
+            : null;
           
           const title = `📄 Purchase Invoice Details - ${invoice.invoiceNumber}`;
           
@@ -3590,6 +3651,23 @@
             <div style="max-width: 1200px;">
               <!-- Invoice Header -->
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; padding: 20px; background: #f8fafc; border-radius: 8px;">
+                <div>
+                  <h3 style="margin: 0 0 15px 0; color: #1f2937;">Company Information</h3>
+                  <div style="line-height: 1.8;">
+                    ${companyInfo ? `
+                      <div><strong>${companyInfo.companyName || 'N/A'}</strong></div>
+                      <div>${companyInfo.address?.street || ''}</div>
+                      <div>${companyInfo.address?.city || ''} ${companyInfo.address?.postalCode || ''}</div>
+                      <div>${companyInfo.address?.country || 'Ireland'}</div>
+                      <div style="margin-top: 10px;">
+                        <div>Phone: ${companyInfo.contact?.phone || 'N/A'}</div>
+                        <div>Email: ${companyInfo.contact?.email || 'N/A'}</div>
+                        <div>VAT Number: ${companyInfo.taxNumber || 'N/A'}</div>
+                      </div>
+                    ` : '<div>Company information not available</div>'}
+                  </div>
+                </div>
+                
                 <div>
                   <h3 style="margin: 0 0 15px 0; color: #1f2937;">Supplier Information</h3>
                   <div style="line-height: 1.8;">
@@ -3599,14 +3677,21 @@
                     <div>${supplier.contact?.email ? 'Email: ' + supplier.contact.email : ''}</div>
                   </div>
                 </div>
-                
-                <div>
-                  <h3 style="margin: 0 0 15px 0; color: #1f2937;">Invoice Information</h3>
-                  <div style="line-height: 1.8;">
-                    <div><strong>Invoice Number:</strong> ${invoice.invoiceNumber}</div>
-                    <div><strong>Date:</strong> ${new Date(invoice.invoiceDate).toLocaleDateString('en-IE')}</div>
-                    <div><strong>Status:</strong> ${invoice.status || 'Confirmed'}</div>
-                  </div>
+              </div>
+              
+              <!-- Invoice Info -->
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px;">
+                <div style="padding: 15px; background: #eff6ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                  <div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">Invoice Number</div>
+                  <div style="font-size: 18px; font-weight: bold; color: #1f2937;">${invoice.invoiceNumber}</div>
+                </div>
+                <div style="padding: 15px; background: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981;">
+                  <div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">Invoice Date</div>
+                  <div style="font-size: 18px; font-weight: bold; color: #1f2937;">${new Date(invoice.invoiceDate).toLocaleDateString('en-IE')}</div>
+                </div>
+                <div style="padding: 15px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                  <div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">Status</div>
+                  <div style="font-size: 18px; font-weight: bold; color: #1f2937;">${invoice.status || 'Confirmed'}</div>
                 </div>
               </div>
               
@@ -4984,8 +5069,14 @@
       
       if (validationErrors.length > 0) {
         alert('❌ 入库验证失败：\n\n' + validationErrors.join('\n'));
-        // 重置提交标志
+        // 重置提交标志和按钮状态
         window.isSubmitting = false;
+        if (confirmButton) {
+          confirmButton.disabled = false;
+          confirmButton.style.opacity = '1';
+          confirmButton.style.cursor = 'pointer';
+          confirmButton.innerHTML = '✅ 确认入库';
+        }
         return;
       }
       
@@ -5122,6 +5213,13 @@
       } catch (error) {
         debugLog(`❌ 入库失败: ${error.message}`);
         alert(`❌ 入库失败: ${error.message}`);
+        // 重新启用按钮
+        if (confirmButton) {
+          confirmButton.disabled = false;
+          confirmButton.style.opacity = '1';
+          confirmButton.style.cursor = 'pointer';
+          confirmButton.innerHTML = '✅ 确认入库';
+        }
       } finally {
         // 重置提交标志
         window.isSubmitting = false;
@@ -6438,7 +6536,7 @@
       }
     }
     
-    // 显示客户发票模态框
+    // 显示客户发票模态框（支持新旧两套系统）
     function showCustomerInvoicesModal(customerName, invoices) {
       const title = `📋 ${customerName} - 销售发票记录`;
       
@@ -6456,27 +6554,43 @@
                   <th>小计（不含税）</th>
                   <th>税额</th>
                   <th>总金额（含税）</th>
-                  <th>付款状态</th>
-                  <th>状态</th>
+                  <th>来源</th>
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
-                ${invoices.map(invoice => `
-                  <tr>
-                    <td>
-                      <strong style="color: #3b82f6; cursor: pointer; text-decoration: underline;" 
-                              onclick="showSalesInvoiceDetails('${invoice._id}')">
-                        ${invoice.invoiceNumber}
-                      </strong>
-                    </td>
-                    <td>${new Date(invoice.invoiceDate).toLocaleDateString('zh-CN')}</td>
-                    <td>€${invoice.subtotal.toFixed(2)}</td>
-                    <td>€${invoice.taxAmount.toFixed(2)}</td>
-                    <td><strong>€${invoice.totalAmount.toFixed(2)}</strong></td>
-                    <td>${getPaymentStatusLabel(invoice.paymentStatus)}</td>
-                    <td>${getSalesInvoiceStatusLabel(invoice.status)}</td>
-                  </tr>
-                `).join('')}
+                ${invoices.map(invoice => {
+                  const isOldSystem = invoice.source === 'SalesInvoice';
+                  const invoiceNumber = invoice.displayNumber || invoice.invoiceNumber || invoice._id;
+                  const invoiceDate = invoice.displayDate || invoice.invoiceDate || invoice.saleDate;
+                  const subtotal = invoice.subtotal || 0;
+                  const taxAmount = invoice.taxAmount || invoice.totalTax || 0;
+                  const totalAmount = invoice.totalAmount || 0;
+                  const sourceLabel = isOldSystem ? '旧系统' : '商户系统';
+                  const sourceColor = isOldSystem ? '#94a3b8' : '#10b981';
+                  
+                  return `
+                    <tr>
+                      <td>
+                        <strong style="color: #3b82f6; cursor: pointer; text-decoration: underline;" 
+                                onclick="${isOldSystem ? `showSalesInvoiceDetails('${invoice._id}')` : `showMerchantSaleDetails('${invoice._id}')`}">
+                          ${invoiceNumber}
+                        </strong>
+                      </td>
+                      <td>${new Date(invoiceDate).toLocaleDateString('zh-CN')}</td>
+                      <td>€${subtotal.toFixed(2)}</td>
+                      <td>€${taxAmount.toFixed(2)}</td>
+                      <td><strong>€${totalAmount.toFixed(2)}</strong></td>
+                      <td><span style="color: ${sourceColor}; font-weight: 500;">${sourceLabel}</span></td>
+                      <td>
+                        <button onclick="downloadInvoicePDF('${invoice._id}', '${invoice.source}')" 
+                                class="btn-small" style="padding: 4px 12px;">
+                          下载PDF
+                        </button>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
               </tbody>
             </table>
           </div>
@@ -6484,6 +6598,105 @@
       }
       
       showUniversalModal(title, content);
+    }
+    
+    // 显示商户销售详情
+    async function showMerchantSaleDetails(saleId) {
+      debugLog(`显示商户销售详情: ${saleId}`);
+      
+      try {
+        const response = await fetch(`/api/merchant/sales/${saleId}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          const sale = result.data;
+          
+          const title = `📄 商户销售详情 - ${sale._id}`;
+          
+          const content = `
+            <div style="max-width: 1200px;">
+              <!-- Sale Header -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; padding: 20px; background: #f8fafc; border-radius: 8px;">
+                <div>
+                  <h3 style="margin: 0 0 15px 0; color: #1f2937;">销售信息</h3>
+                  <div style="line-height: 1.8;">
+                    <div><strong>销售ID:</strong> ${sale._id}</div>
+                    <div><strong>销售日期:</strong> ${new Date(sale.saleDate).toLocaleString('zh-CN')}</div>
+                    <div><strong>客户电话:</strong> ${sale.customerPhone || '未提供'}</div>
+                    <div><strong>支付方式:</strong> ${getPaymentMethodLabel(sale.paymentMethod)}</div>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 style="margin: 0 0 15px 0; color: #1f2937;">金额信息</h3>
+                  <div style="line-height: 1.8;">
+                    <div><strong>小计:</strong> €${(sale.subtotal || 0).toFixed(2)}</div>
+                    <div><strong>折扣:</strong> €${(sale.discount || 0).toFixed(2)}</div>
+                    <div><strong>税额:</strong> €${(sale.totalTax || 0).toFixed(2)}</div>
+                    <div style="font-size: 1.2em; margin-top: 10px;">
+                      <strong>总金额:</strong> <span style="color: #10b981;">€${sale.totalAmount.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Items Table -->
+              <h3 style="margin: 20px 0 10px 0; color: #1f2937;">产品清单</h3>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>产品名称</th>
+                    <th>序列号</th>
+                    <th>数量</th>
+                    <th>单价</th>
+                    <th>成本价</th>
+                    <th>税分类</th>
+                    <th>税额</th>
+                    <th>小计</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${sale.items.map(item => `
+                    <tr>
+                      <td>${item.productName}</td>
+                      <td>${item.serialNumber || '-'}</td>
+                      <td>${item.quantity}</td>
+                      <td>€${item.price.toFixed(2)}</td>
+                      <td>€${(item.costPrice || 0).toFixed(2)}</td>
+                      <td>${getTaxClassificationLabel(item.taxClassification)}</td>
+                      <td>€${(item.taxAmount || 0).toFixed(2)}</td>
+                      <td><strong>€${(item.price * item.quantity).toFixed(2)}</strong></td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+          
+          showUniversalModal(title, content);
+        } else {
+          throw new Error(result.error || '获取销售详情失败');
+        }
+      } catch (error) {
+        debugLog(`❌ 获取商户销售详情失败: ${error.message}`);
+        alert(`❌ 获取销售详情失败: ${error.message}`);
+      }
+    }
+    
+    // 下载发票PDF（支持新旧两套系统）
+    async function downloadInvoicePDF(invoiceId, source) {
+      debugLog(`下载发票PDF: ${invoiceId}, 来源: ${source}`);
+      
+      if (source === 'SalesInvoice') {
+        // 使用旧系统的PDF导出（调用发票详情页面的函数）
+        await downloadSalesInvoice(invoiceId);
+      } else {
+        // 使用商户系统的PDF导出
+        alert('商户系统的PDF导出功能开发中...');
+        // TODO: 实现商户销售的PDF导出
+      }
     }
     
     // 获取销售发票状态标签
@@ -6502,14 +6715,25 @@
       debugLog(`显示销售发票详情: ${invoiceId}`);
       
       try {
-        const response = await fetch(`/api/admin/sales-invoices/${invoiceId}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        // 获取当前用户
+        const currentUser = localStorage.getItem('username');
         
-        const result = await response.json();
+        // 并行获取发票详情和公司信息
+        const [invoiceResponse, companyResponse] = await Promise.all([
+          fetch(`/api/admin/sales-invoices/${invoiceId}`),
+          currentUser ? fetch(`/api/users/profile?username=${currentUser}`) : Promise.resolve(null)
+        ]);
+        
+        if (!invoiceResponse.ok) throw new Error(`HTTP ${invoiceResponse.status}`);
+        
+        const result = await invoiceResponse.json();
+        const companyResult = companyResponse ? await companyResponse.json() : null;
         
         if (result.success && result.data) {
           const invoice = result.data;
-          const companyInfo = invoice.companyInfo || {};
+          const companyInfo = companyResult?.success && companyResult.data?.companyInfo 
+            ? companyResult.data.companyInfo 
+            : {};
           const customer = invoice.customer || {};
           
           const title = `📄 Sales Invoice Details - ${invoice.invoiceNumber}`;
@@ -6521,15 +6745,17 @@
                 <div>
                   <h3 style="margin: 0 0 15px 0; color: #1f2937;">Company Information</h3>
                   <div style="line-height: 1.8;">
-                    <div><strong>${companyInfo.companyName || 'N/A'}</strong></div>
-                    <div>${companyInfo.address?.street || ''}</div>
-                    <div>${companyInfo.address?.city || ''} ${companyInfo.address?.postalCode || ''}</div>
-                    <div>${companyInfo.address?.country || 'Ireland'}</div>
-                    <div style="margin-top: 10px;">
-                      <div>Phone: ${companyInfo.contact?.phone || 'N/A'}</div>
-                      <div>Email: ${companyInfo.contact?.email || 'N/A'}</div>
-                      <div>VAT Number: ${companyInfo.taxNumber || 'N/A'}</div>
-                    </div>
+                    ${companyInfo.companyName ? `
+                      <div><strong>${companyInfo.companyName}</strong></div>
+                      <div>${companyInfo.address?.street || ''}</div>
+                      <div>${companyInfo.address?.city || ''} ${companyInfo.address?.postalCode || ''}</div>
+                      <div>${companyInfo.address?.country || 'Ireland'}</div>
+                      <div style="margin-top: 10px;">
+                        <div>Phone: ${companyInfo.contact?.phone || 'N/A'}</div>
+                        <div>Email: ${companyInfo.contact?.email || 'N/A'}</div>
+                        <div>VAT Number: ${companyInfo.taxNumber || 'N/A'}</div>
+                      </div>
+                    ` : '<div>Company information not available</div>'}
                   </div>
                 </div>
                 
@@ -7048,7 +7274,11 @@
                   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
                     <div>
                       <div style="font-size: 12px; color: #6b7280;">发票编号</div>
-                      <div style="font-weight: bold;">${record.invoiceNumber}</div>
+                      <div style="font-weight: bold;">
+                        <a href="javascript:void(0)" onclick="showInvoiceDetails('${record.invoiceId}', '${record.type}')" style="color: #3b82f6; text-decoration: none; cursor: pointer;">
+                          ${record.invoiceNumber}
+                        </a>
+                      </div>
                     </div>
                     <div>
                       <div style="font-size: 12px; color: #6b7280;">产品</div>
@@ -7092,6 +7322,510 @@
       `;
       
       container.innerHTML = html;
+    }
+    
+    // 显示发票详情
+    async function showInvoiceDetails(invoiceId, type) {
+      try {
+        debugLog(`查询发票详情: ${invoiceId}, 类型: ${type}`);
+        
+        let endpoint = '';
+        if (type === 'purchase') {
+          endpoint = `/api/admin/purchase-invoices/${invoiceId}`;
+        } else if (type === 'sales') {
+          endpoint = `/api/admin/sales-invoices/${invoiceId}`;
+        } else if (type === 'transfer') {
+          endpoint = `/api/merchant/transfers/${invoiceId}`;
+        } else {
+          alert('未知的发票类型');
+          return;
+        }
+        
+        const response = await fetch(endpoint);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const result = await response.json();
+        debugLog(`发票详情响应:`, result);
+        
+        if (result.success && result.data) {
+          renderInvoiceDetailsModal(result.data, type);
+        } else {
+          throw new Error(result.error || '获取发票详情失败');
+        }
+      } catch (error) {
+        debugLog(`❌ 获取发票详情失败: ${error.message}`);
+        alert(`获取发票详情失败: ${error.message}`);
+      }
+    }
+    
+    // 渲染发票详情模态框
+    function renderInvoiceDetailsModal(invoice, type) {
+      const modal = document.createElement('div');
+      modal.id = 'invoiceDetailsModal';
+      modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+      
+      const typeLabel = type === 'purchase' ? '📦 采购发票' : 
+                       type === 'sales' ? '🛒 销售发票' : 
+                       '🔄 调货单';
+      
+      const typeColor = type === 'purchase' ? '#10b981' : 
+                       type === 'sales' ? '#f59e0b' : 
+                       '#3b82f6';
+      
+      modal.innerHTML = `
+        <div style="background: white; border-radius: 12px; padding: 30px; max-width: 900px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 20px;">
+            <div>
+              <h2 style="margin: 0 0 10px 0; color: #111827;">${typeLabel}</h2>
+              <div style="font-size: 24px; font-weight: bold; color: ${typeColor};">${invoice.invoiceNumber || invoice.transferNumber || invoice.orderNumber}</div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <button onclick="exportInvoicePDF('${invoice._id}', '${type}')" style="background: #3b82f6; color: white; border: none; border-radius: 6px; padding: 8px 16px; cursor: pointer; font-size: 14px;">
+                📄 导出PDF
+              </button>
+              <button onclick="closeInvoiceDetailsModal()" style="background: #e5e7eb; border: none; border-radius: 6px; padding: 8px 16px; cursor: pointer; font-size: 14px;">
+                ✕ 关闭
+              </button>
+            </div>
+          </div>
+          
+          <div style="background: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+              ${type === 'purchase' ? `
+                <div>
+                  <div style="font-size: 12px; color: #6b7280;">供应商</div>
+                  <div style="font-weight: bold;">${invoice.supplier?.name || invoice.supplierName || '未知'}</div>
+                </div>
+              ` : type === 'sales' ? `
+                <div>
+                  <div style="font-size: 12px; color: #6b7280;">客户</div>
+                  <div style="font-weight: bold;">${invoice.customer?.name || invoice.customerPhone || '零售客户'}</div>
+                </div>
+              ` : `
+                <div>
+                  <div style="font-size: 12px; color: #6b7280;">调出方</div>
+                  <div style="font-weight: bold;">${invoice.fromMerchant || '未知'}</div>
+                </div>
+                <div>
+                  <div style="font-size: 12px; color: #6b7280;">调入方</div>
+                  <div style="font-weight: bold;">${invoice.toMerchant || '未知'}</div>
+                </div>
+              `}
+              <div>
+                <div style="font-size: 12px; color: #6b7280;">日期</div>
+                <div style="font-weight: bold;">${new Date(invoice.invoiceDate || invoice.orderDate || invoice.createdAt).toLocaleDateString('zh-CN')}</div>
+              </div>
+              <div>
+                <div style="font-size: 12px; color: #6b7280;">状态</div>
+                <div style="font-weight: bold; color: ${invoice.status === 'completed' || invoice.status === 'received' ? '#10b981' : '#f59e0b'};">
+                  ${invoice.status === 'completed' ? '已完成' : 
+                    invoice.status === 'received' ? '已收货' : 
+                    invoice.status === 'pending' ? '待处理' : 
+                    invoice.status}
+                </div>
+              </div>
+              <div>
+                <div style="font-size: 12px; color: #6b7280;">总金额</div>
+                <div style="font-size: 20px; font-weight: bold; color: ${typeColor};">€${(invoice.totalAmount || 0).toFixed(2)}</div>
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <h3 style="margin-bottom: 15px;">产品清单</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
+                  <th style="padding: 12px; text-align: left;">产品</th>
+                  <th style="padding: 12px; text-align: center;">数量</th>
+                  <th style="padding: 12px; text-align: right;">单价</th>
+                  <th style="padding: 12px; text-align: right;">总价</th>
+                  <th style="padding: 12px; text-align: left;">序列号</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${(invoice.items || []).map(item => `
+                  <tr style="border-bottom: 1px solid #e5e7eb;">
+                    <td style="padding: 12px;">${item.productName || item.description || item.product?.name || '未知产品'}</td>
+                    <td style="padding: 12px; text-align: center;">${item.quantity}</td>
+                    <td style="padding: 12px; text-align: right;">€${((item.unitPrice || item.unitCost || item.price || item.transferPrice || 0)).toFixed(2)}</td>
+                    <td style="padding: 12px; text-align: right; font-weight: bold;">€${((item.totalPrice || item.totalCost || (item.price * item.quantity) || ((item.transferPrice || 0) * item.quantity))).toFixed(2)}</td>
+                    <td style="padding: 12px;">
+                      ${item.serialNumber ? `<span style="background: #f3f4f6; padding: 2px 8px; border-radius: 4px; font-size: 12px;">${item.serialNumber}</span>` : 
+                        item.serialNumbers && item.serialNumbers.length > 0 ? 
+                          item.serialNumbers.map(sn => `<span style="background: #f3f4f6; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-right: 4px;">${sn}</span>`).join('') : 
+                          '-'}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+              <tfoot>
+                <tr style="background: #f9fafb; font-weight: bold; border-top: 2px solid #e5e7eb;">
+                  <td colspan="3" style="padding: 12px; text-align: right;">总计：</td>
+                  <td style="padding: 12px; text-align: right; color: ${typeColor}; font-size: 18px;">€${(invoice.totalAmount || 0).toFixed(2)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          
+          ${invoice.notes ? `
+            <div style="margin-top: 20px; padding: 15px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+              <div style="font-size: 12px; color: #92400e; font-weight: bold; margin-bottom: 5px;">备注</div>
+              <div style="color: #78350f;">${invoice.notes}</div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+    }
+    
+    // 关闭发票详情模态框
+    function closeInvoiceDetailsModal() {
+      const modal = document.getElementById('invoiceDetailsModal');
+      if (modal) {
+        modal.remove();
+      }
+    }
+    
+    // 导出发票PDF - 标准发票格式（纯英文）
+    async function exportInvoicePDF(invoiceId, type) {
+      try {
+        debugLog(`Export PDF: ${invoiceId}, Type: ${type}`);
+        
+        let endpoint = '';
+        if (type === 'purchase') {
+          endpoint = `/api/admin/purchase-invoices/${invoiceId}`;
+        } else if (type === 'sales') {
+          endpoint = `/api/admin/sales-invoices/${invoiceId}`;
+        } else if (type === 'transfer') {
+          endpoint = `/api/merchant/transfers/${invoiceId}`;
+        }
+        
+        const response = await fetch(endpoint);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const result = await response.json();
+        if (!result.success || !result.data) {
+          throw new Error(result.error || 'Failed to get invoice data');
+        }
+        
+        const invoice = result.data;
+        
+        // 使用jsPDF生成标准发票格式PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        const typeLabel = type === 'purchase' ? 'PURCHASE INVOICE' : 
+                         type === 'sales' ? 'SALES INVOICE' : 
+                         'TRANSFER ORDER';
+        
+        // ========== Header ==========
+        doc.setFontSize(24);
+        doc.setFont(undefined, 'bold');
+        doc.text(typeLabel, 105, 20, { align: 'center' });
+        
+        // Separator line
+        doc.setLineWidth(0.5);
+        doc.line(20, 25, 190, 25);
+        
+        // ========== Invoice Information ==========
+        let yPos = 35;
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'bold');
+        doc.text('Invoice Number:', 20, yPos);
+        doc.setFont(undefined, 'normal');
+        doc.text(invoice.invoiceNumber || invoice.transferNumber || invoice.orderNumber || 'N/A', 65, yPos);
+        
+        yPos += 7;
+        doc.setFont(undefined, 'bold');
+        doc.text('Date:', 20, yPos);
+        doc.setFont(undefined, 'normal');
+        doc.text(new Date(invoice.invoiceDate || invoice.orderDate || invoice.createdAt).toLocaleDateString('en-IE'), 65, yPos);
+        
+        yPos += 7;
+        doc.setFont(undefined, 'bold');
+        doc.text('Status:', 20, yPos);
+        doc.setFont(undefined, 'normal');
+        const statusText = invoice.status === 'completed' ? 'Completed' : 
+                          invoice.status === 'received' ? 'Received' : 
+                          invoice.status === 'pending' ? 'Pending' : 
+                          invoice.status || 'N/A';
+        doc.text(statusText, 65, yPos);
+        
+        // ========== Supplier/Customer Information ==========
+        yPos += 12;
+        doc.setLineWidth(0.3);
+        doc.line(20, yPos, 190, yPos);
+        yPos += 8;
+        
+        if (type === 'purchase') {
+          doc.setFont(undefined, 'bold');
+          doc.text('Supplier Information:', 20, yPos);
+          yPos += 7;
+          doc.setFont(undefined, 'normal');
+          doc.setFontSize(10);
+          doc.text(`Name: ${invoice.supplier?.name || invoice.supplierName || 'Unknown'}`, 20, yPos);
+          
+          if (invoice.supplier?.contact?.phone) {
+            yPos += 6;
+            doc.text(`Phone: ${invoice.supplier.contact.phone}`, 20, yPos);
+          }
+          if (invoice.supplier?.contact?.email) {
+            yPos += 6;
+            doc.text(`Email: ${invoice.supplier.contact.email}`, 20, yPos);
+          }
+          // Fix: Handle address properly
+          if (invoice.supplier?.contact?.address) {
+            yPos += 6;
+            const address = typeof invoice.supplier.contact.address === 'object' 
+              ? `${invoice.supplier.contact.address.street || ''} ${invoice.supplier.contact.address.city || ''} ${invoice.supplier.contact.address.postalCode || ''}`.trim()
+              : invoice.supplier.contact.address;
+            doc.text(`Address: ${address || 'N/A'}`, 20, yPos);
+          }
+        } else if (type === 'sales') {
+          doc.setFont(undefined, 'bold');
+          doc.text('Customer Information:', 20, yPos);
+          yPos += 7;
+          doc.setFont(undefined, 'normal');
+          doc.setFontSize(10);
+          doc.text(`Customer: ${invoice.customer?.name || invoice.customerPhone || 'Retail Customer'}`, 20, yPos);
+          if (invoice.customer?.contact?.phone || invoice.customerPhone) {
+            yPos += 6;
+            doc.text(`Phone: ${invoice.customer?.contact?.phone || invoice.customerPhone || 'N/A'}`, 20, yPos);
+          }
+        } else {
+          doc.setFont(undefined, 'bold');
+          doc.text('Transfer Information:', 20, yPos);
+          yPos += 7;
+          doc.setFont(undefined, 'normal');
+          doc.setFontSize(10);
+          doc.text(`From: ${invoice.fromMerchant || 'Unknown'}`, 20, yPos);
+          yPos += 6;
+          doc.text(`To: ${invoice.toMerchant || 'Unknown'}`, 20, yPos);
+        }
+        
+        // ========== Items Table ==========
+        yPos += 12;
+        doc.setLineWidth(0.3);
+        doc.line(20, yPos, 190, yPos);
+        yPos += 8;
+        
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'bold');
+        doc.text('Items:', 20, yPos);
+        yPos += 8;
+        
+        // Table Header - 添加Condition和Tax Classification列
+        doc.setFillColor(240, 240, 240);
+        doc.rect(20, yPos - 5, 170, 8, 'F');
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'bold');
+        doc.text('Product', 22, yPos);
+        doc.text('Condition', 75, yPos);
+        doc.text('Tax', 100, yPos);
+        doc.text('Qty', 115, yPos, { align: 'center' });
+        doc.text('Unit Price', 140, yPos, { align: 'right' });
+        doc.text('Total', 165, yPos, { align: 'right' });
+        doc.text('Serial No.', 188, yPos, { align: 'right' });
+        
+        yPos += 8;
+        doc.setLineWidth(0.2);
+        doc.line(20, yPos - 3, 190, yPos - 3);
+        
+        // Items List - 计算总税额
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(7);
+        
+        let totalTax = 0;
+        let subtotalAmount = 0;
+        
+        (invoice.items || []).forEach((item, index) => {
+          if (yPos > 260) {
+            doc.addPage();
+            yPos = 20;
+          }
+          
+          const productName = item.productName || item.description || item.product?.name || 'Unknown Product';
+          
+          // Condition处理 - 优先使用产品的condition，其次使用item的condition
+          let condition = item.product?.condition || item.condition || 'Brand New';
+          if (condition === 'PRE-OWNED') {
+            condition = 'Pre-Owned';
+          } else if (condition === 'BRAND_NEW') {
+            condition = 'Brand New';
+          }
+          
+          // 税务分类处理 - 优先使用产品的taxClassification，其次使用item的taxClassification或vatRate
+          let taxDisplay = '';
+          const productTaxClass = item.product?.taxClassification;
+          const itemTaxClass = item.taxClassification;
+          const itemVatRate = item.vatRate;
+          
+          if (productTaxClass) {
+            // 使用产品的taxClassification
+            if (productTaxClass === 'MARGIN_VAT_0') {
+              taxDisplay = 'Margin VAT 0%';
+            } else if (productTaxClass === 'MARGIN_VAT_23') {
+              taxDisplay = 'Margin VAT 23%';
+            } else if (productTaxClass === 'STANDARD_VAT') {
+              taxDisplay = 'Standard VAT';
+            } else {
+              taxDisplay = productTaxClass.replace(/_/g, ' ');
+            }
+          } else if (itemTaxClass) {
+            // 使用item的taxClassification
+            if (itemTaxClass === 'MARGIN_VAT_0') {
+              taxDisplay = 'Margin VAT 0%';
+            } else if (itemTaxClass === 'MARGIN_VAT_23') {
+              taxDisplay = 'Margin VAT 23%';
+            } else if (itemTaxClass === 'STANDARD_VAT') {
+              taxDisplay = 'Standard VAT';
+            } else {
+              taxDisplay = itemTaxClass.replace(/_/g, ' ');
+            }
+          } else if (itemVatRate) {
+            // 使用item的vatRate
+            taxDisplay = itemVatRate;
+          } else {
+            taxDisplay = 'VAT 23%';
+          }
+          
+          const unitPrice = (item.unitPrice || item.unitCost || item.price || item.transferPrice || 0);
+          const totalPrice = (item.totalPrice || item.totalCost || (item.price * item.quantity) || (unitPrice * item.quantity));
+          const serialNumber = item.serialNumber || (item.serialNumbers && item.serialNumbers.length > 0 ? item.serialNumbers[0] : '-');
+          
+          // 计算税额 - 使用正确的公式
+          let itemTax = item.taxAmount || 0;
+          if (itemTax === 0 && totalPrice > 0) {
+            // 根据产品的taxClassification或item的taxClassification或vatRate计算税额
+            const taxType = productTaxClass || itemTaxClass || itemVatRate || '';
+            
+            if (taxType.includes('MARGIN_VAT_0') || taxType === 'VAT 0%') {
+              itemTax = 0;
+            } else if (taxType.includes('MARGIN_VAT_23') || taxType === 'VAT 23%' || taxType === 'STANDARD_VAT') {
+              itemTax = totalPrice * 0.23 / 1.23;
+            } else if (taxType === 'VAT 13.5%') {
+              itemTax = totalPrice * 0.135 / 1.135;
+            }
+          }
+          
+          totalTax += itemTax;
+          subtotalAmount += (totalPrice - itemTax);
+          
+          // Product name
+          const maxWidth = 50;
+          const lines = doc.splitTextToSize(productName, maxWidth);
+          doc.text(lines[0].substring(0, 30), 22, yPos);
+          
+          // Condition
+          doc.text(condition.substring(0, 12), 75, yPos);
+          
+          // Tax Display
+          doc.text(taxDisplay.substring(0, 15), 100, yPos);
+          
+          doc.text(String(item.quantity), 115, yPos, { align: 'center' });
+          doc.text(`€${unitPrice.toFixed(2)}`, 140, yPos, { align: 'right' });
+          doc.text(`€${totalPrice.toFixed(2)}`, 165, yPos, { align: 'right' });
+          doc.text(serialNumber.substring(0, 12), 188, yPos, { align: 'right' });
+          
+          yPos += 6;
+          
+          // Multiple serial numbers
+          if (item.serialNumbers && item.serialNumbers.length > 1) {
+            for (let i = 1; i < item.serialNumbers.length && i < 3; i++) {
+              if (yPos > 260) {
+                doc.addPage();
+                yPos = 20;
+              }
+              doc.setFontSize(6);
+              doc.text(item.serialNumbers[i].substring(0, 12), 188, yPos, { align: 'right' });
+              yPos += 5;
+              doc.setFontSize(7);
+            }
+          }
+          
+          // Separator line
+          if (index < invoice.items.length - 1) {
+            doc.setDrawColor(220, 220, 220);
+            doc.line(20, yPos, 190, yPos);
+            yPos += 3;
+          }
+        });
+        
+        // ========== Total Section ==========
+        yPos += 5;
+        doc.setLineWidth(0.5);
+        doc.setDrawColor(0, 0, 0);
+        doc.line(20, yPos, 190, yPos);
+        yPos += 8;
+        
+        // 始终显示Subtotal和Total Tax
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.text('Subtotal:', 130, yPos);
+        doc.text(`€${subtotalAmount.toFixed(2)}`, 188, yPos, { align: 'right' });
+        
+        yPos += 7;
+        doc.text('Total Tax:', 130, yPos);
+        doc.text(`€${totalTax.toFixed(2)}`, 188, yPos, { align: 'right' });
+        
+        yPos += 10;
+        
+        // Grand Total
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text('TOTAL:', 130, yPos);
+        doc.text(`€${(invoice.totalAmount || 0).toFixed(2)}`, 188, yPos, { align: 'right' });
+        
+        // ========== Notes (English only, no Chinese characters) ==========
+        if (invoice.notes) {
+          yPos += 15;
+          // 检查是否有足够空间，如果没有则新建页面
+          if (yPos > 250) {
+            doc.addPage();
+            yPos = 20;
+          }
+          doc.setLineWidth(0.3);
+          doc.line(20, yPos, 190, yPos);
+          yPos += 8;
+          doc.setFontSize(10);
+          doc.setFont(undefined, 'bold');
+          doc.text('Notes:', 20, yPos);
+          yPos += 6;
+          doc.setFont(undefined, 'normal');
+          doc.setFontSize(9);
+          // 过滤掉非ASCII字符，只保留英文
+          const notesEnglish = invoice.notes.replace(/[^\x00-\x7F]/g, '');
+          if (notesEnglish.trim()) {
+            const notesLines = doc.splitTextToSize(notesEnglish, 170);
+            doc.text(notesLines, 20, yPos);
+          } else {
+            doc.text('(Notes contain non-English characters)', 20, yPos);
+          }
+        }
+        
+        // ========== Footer ==========
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i);
+          doc.setFontSize(8);
+          doc.setFont(undefined, 'normal');
+          doc.setTextColor(128, 128, 128);
+          doc.text(`Page ${i} of ${pageCount}`, 105, 285, { align: 'center' });
+          doc.text(`Generated: ${new Date().toLocaleString('en-IE')}`, 105, 290, { align: 'center' });
+        }
+        
+        // Save PDF
+        const fileName = `${typeLabel.replace(/ /g, '_')}_${invoice.invoiceNumber || invoice.transferNumber || invoice.orderNumber}_${new Date().getTime()}.pdf`;
+        doc.save(fileName);
+        
+        debugLog(`✅ PDF exported successfully: ${fileName}`);
+      } catch (error) {
+        debugLog(`❌ PDF export failed: ${error.message}`);
+        alert(`PDF export failed: ${error.message}`);
+      }
     }
 
     // ==================== 销售功能 ====================
@@ -7416,14 +8150,28 @@
     // 下载销售发票PDF
     async function downloadSalesInvoice(invoiceId) {
       try {
-        // 获取发票详情
-        const response = await fetch(`${API_BASE}/sales-invoices/${invoiceId}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        // 获取当前用户
+        const currentUser = localStorage.getItem('username');
         
-        const result = await response.json();
+        // 并行获取发票详情和公司信息
+        const [invoiceResponse, companyResponse] = await Promise.all([
+          fetch(`${API_BASE}/sales-invoices/${invoiceId}`),
+          currentUser ? fetch(`/api/users/profile?username=${currentUser}`) : Promise.resolve(null)
+        ]);
+        
+        if (!invoiceResponse.ok) throw new Error(`HTTP ${invoiceResponse.status}`);
+        
+        const result = await invoiceResponse.json();
+        const companyResult = companyResponse ? await companyResponse.json() : null;
         
         if (result.success && result.data) {
-          generateInvoicePDF(result.data);
+          const invoice = result.data;
+          // 添加公司信息到发票数据中
+          invoice.companyInfo = companyResult?.success && companyResult.data?.companyInfo 
+            ? companyResult.data.companyInfo 
+            : {};
+          
+          generateInvoicePDF(invoice);
         } else {
           throw new Error('获取发票详情失败');
         }
@@ -7519,14 +8267,18 @@
                 // 格式化VAT Rate
                 const vatRateFormatted = formatVatRate(item.vatRate);
                 
+                // 安全获取价格，如果未定义则使用默认值
+                const unitPriceIncludingTax = item.unitPriceIncludingTax || item.unitPrice || 0;
+                const totalPriceIncludingTax = item.totalPriceIncludingTax || item.totalPrice || 0;
+                
                 return `
                   <tr>
                     <td>${item.description || item.product?.name || ''}</td>
                     <td>${item.condition || 'N/A'}</td>
                     <td>${code}</td>
                     <td class="text-right">${item.quantity}</td>
-                    <td class="text-right">€${item.unitPriceIncludingTax.toFixed(2)}</td>
-                    <td class="text-right">€${item.totalPriceIncludingTax.toFixed(2)}</td>
+                    <td class="text-right">€${unitPriceIncludingTax.toFixed(2)}</td>
+                    <td class="text-right">€${totalPriceIncludingTax.toFixed(2)}</td>
                     <td>${vatRateFormatted}</td>
                   </tr>
                 `;
@@ -8050,13 +8802,17 @@
       try {
         debugLog(`下载订单 PDF: ${orderId}`);
         
+        // 获取当前用户
+        const currentUsername = localStorage.getItem('username');
+        
         // 显示加载提示
         const loadingMsg = document.createElement('div');
         loadingMsg.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 20px 40px; border-radius: 8px; z-index: 10001; font-size: 16px;';
         loadingMsg.textContent = '正在生成 PDF...';
         document.body.appendChild(loadingMsg);
         
-        const response = await fetch(`/api/warehouse/orders/${orderId}/pdf`);
+        // 下载PDF（后端会根据用户公司信息判断视角）
+        const response = await fetch(`/api/warehouse/orders/${orderId}/pdf?userId=${currentUsername}`);
         
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -8085,6 +8841,12 @@
       try {
         debugLog(`下载销售发票 PDF: ${invoiceId}`);
         
+        // 获取当前用户
+        const currentUser = localStorage.getItem('username');
+        if (!currentUser) {
+          throw new Error('User not logged in');
+        }
+        
         // 显示加载提示
         const loadingMsg = document.createElement('div');
         loadingMsg.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 20px 40px; border-radius: 8px; z-index: 10001; font-size: 16px;';
@@ -8094,7 +8856,7 @@
         // 并行获取发票详情和公司信息
         const [invoiceResponse, companyResponse] = await Promise.all([
           fetch(`${API_BASE}/sales-invoices/${invoiceId}`),
-          fetch(`${API_BASE}/company-info`)
+          fetch(`/api/users/profile?username=${currentUser}`)
         ]);
         
         if (!invoiceResponse.ok) throw new Error(`HTTP ${invoiceResponse.status}`);
@@ -8108,7 +8870,9 @@
         }
         
         const invoice = invoiceResult.data;
-        const companyInfo = companyResult.success && companyResult.data ? companyResult.data : null;
+        const companyInfo = companyResult.success && companyResult.data && companyResult.data.companyInfo 
+          ? companyResult.data.companyInfo 
+          : null;
         
         // 使用jsPDF生成PDF
         const { jsPDF } = window.jspdf;
@@ -8263,12 +9027,16 @@
           const productName = item.productName || item.name || 'Unknown';
           const productLines = doc.splitTextToSize(productName, 100);
           
+          const quantity = item.quantity || 1;
+          const price = item.price || 0;
+          const total = quantity * price;
+          
           productLines.forEach((line, index) => {
             doc.text(line, leftMargin + 2, yPos);
             if (index === 0) {
-              doc.text(String(item.quantity || 1), 120, yPos, { align: 'center' });
-              doc.text(`€${(item.price || 0).toFixed(2)}`, 145, yPos, { align: 'right' });
-              doc.text(`€${((item.quantity || 1) * (item.price || 0)).toFixed(2)}`, rightMargin - 2, yPos, { align: 'right' });
+              doc.text(String(quantity), 120, yPos, { align: 'center' });
+              doc.text(`€${price.toFixed(2)}`, 145, yPos, { align: 'right' });
+              doc.text(`€${total.toFixed(2)}`, rightMargin - 2, yPos, { align: 'right' });
             }
             yPos += 5;
           });
@@ -8282,19 +9050,23 @@
         yPos += 7;
         
         // 总计
+        const subtotal = invoice.subtotal || 0;
+        const taxAmount = invoice.taxAmount || 0;
+        const totalAmount = invoice.totalAmount || 0;
+        
         doc.setFont(undefined, 'normal');
         doc.text('Subtotal:', 145, yPos, { align: 'right' });
-        doc.text(`€${(invoice.subtotal || 0).toFixed(2)}`, rightMargin - 2, yPos, { align: 'right' });
+        doc.text(`€${subtotal.toFixed(2)}`, rightMargin - 2, yPos, { align: 'right' });
         yPos += 6;
         
         doc.text('VAT:', 145, yPos, { align: 'right' });
-        doc.text(`€${(invoice.taxAmount || 0).toFixed(2)}`, rightMargin - 2, yPos, { align: 'right' });
+        doc.text(`€${taxAmount.toFixed(2)}`, rightMargin - 2, yPos, { align: 'right' });
         yPos += 8;
         
         doc.setFont(undefined, 'bold');
         doc.setFontSize(12);
         doc.text('Total:', 145, yPos, { align: 'right' });
-        doc.text(`€${(invoice.totalAmount || 0).toFixed(2)}`, rightMargin - 2, yPos, { align: 'right' });
+        doc.text(`€${totalAmount.toFixed(2)}`, rightMargin - 2, yPos, { align: 'right' });
         
         // 银行信息（如果有）
         if (companyInfo && companyInfo.bankDetails && companyInfo.bankDetails.iban) {

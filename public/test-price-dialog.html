@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>测试价格对话框</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h1>测试价格对话框数据传递</h1>
+    <button onclick="testDialog()">显示测试对话框</button>
+    
+    <script>
+        // 模拟调货订单数据
+        const testTransfer = {
+            _id: 'test123',
+            transferNumber: 'TRF20260211001',
+            items: [
+                {
+                    productName: 'IPHONE11',
+                    serialNumber: '111222',
+                    transferPrice: 195,
+                    retailPrice: 249,
+                    quantity: 1
+                },
+                {
+                    productName: 'IPAD11',
+                    serialNumber: '111333',
+                    transferPrice: 315,
+                    retailPrice: 379,
+                    quantity: 1
+                },
+                {
+                    productName: 'iPhone Screen Saver',
+                    transferPrice: 2,
+                    retailPrice: 10,
+                    quantity: 2
+                }
+            ]
+        };
+        
+        function testDialog() {
+            console.log('=== 显示价格设置对话框 ===');
+            console.log('订单:', testTransfer);
+            console.log('产品列表:', testTransfer.items);
+            
+            const modal = document.createElement('div');
+            modal.id = 'priceSettingModal';
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+            
+            // 为每个产品生成价格输入表单
+            const priceInputs = testTransfer.items.map((item, index) => {
+                console.log(`产品 ${index + 1}:`, item.productName);
+                console.log('  - transferPrice:', item.transferPrice);
+                console.log('  - retailPrice:', item.retailPrice);
+                
+                return `
+                <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #6366f1;">
+                  <div style="font-weight: 600; margin-bottom: 10px; color: #111827;">${item.productName}</div>
+                  <div style="font-size: 13px; color: #6b7280; margin-bottom: 10px;">
+                    ${item.serialNumber ? `序列号: ${item.serialNumber}` : `数量: ${item.quantity}`}
+                  </div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div>
+                      <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: #374151;">批发价 (€) *</label>
+                      <input type="number" id="wholesalePrice_${index}" min="0" step="0.01" required
+                             value="${item.transferPrice || ''}"
+                             style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                      <small style="color: #6b7280; font-size: 11px;">默认为原产品批发价 (${item.transferPrice || '无'})</small>
+                    </div>
+                    <div>
+                      <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: #374151;">零售价 (€) *</label>
+                      <input type="number" id="retailPrice_${index}" min="0" step="0.01" required
+                             value="${item.retailPrice || ''}"
+                             style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                      <small style="color: #6b7280; font-size: 11px;">默认为原产品零售价 (${item.retailPrice || '无'})</small>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('');
+            
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 12px; padding: 30px; max-width: 700px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+                  <h2 style="margin: 0 0 10px 0; color: #111827;">💰 设置产品价格</h2>
+                  <p style="color: #6b7280; margin-bottom: 20px; font-size: 14px;">
+                    这是公司间销售，请为每个产品设置批发价和零售价。
+                  </p>
+                  
+                  <div style="max-height: 400px; overflow-y: auto; margin-bottom: 20px;">
+                    ${priceInputs}
+                  </div>
+                  
+                  <div style="display: flex; gap: 10px;">
+                    <button onclick="closeDialog()" style="flex: 1; padding: 12px; background: #e5e7eb; color: #374151; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 15px;">
+                      关闭
+                    </button>
+                  </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+        }
+        
+        function closeDialog() {
+            const modal = document.getElementById('priceSettingModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+    </script>
+</body>
+</html>

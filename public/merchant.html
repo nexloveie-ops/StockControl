@@ -6,8 +6,8 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>批发商户中心 - 3C产品管理系统 v2.3.1</title>
-  <script>console.log('✅ 页面版本: v2.3.1 - 修复编辑保存后刷新显示');</script>
+  <title>批发商户中心 - 3C产品管理系统 v2.4.0</title>
+  <script>console.log('✅ 页面版本: v2.4.0 - 调货IMEI选择功能');</script>
   <script src="/i18n.js"></script>
   <script src="/auth-guard.js"></script>
   <script src="/transfer-cart.js"></script>
@@ -1514,6 +1514,41 @@
 
     <!-- 报表中心 -->
     <div id="reports" class="tab-content">
+      <!-- 日期选择器 -->
+      <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-bottom: 20px;">
+        <h2 style="color: white; margin-bottom: 15px;">📅 报表日期范围</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: end;">
+          <div class="form-group" style="margin: 0;">
+            <label style="color: white; font-weight: 600;">年份</label>
+            <select id="reportYear" style="padding: 10px; border-radius: 6px; border: none; font-size: 14px;">
+              <!-- 动态生成年份选项 -->
+            </select>
+          </div>
+          <div class="form-group" style="margin: 0;">
+            <label style="color: white; font-weight: 600;">月份</label>
+            <select id="reportMonth" style="padding: 10px; border-radius: 6px; border: none; font-size: 14px;">
+              <option value="1">1月</option>
+              <option value="2">2月</option>
+              <option value="3">3月</option>
+              <option value="4">4月</option>
+              <option value="5">5月</option>
+              <option value="6">6月</option>
+              <option value="7">7月</option>
+              <option value="8">8月</option>
+              <option value="9">9月</option>
+              <option value="10">10月</option>
+              <option value="11">11月</option>
+              <option value="12">12月</option>
+            </select>
+          </div>
+          <div>
+            <button class="btn" onclick="loadReportsWithDateRange()" style="background: white; color: #667eea; font-weight: 600; width: 100%; padding: 10px;">
+              🔄 刷新报表
+            </button>
+          </div>
+        </div>
+      </div>
+      
       <div class="card">
         <h2>库存报表</h2>
         <div id="inventoryReport">
@@ -1522,8 +1557,8 @@
       </div>
       
       <div class="card">
-        <h2>销售报表</h2>
-        <div id="salesReport">
+        <h2>采购报表</h2>
+        <div id="purchaseReport">
           <div class="loading">加载中...</div>
         </div>
       </div>
@@ -1675,9 +1710,11 @@
             totalAmount += sale.totalAmount || 0;
             totalTax += sale.totalTax || 0;
             
-            // 计算利润
+            // 计算利润（利润 = 销售额 - 成本 - 应缴税额）
             sale.items.forEach(item => {
-              totalProfit += (item.price - item.costPrice) * item.quantity;
+              const itemProfit = (item.price - item.costPrice) * item.quantity;
+              const itemTax = item.taxAmount || 0;
+              totalProfit += itemProfit - itemTax;
             });
             
             const time = new Date(sale.date).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
@@ -2519,7 +2556,7 @@
               
               <div style="color: #666; font-size: 13px; margin-bottom: 10px;">
                 ${product.category ? `<span style="background: #f3f4f6; padding: 3px 10px; border-radius: 12px; font-size: 12px; margin-right: 6px; font-weight: 600;">${product.category}</span>` : ''}
-                ${product.brand ? `<span style="color: #6b7280;">品牌: ${product.brand}</span>` : ''}
+                ${product.brand && product.brand !== 'Unknown' && product.brand !== 'Generic' ? `<span style="color: #6b7280;">品牌: ${product.brand}</span>` : ''}
               </div>
               
               ${!product.isDevice && (product.hasVariants || product.items.length > 0) ? `
@@ -5328,6 +5365,236 @@
     
     let selectedTransferStore = null;  // 选中的目标店铺
     let allGroupInventoryData = [];
+    // transferCart 已在 transfer-cart.js 中声明
+    
+    // 更新调货购物车显示（覆盖 transfer-cart.js 中的版本）
+    function updateTransferCart() {
+      const cartCount = transferCart.reduce((sum, item) => sum + item.quantity, 0);
+      const cartTotal = transferCart.reduce((sum, item) => sum + (item.transferPrice * item.quantity), 0);
+      
+      document.getElementById('transferCartCount').textContent = cartCount;
+      document.getElementById('transferCartTotal').textContent = cartTotal.toFixed(2);
+      
+      if (transferCart.length === 0) {
+        document.getElementById('transferCartItems').innerHTML = 
+          '<p style="color: #9ca3af; text-align: center; padding: 40px 0;">调货清单是空的</p>';
+      } else {
+        const html = transferCart.map((item, index) => `
+          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 10px;">
+            <div style="font-weight: 600; margin-bottom: 8px; color: #1f2937;">
+              ${item.productName}
+              ${item.model ? `<span style="font-size: 12px; color: #6b7280;"> - ${item.model}</span>` : ''}
+              ${item.color ? `<span style="font-size: 12px; color: #6b7280;"> - ${item.color}</span>` : ''}
+            </div>
+            ${item.condition ? `<div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">成色: ${item.condition}</div>` : ''}
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <button onclick="decreaseTransferCartQuantity(${index})" 
+                  style="width: 24px; height: 24px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; line-height: 1;">-</button>
+                <span style="min-width: 30px; text-align: center; font-weight: 600;">${item.quantity}</span>
+                <button onclick="increaseTransferCartQuantity(${index})" 
+                  style="width: 24px; height: 24px; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; line-height: 1;">+</button>
+              </div>
+              <div>
+                <div style="color: #6b7280; font-size: 12px;">€${item.transferPrice.toFixed(2)} × ${item.quantity}</div>
+                <div style="font-weight: 600; color: #ef4444;">€${(item.transferPrice * item.quantity).toFixed(2)}</div>
+              </div>
+            </div>
+            <button onclick="removeFromTransferCart(${index})" 
+              style="width: 100%; margin-top: 8px; padding: 4px; background: #fee2e2; color: #ef4444; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+              移除
+            </button>
+          </div>
+        `).join('');
+        
+        document.getElementById('transferCartItems').innerHTML = html;
+      }
+    }
+    
+    // 增加调货购物车数量
+    function increaseTransferCartQuantity(index) {
+      const item = transferCart[index];
+      const maxQuantity = item.availableItems ? item.availableItems.reduce((sum, i) => sum + i.quantity, 0) : 999;
+      
+      if (item.quantity < maxQuantity) {
+        transferCart[index].quantity++;
+        updateTransferCart();
+      } else {
+        alert(`库存不足，最多可调货 ${maxQuantity} 件`);
+      }
+    }
+    
+    // 减少调货购物车数量
+    function decreaseTransferCartQuantity(index) {
+      if (transferCart[index].quantity > 1) {
+        transferCart[index].quantity--;
+        updateTransferCart();
+      }
+    }
+    
+    // 从调货购物车移除
+    function removeFromTransferCart(index) {
+      transferCart.splice(index, 1);
+      updateTransferCart();
+    }
+    
+    // 清空调货购物车
+    function clearTransferCart() {
+      if (confirm('确定要清空调货清单吗？')) {
+        transferCart = [];
+        updateTransferCart();
+      }
+    }
+    
+    // 添加产品到调货购物车（设备和配件统一处理）
+    function addToTransferCart(productData) {
+      if (!selectedTransferStore) {
+        alert('请先选择目标店铺');
+        return;
+      }
+      
+      // 检查是否已存在相同产品
+      const existingIndex = transferCart.findIndex(item => 
+        item.productName === productData.productName &&
+        item.model === productData.model &&
+        item.color === productData.color &&
+        item.condition === productData.condition
+      );
+      
+      if (existingIndex >= 0) {
+        // 已存在，增加数量
+        const maxQuantity = productData.availableItems ? 
+          productData.availableItems.reduce((sum, i) => sum + i.quantity, 0) : 999;
+        
+        if (transferCart[existingIndex].quantity < maxQuantity) {
+          transferCart[existingIndex].quantity++;
+          updateTransferCart();
+          alert('✅ 已增加数量');
+        } else {
+          alert(`库存不足，最多可调货 ${maxQuantity} 件`);
+        }
+      } else {
+        // 新产品，添加到购物车
+        transferCart.push({
+          productName: productData.productName,
+          brand: productData.brand || '',
+          model: productData.model || '',
+          color: productData.color || '',
+          condition: productData.condition || '',
+          quantity: 1,  // 初始数量为1
+          transferPrice: productData.wholesalePrice || productData.transferPrice,
+          retailPrice: productData.retailPrice,
+          taxClassification: productData.taxClassification,
+          category: productData.category,
+          availableItems: productData.availableItems || []  // 保存可用库存记录
+        });
+        
+        updateTransferCart();
+        alert('✅ 已添加到调货清单');
+      }
+    }
+    
+    // 兼容旧代码：添加设备到购物车
+    function addDeviceToTransferCart(deviceData) {
+      addToTransferCart(deviceData);
+    }
+    
+    // 兼容旧代码：添加配件到购物车
+    function addAccessoryToTransferCart(accessoryData) {
+      addToTransferCart(accessoryData);
+    }
+    
+    // 提交调货申请
+    async function submitTransferRequest() {
+      if (!selectedTransferStore) {
+        alert('请先选择目标店铺');
+        return;
+      }
+      
+      if (transferCart.length === 0) {
+        alert('调货清单是空的');
+        return;
+      }
+      
+      // 确认对话框
+      const itemsList = transferCart.map(item => 
+        `${item.productName}${item.model ? ` - ${item.model}` : ''}${item.color ? ` - ${item.color}` : ''} × ${item.quantity}`
+      ).join('\n');
+      
+      const total = transferCart.reduce((sum, item) => sum + (item.transferPrice * item.quantity), 0);
+      
+      const confirmed = confirm(`确认提交调货申请？\n\n目标店铺：${selectedTransferStore.name}\n\n产品清单：\n${itemsList}\n\n总金额：€${total.toFixed(2)}`);
+      
+      if (!confirmed) {
+        return;
+      }
+      
+      try {
+        // 准备调货数据 - 使用后端期望的格式
+        const transferItems = [];
+        
+        // 为每个购物车项分配库存记录
+        for (const cartItem of transferCart) {
+          let remainingQty = cartItem.quantity;
+          
+          // 从 availableItems 中分配库存
+          if (cartItem.availableItems && cartItem.availableItems.length > 0) {
+            for (const invItem of cartItem.availableItems) {
+              if (remainingQty <= 0) break;
+              
+              const qtyToUse = Math.min(remainingQty, invItem.quantity);
+              transferItems.push({
+                inventoryId: invItem._id,
+                quantity: qtyToUse
+              });
+              
+              remainingQty -= qtyToUse;
+            }
+          }
+          
+          if (remainingQty > 0) {
+            alert(`库存不足：${cartItem.productName} 还需要 ${remainingQty} 件`);
+            return;
+          }
+        }
+        
+        const transferData = {
+          fromMerchantId: selectedTransferStore.username,  // 调出方（目标店铺）
+          toMerchantId: merchantId,  // 调入方（当前用户）
+          items: transferItems,
+          notes: ''
+        };
+        
+        console.log('提交调货申请:', transferData);
+        
+        // 提交到后端
+        const response = await fetch(`${API_BASE}/merchant/inventory/transfer/request`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(transferData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert(`✅ 调货申请已提交！\n\n调货单号：${result.data.transferNumber}\n\n等待 ${selectedTransferStore.name} 审批。`);
+          
+          // 清空购物车
+          transferCart = [];
+          updateTransferCart();
+          
+          // 返回店铺选择
+          backToStoreSelection();
+        } else {
+          alert('❌ 提交失败：' + result.error);
+        }
+      } catch (error) {
+        console.error('提交调货申请失败:', error);
+        alert('❌ 提交失败：' + error.message);
+      }
+    }
     
     // 加载群组库存 - 步骤1：显示店铺列表
     async function loadGroupInventory() {
@@ -5675,10 +5942,17 @@
                 ${getTaxBadge(group.taxClassification)}
               </div>
               
-              <button class="btn-sm btn-primary" onclick='addAccessoryToTransferCart(${JSON.stringify({
-                ...group.items[0],
-                quantity: group.quantity,
-                allItems: group.items
+              <button class="btn-sm btn-primary" onclick='addToTransferCart(${JSON.stringify({
+                productName: group.productName,
+                brand: group.brand,
+                model: '',
+                color: '',
+                condition: group.items[0].condition,
+                wholesalePrice: group.wholesalePrice,
+                retailPrice: group.retailPrice,
+                taxClassification: group.taxClassification,
+                category: group.category,
+                availableItems: group.items
               }).replace(/'/g, "\\'")})'
                 style="width: 100%; padding: 10px; font-size: 14px;">
                 🛒 加入调货清单
@@ -5759,25 +6033,26 @@
       // 关闭模态框
       closeGroupVariantModal();
       
-      // 添加到调货清单
+      // 统一添加到调货清单（不区分设备和配件）
       if (variant.items && variant.items.length > 0) {
-        // 如果有具体的设备列表
         const firstItem = variant.items[0];
         
-        // 检查是否是设备（有序列号或IMEI）
-        if (firstItem.serialNumber || firstItem.imei) {
-          // 设备：添加第一个
-          addDeviceToTransferCart(firstItem);
-        } else {
-          // 配件：可以选择数量
-          // 传递变体的总数量，而不是单个item的数量
-          const itemWithTotalQty = {
-            ...firstItem,
-            quantity: variant.quantity, // 使用变体的总数量
-            allItems: variant.items // 保存所有库存记录
-          };
-          addAccessoryToTransferCart(itemWithTotalQty);
-        }
+        // 准备产品数据
+        const productData = {
+          productName: firstItem.productName,
+          brand: firstItem.brand,
+          model: variant.model || firstItem.model,
+          color: variant.color || firstItem.color,
+          condition: firstItem.condition,
+          wholesalePrice: variant.wholesalePrice,
+          retailPrice: variant.retailPrice,
+          taxClassification: variant.taxClassification,
+          category: firstItem.category,
+          availableItems: variant.items  // 保存所有可用库存
+        };
+        
+        // 统一添加（设备和配件都支持数量选择）
+        addToTransferCart(productData);
       } else {
         alert('该变体暂无可用库存');
       }
@@ -6206,6 +6481,316 @@
     
     // 批准调货
     async function approveTransfer(transferId) {
+      try {
+        console.log('=== 开始批准调货流程 ===');
+        console.log('调货ID:', transferId);
+        
+        // 1. 获取调货详情
+        const detailResponse = await fetch(`${API_BASE}/merchant/inventory/transfer/${transferId}`);
+        const detailResult = await detailResponse.json();
+        
+        if (!detailResult.success) {
+          alert('获取调货详情失败: ' + detailResult.error);
+          return;
+        }
+        
+        const transfer = detailResult.data;
+        console.log('调货详情:', transfer);
+        console.log('调出方:', transfer.fromMerchant, transfer.fromMerchantName);
+        console.log('调入方:', transfer.toMerchant, transfer.toMerchantName);
+        console.log('产品列表:', transfer.items);
+        
+        // 2. 检查是否有需要选择IMEI的设备
+        const itemsNeedingIMEI = [];
+        
+        for (const item of transfer.items) {
+          console.log(`\n检查产品: ${item.productName}`);
+          console.log('  - inventoryId:', item.inventoryId);
+          console.log('  - 数量:', item.quantity);
+          
+          // 查询该inventoryId对应的库存记录
+          try {
+            const invResponse = await fetch(`${API_BASE}/merchant/inventory?merchantId=${transfer.fromMerchant}`);
+            const invResult = await invResponse.json();
+            
+            if (invResult.success && invResult.data) {
+              // 找到对应的库存记录
+              const inventory = invResult.data.find(inv => inv._id === item.inventoryId);
+              
+              if (inventory) {
+                console.log('  - 找到库存记录:', inventory);
+                console.log('  - 序列号:', inventory.serialNumber);
+                console.log('  - IMEI:', inventory.imei);
+                
+                // 如果有序列号或IMEI，说明是设备，需要选择
+                if (inventory.serialNumber || inventory.imei) {
+                  console.log('  ✅ 这是设备，需要选择IMEI');
+                  
+                  // 查询相同产品的所有可用设备
+                  const sameProductDevices = invResult.data.filter(inv => 
+                    inv.productName === item.productName &&
+                    inv.status === 'active' &&
+                    inv.quantity > 0 &&
+                    (inv.serialNumber || inv.imei)
+                  );
+                  
+                  console.log(`  - 找到 ${sameProductDevices.length} 个相同产品的可用设备`);
+                  
+                  itemsNeedingIMEI.push({
+                    ...item,
+                    availableDevices: sameProductDevices,
+                    selectedIMEIs: []
+                  });
+                } else {
+                  console.log('  ℹ️ 这是配件，不需要选择IMEI');
+                }
+              } else {
+                console.log('  ⚠️ 未找到对应的库存记录');
+              }
+            }
+          } catch (error) {
+            console.error('  ❌ 查询库存失败:', error);
+          }
+        }
+        
+        console.log('\n=== 检查完成 ===');
+        console.log('需要选择IMEI的产品数量:', itemsNeedingIMEI.length);
+        
+        // 3. 如果有需要选择IMEI的设备，显示选择界面
+        if (itemsNeedingIMEI.length > 0) {
+          console.log('✅ 显示IMEI选择界面');
+          showIMEISelectionModal(transferId, itemsNeedingIMEI, transfer);
+        } else {
+          // 没有设备需要选择IMEI，直接批准
+          console.log('ℹ️ 没有设备需要选择IMEI，直接批准');
+          await submitApproval(transferId, null);
+        }
+        
+      } catch (error) {
+        console.error('❌ 批准调货失败:', error);
+        alert('批准失败: ' + error.message);
+      }
+    }
+    
+    // 显示IMEI选择模态框
+    function showIMEISelectionModal(transferId, itemsNeedingIMEI, transfer) {
+      console.log('显示IMEI选择模态框');
+      console.log('需要选择IMEI的产品:', itemsNeedingIMEI);
+      
+      const modal = document.createElement('div');
+      modal.id = 'imeiSelectionModal';
+      modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+      
+      let html = `
+        <div style="background: white; border-radius: 12px; padding: 30px; max-width: 800px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0; color: #333;">📱 选择调出设备的IMEI/序列号</h2>
+            <button onclick="closeIMEISelectionModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">×</button>
+          </div>
+          
+          <div style="background: #dbeafe; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6; margin-bottom: 20px;">
+            <div style="font-size: 14px; color: #1e40af; font-weight: 600; margin-bottom: 8px;">
+              📋 调货单号: ${transfer.transferNumber}
+            </div>
+            <div style="font-size: 13px; color: #1e40af; margin-bottom: 4px;">
+              调出方: ${transfer.fromMerchant}
+            </div>
+            <div style="font-size: 13px; color: #1e40af; margin-bottom: 8px;">
+              调入方: ${transfer.toMerchant}
+            </div>
+            <div style="font-size: 13px; color: #1e40af;">
+              请为每个设备选择具体要调出的IMEI/序列号
+            </div>
+          </div>
+          
+          <div id="imeiSelectionContent">
+      `;
+      
+      // 为每个需要选择IMEI的设备创建选择界面
+      itemsNeedingIMEI.forEach((item, index) => {
+        html += `
+          <div style="background: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 15px; border: 2px solid #e5e7eb;">
+            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #1f2937;">
+              ${item.productName}
+              ${item.brand ? ` - ${item.brand}` : ''}
+              ${item.model ? ` ${item.model}` : ''}
+            </h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+              <div style="font-size: 13px; color: #6b7280;">
+                <strong>需要数量:</strong> ${item.quantity} 件
+              </div>
+              <div style="font-size: 13px; color: #6b7280;">
+                <strong>已选择:</strong> <span id="selected-count-${index}" style="color: #10b981; font-weight: 600;">0</span> 件
+              </div>
+            </div>
+            
+            <div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #e5e7eb;">
+              <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151; font-size: 14px;">
+                选择要调出的设备:
+              </label>
+              <div id="imei-options-${index}" style="max-height: 250px; overflow-y: auto;">
+                <!-- 动态加载可用的IMEI -->
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      
+      html += `
+          </div>
+          
+          <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <button onclick="closeIMEISelectionModal()" style="flex: 1; padding: 12px; background: #e5e7eb; color: #374151; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 15px;">
+              取消
+            </button>
+            <button onclick="confirmIMEISelection('${transferId}')" style="flex: 1; padding: 12px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 15px;">
+              ✅ 确认并批准
+            </button>
+          </div>
+        </div>
+      `;
+      
+      modal.innerHTML = html;
+      document.body.appendChild(modal);
+      
+      console.log('模态框已添加到页面');
+      
+      // 保存数据到全局变量
+      window.imeiSelectionData = {
+        transferId: transferId,
+        items: itemsNeedingIMEI,
+        transfer: transfer
+      };
+      
+      // 加载每个设备的可用IMEI
+      itemsNeedingIMEI.forEach((item, index) => {
+        console.log(`开始加载产品 ${index + 1} 的IMEI列表:`, item.productName);
+        loadAvailableIMEIs(item, index);
+      });
+    }
+    
+    // 加载可用的IMEI列表
+    function loadAvailableIMEIs(item, index) {
+      const container = document.getElementById(`imei-options-${index}`);
+      
+      if (!item.availableDevices || item.availableDevices.length === 0) {
+        container.innerHTML = '<div style="text-align: center; padding: 20px; color: #ef4444;">没有可用的设备</div>';
+        return;
+      }
+      
+      let html = '';
+      item.availableDevices.forEach(device => {
+        const serialOrIMEI = device.serialNumber || device.imei;
+        html += `
+          <div style="padding: 12px; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; background: white;"
+            onclick="toggleIMEISelection(${index}, '${device._id}', '${serialOrIMEI}')"
+            id="imei-option-${index}-${device._id}"
+            onmouseover="if(!this.classList.contains('selected')) this.style.background='#f3f4f6'"
+            onmouseout="if(!this.classList.contains('selected')) this.style.background='white'">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="flex: 1;">
+                <div style="font-family: monospace; font-size: 14px; font-weight: 600; color: #1f2937; margin-bottom: 4px;">
+                  ${serialOrIMEI}
+                </div>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                  ${device.condition ? `<span style="font-size: 11px; color: #6b7280; background: #f3f4f6; padding: 2px 8px; border-radius: 4px;">成色: ${device.condition}</span>` : ''}
+                  ${device.model ? `<span style="font-size: 11px; color: #6b7280; background: #f3f4f6; padding: 2px 8px; border-radius: 4px;">型号: ${device.model}</span>` : ''}
+                  ${device.color ? `<span style="font-size: 11px; color: #6b7280; background: #f3f4f6; padding: 2px 8px; border-radius: 4px;">颜色: ${device.color}</span>` : ''}
+                </div>
+              </div>
+              <div style="width: 24px; height: 24px; border: 2px solid #d1d5db; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-left: 12px;">
+                <span class="checkmark" style="display: none; color: #10b981; font-weight: bold; font-size: 16px;">✓</span>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      
+      container.innerHTML = html;
+    }
+    
+    // 切换IMEI选择
+    function toggleIMEISelection(itemIndex, inventoryId, serialOrIMEI) {
+      if (!window.imeiSelectionData) return;
+      
+      const item = window.imeiSelectionData.items[itemIndex];
+      const optionElement = document.getElementById(`imei-option-${itemIndex}-${inventoryId}`);
+      const checkmark = optionElement.querySelector('.checkmark');
+      
+      // 检查是否已选择
+      const selectedIndex = item.selectedIMEIs.findIndex(s => s.inventoryId === inventoryId);
+      
+      if (selectedIndex >= 0) {
+        // 取消选择
+        item.selectedIMEIs.splice(selectedIndex, 1);
+        optionElement.classList.remove('selected');
+        optionElement.style.background = 'white';
+        optionElement.style.borderColor = '#e5e7eb';
+        checkmark.style.display = 'none';
+      } else {
+        // 检查是否已达到数量上限
+        if (item.selectedIMEIs.length >= item.quantity) {
+          alert(`最多只能选择 ${item.quantity} 件`);
+          return;
+        }
+        
+        // 添加选择
+        item.selectedIMEIs.push({
+          inventoryId: inventoryId,
+          serialOrIMEI: serialOrIMEI
+        });
+        optionElement.classList.add('selected');
+        optionElement.style.background = '#d1fae5';
+        optionElement.style.borderColor = '#10b981';
+        checkmark.style.display = 'block';
+      }
+      
+      // 更新已选择数量
+      document.getElementById(`selected-count-${itemIndex}`).textContent = item.selectedIMEIs.length;
+    }
+    
+    // 确认IMEI选择并批准
+    async function confirmIMEISelection(transferId) {
+      if (!window.imeiSelectionData) return;
+      
+      const items = window.imeiSelectionData.items;
+      
+      // 验证所有设备都已选择足够的IMEI
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.selectedIMEIs.length < item.quantity) {
+          alert(`${item.productName} 还需要选择 ${item.quantity - item.selectedIMEIs.length} 件设备`);
+          return;
+        }
+      }
+      
+      // 准备IMEI映射数据
+      const imeiMapping = {};
+      items.forEach(item => {
+        imeiMapping[item.inventoryId] = item.selectedIMEIs.map(s => s.inventoryId);
+      });
+      
+      console.log('IMEI映射:', imeiMapping);
+      
+      // 关闭模态框
+      closeIMEISelectionModal();
+      
+      // 提交批准
+      await submitApproval(transferId, imeiMapping);
+    }
+    
+    // 关闭IMEI选择模态框
+    function closeIMEISelectionModal() {
+      const modal = document.getElementById('imeiSelectionModal');
+      if (modal) {
+        modal.remove();
+      }
+      window.imeiSelectionData = null;
+    }
+    
+    // 提交批准
+    async function submitApproval(transferId, imeiMapping) {
       const notes = prompt('批准备注（可选）:');
       if (notes === null) return; // 用户取消
       
@@ -6219,7 +6804,8 @@
             transferId: transferId,
             action: 'approve',
             notes: notes,
-            merchantId: merchantId
+            merchantId: merchantId,
+            imeiMapping: imeiMapping  // 传递IMEI映射
           })
         });
         
@@ -6227,7 +6813,7 @@
         
         if (result.success) {
           alert('✅ 已批准调货申请');
-          loadPendingApprovalList();
+          loadTransferManagement(); // 刷新列表
         } else {
           alert('批准失败: ' + result.error);
         }
@@ -6236,6 +6822,7 @@
         alert('批准失败: ' + error.message);
       }
     }
+    
     
     // 拒绝调货
     async function rejectTransfer(transferId) {
@@ -6310,12 +6897,21 @@
     
     // 显示价格设置对话框（公司间销售）
     function showPriceSettingDialog(transfer) {
+      console.log('=== 显示价格设置对话框 ===');
+      console.log('订单:', transfer);
+      console.log('产品列表:', transfer.items);
+      
       const modal = document.createElement('div');
       modal.id = 'priceSettingModal';
       modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
       
       // 为每个产品生成价格输入表单
-      const priceInputs = transfer.items.map((item, index) => `
+      const priceInputs = transfer.items.map((item, index) => {
+        console.log(`产品 ${index + 1}:`, item.productName);
+        console.log('  - transferPrice:', item.transferPrice);
+        console.log('  - retailPrice:', item.retailPrice);
+        
+        return `
         <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #6366f1;">
           <div style="font-weight: 600; margin-bottom: 10px; color: #111827;">${item.productName}</div>
           <div style="font-size: 13px; color: #6b7280; margin-bottom: 10px;">
@@ -6325,18 +6921,21 @@
             <div>
               <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: #374151;">批发价 (€) *</label>
               <input type="number" id="wholesalePrice_${index}" min="0" step="0.01" required
+                     value="${item.transferPrice || ''}"
                      style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+              <small style="color: #6b7280; font-size: 11px;">默认为原产品批发价 (${item.transferPrice || '无'})</small>
             </div>
             <div>
               <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: #374151;">零售价 (€) *</label>
               <input type="number" id="retailPrice_${index}" min="0" step="0.01" required
                      value="${item.retailPrice || ''}"
                      style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
-              <small style="color: #6b7280; font-size: 11px;">默认为原产品零售价</small>
+              <small style="color: #6b7280; font-size: 11px;">默认为原产品零售价 (${item.retailPrice || '无'})</small>
             </div>
           </div>
         </div>
-      `).join('');
+      `;
+      }).join('');
       
       modal.innerHTML = `
         <div style="background: white; border-radius: 12px; padding: 30px; max-width: 700px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
@@ -7042,14 +7641,585 @@
       }
     }
 
-    // 加载报表
+    // 初始化日期选择器
+    function initializeDateSelectors() {
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1; // 0-11 -> 1-12
+      
+      // 生成年份选项（当前年份往前5年）
+      const yearSelect = document.getElementById('reportYear');
+      yearSelect.innerHTML = '';
+      for (let year = currentYear; year >= currentYear - 5; year--) {
+        const option = document.createElement('option');
+        option.value = year;
+        option.textContent = `${year}年`;
+        if (year === currentYear) option.selected = true;
+        yearSelect.appendChild(option);
+      }
+      
+      // 设置当前月份
+      document.getElementById('reportMonth').value = currentMonth;
+    }
+    
+    // 加载报表（默认当月）
     function loadReports() {
-      document.getElementById('inventoryReport').innerHTML = `
-        <p style="color: #999; text-align: center; padding: 20px;">库存报表功能开发中...</p>
-      `;
-      document.getElementById('salesReport').innerHTML = `
-        <p style="color: #999; text-align: center; padding: 20px;">销售报表功能开发中...</p>
-      `;
+      initializeDateSelectors();
+      loadReportsWithDateRange();
+    }
+    
+    // 根据选择的日期范围加载报表
+    function loadReportsWithDateRange() {
+      const year = parseInt(document.getElementById('reportYear').value);
+      const month = parseInt(document.getElementById('reportMonth').value);
+      
+      // 计算日期范围
+      const startDate = new Date(year, month - 1, 1); // 月份从0开始
+      const endDate = new Date(year, month, 0); // 获取该月最后一天
+      
+      console.log(`加载报表: ${year}年${month}月 (${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()})`);
+      
+      loadInventoryReport(startDate, endDate);
+      loadPurchaseReport(startDate, endDate);
+    }
+    
+    // 加载采购报表
+    async function loadPurchaseReport(startDate, endDate) {
+      const container = document.getElementById('purchaseReport');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        // 构建API URL，包含日期范围参数
+        let apiUrl = `${API_BASE}/merchant/purchase-report?merchantId=${merchantId}`;
+        if (startDate && endDate) {
+          apiUrl += `&startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`;
+        }
+        
+        const response = await fetch(apiUrl);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          const { orders, summary } = result.data;
+          
+          if (orders.length === 0) {
+            container.innerHTML = `
+              <div style="text-align: center; padding: 40px; color: #999;">
+                <p style="font-size: 16px; margin-bottom: 10px;">📦 暂无采购记录</p>
+                <p style="font-size: 14px;">开始采购后，这里将显示所有采购清单</p>
+              </div>
+            `;
+            return;
+          }
+          
+          container.innerHTML = `
+            <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
+              <h3 style="margin: 0 0 10px 0; color: #1e40af;">📦 采购清单汇总</h3>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; font-size: 14px;">
+                <div>
+                  <span style="color: #6b7280;">采购订单数:</span>
+                  <strong>${summary.totalOrders} 单</strong>
+                </div>
+                <div>
+                  <span style="color: #6b7280;">采购总金额:</span>
+                  <strong style="color: #7c3aed;">€${summary.totalAmount.toFixed(2)}</strong>
+                </div>
+                <div>
+                  <span style="color: #6b7280;">总税额:</span>
+                  <strong style="color: #059669;">€${summary.totalTax.toFixed(2)}</strong>
+                </div>
+                <div>
+                  <span style="color: #6b7280;">平均订单金额:</span>
+                  <strong>€${(summary.totalAmount / summary.totalOrders).toFixed(2)}</strong>
+                </div>
+              </div>
+            </div>
+            
+            <div style="overflow-x: auto;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th style="width: 150px;">采购日期</th>
+                    <th style="width: 180px;">订单号</th>
+                    <th style="text-align: right; width: 120px;">总金额</th>
+                    <th style="text-align: right; width: 120px;">税额</th>
+                    <th style="width: 200px;">供货商</th>
+                    <th style="text-align: center; width: 100px;">来源</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${orders.map(order => `
+                    <tr>
+                      <td>${new Date(order.date).toLocaleDateString('zh-CN')}</td>
+                      <td>
+                        <a href="javascript:void(0)" 
+                           onclick="showPurchaseOrderDetails('${order.orderNumber}', '${order.type}')"
+                           style="color: #3b82f6; text-decoration: none; font-weight: bold;">
+                          ${order.orderNumber}
+                        </a>
+                        <br><small style="color: #6b7280;">${order.itemCount} 件产品</small>
+                      </td>
+                      <td style="text-align: right;"><strong style="color: #7c3aed;">€${order.totalAmount.toFixed(2)}</strong></td>
+                      <td style="text-align: right;"><strong style="color: #059669;">€${order.taxAmount.toFixed(2)}</strong></td>
+                      <td>${order.supplier}</td>
+                      <td style="text-align: center;">
+                        <span style="background: ${order.type === 'transfer' ? '#dcfce7' : order.type === 'warehouse' ? '#dbeafe' : '#fef3c7'}; 
+                                     color: ${order.type === 'transfer' ? '#166534' : order.type === 'warehouse' ? '#1e40af' : '#92400e'}; 
+                                     padding: 4px 8px; border-radius: 4px; font-size: 12px;">
+                          ${order.type === 'transfer' ? '📦 调货' : order.type === 'warehouse' ? '🏢 仓库' : '📄 发票'}
+                        </span>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+                <tfoot>
+                  <tr style="background: #f8fafc; font-weight: bold;">
+                    <td colspan="2" style="text-align: right; padding-right: 20px;">合计:</td>
+                    <td style="text-align: right; color: #7c3aed;">
+                      €${summary.totalAmount.toFixed(2)}
+                    </td>
+                    <td style="text-align: right; color: #059669;">
+                      €${summary.totalTax.toFixed(2)}
+                    </td>
+                    <td colspan="2"></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            
+            <div style="margin-top: 20px; padding: 15px; background: #fffbeb; border-radius: 8px; border-left: 4px solid #f59e0b;">
+              <h4 style="margin: 0 0 10px 0; color: #92400e;">📝 说明</h4>
+              <ul style="margin: 0; padding-left: 20px; color: #78350f; line-height: 1.8;">
+                <li><strong>采购来源:</strong> 包括仓库订货、调货和发票入库三种方式</li>
+                <li><strong>订单号:</strong> 点击可查看详细信息并下载PDF</li>
+                <li><strong>总金额:</strong> 订单的总采购金额（含税）</li>
+                <li><strong>税额:</strong> 订单中包含的税额</li>
+                <li><strong>供货商:</strong> 采购来源的公司名称</li>
+              </ul>
+            </div>
+          `;
+        } else {
+          throw new Error(result.error || '获取报表失败');
+        }
+      } catch (error) {
+        console.error('加载采购报表失败:', error);
+        container.innerHTML = `
+          <div style="text-align: center; padding: 40px; color: #dc2626;">
+            <p style="font-size: 16px; margin-bottom: 10px;">❌ 加载失败</p>
+            <p style="font-size: 14px;">${error.message}</p>
+            <button class="btn btn-primary" onclick="loadPurchaseReport()" style="margin-top: 15px;">🔄 重新加载</button>
+          </div>
+        `;
+      }
+    }
+    
+    // 显示采购订单详情
+    async function showPurchaseOrderDetails(orderNumber, orderType) {
+      try {
+        console.log(`[${new Date().toLocaleTimeString()}] 查看采购订单详情: ${orderNumber} (${orderType})`);
+        
+        let orderDetails = null;
+        let apiUrl = '';
+        
+        // 根据订单类型调用不同的API
+        if (orderType === 'transfer') {
+          // 调货订单
+          apiUrl = `${API_BASE}/transfers/${orderNumber}`;
+        } else if (orderType === 'warehouse') {
+          // 仓库订单 - 后端会根据用户公司信息判断视角
+          apiUrl = `${API_BASE}/warehouse-orders/number/${orderNumber}?userId=${merchantId}`;
+        } else if (orderType === 'invoice') {
+          // 发票订单 - 使用admin-{invoiceNumber}格式
+          apiUrl = `${API_BASE}/admin/purchase-orders/admin-${orderNumber}`;
+        }
+        
+        const response = await fetch(apiUrl);
+        const result = await response.json();
+        
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || '获取订单详情失败');
+        }
+        
+        orderDetails = result.data;
+        
+        // 构建详情HTML
+        let detailsHTML = '';
+        let items = [];
+        let totalAmount = 0;
+        let taxAmount = 0;
+        let supplier = '';
+        let orderDate = '';
+        
+        if (orderType === 'transfer') {
+          items = orderDetails.items || [];
+          supplier = orderDetails.fromMerchant || '内部调货';
+          orderDate = new Date(orderDetails.transferDate).toLocaleDateString('zh-CN');
+          
+          items.forEach(item => {
+            const itemTotal = (item.transferPrice || item.costPrice || 0) * item.quantity;
+            totalAmount += itemTotal;
+            
+            // 只有VAT_23和VAT_13_5才计算税额，Margin VAT不计算
+            if (item.taxClassification === 'VAT_23' || item.taxClassification === 'VAT 23%') {
+              taxAmount += itemTotal - (itemTotal / 1.23);
+            } else if (item.taxClassification === 'VAT_13_5' || item.taxClassification === 'VAT 13.5%') {
+              taxAmount += itemTotal - (itemTotal / 1.135);
+            }
+            // MARGIN_VAT_0 和 VAT_0 不计算税额（税额为0）
+          });
+          
+        } else if (orderType === 'warehouse') {
+          items = orderDetails.items || [];
+          supplier = '仓库';
+          orderDate = new Date(orderDetails.orderDate || orderDetails.createdAt).toLocaleDateString('zh-CN');
+          
+          // 使用订单中已经计算好的总金额和税额
+          totalAmount = orderDetails.totalAmount || 0;
+          taxAmount = orderDetails.taxAmount || 0;
+          
+        } else if (orderType === 'invoice') {
+          items = orderDetails.products || [];
+          supplier = orderDetails.supplier || '未知供货商';
+          orderDate = new Date(orderDetails.invoiceDate || orderDetails.createdAt).toLocaleDateString('zh-CN');
+          
+          items.forEach(item => {
+            const itemTotal = (item.costPrice || 0) * item.quantity;
+            totalAmount += itemTotal;
+            
+            // 只有VAT_23和VAT_13_5才计算税额，Margin VAT不计算
+            if (item.taxClassification === 'VAT_23' || item.taxClassification === 'VAT 23%') {
+              taxAmount += itemTotal - (itemTotal / 1.23);
+            } else if (item.taxClassification === 'VAT_13_5' || item.taxClassification === 'VAT 13.5%') {
+              taxAmount += itemTotal - (itemTotal / 1.135);
+            }
+            // MARGIN_VAT_0 和 VAT_0 不计算税额（税额为0）
+          });
+        }
+        
+        detailsHTML = `
+          <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px;">
+            <h3 style="margin: 0 0 10px 0; color: #1e40af;">📦 采购订单详情</h3>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; font-size: 14px;">
+              <div><strong>订单号:</strong> ${orderNumber}</div>
+              <div><strong>采购日期:</strong> ${orderDate}</div>
+              <div><strong>供货商:</strong> ${supplier}</div>
+              <div><strong>订单类型:</strong> 
+                <span style="background: ${orderType === 'transfer' ? '#dcfce7' : orderType === 'warehouse' ? '#dbeafe' : '#fef3c7'}; 
+                             color: ${orderType === 'transfer' ? '#166534' : orderType === 'warehouse' ? '#1e40af' : '#92400e'}; 
+                             padding: 2px 8px; border-radius: 4px; font-size: 12px;">
+                  ${orderType === 'transfer' ? '📦 调货' : orderType === 'warehouse' ? '🏢 仓库' : '📄 发票'}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <div style="overflow-x: auto; margin-bottom: 20px;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>产品名称</th>
+                  <th style="text-align: center; width: 80px;">数量</th>
+                  <th style="text-align: right; width: 120px;">单价</th>
+                  <th style="text-align: right; width: 120px;">总价</th>
+                  <th style="width: 120px;">税分类</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${items.map(item => {
+                  let unitPrice = 0;
+                  let itemTotal = 0;
+                  
+                  if (orderType === 'transfer') {
+                    unitPrice = item.transferPrice || item.costPrice || 0;
+                    itemTotal = unitPrice * item.quantity;
+                  } else if (orderType === 'warehouse') {
+                    // 仓库订单使用wholesalePrice和subtotal
+                    unitPrice = item.wholesalePrice || 0;
+                    itemTotal = item.subtotal || (unitPrice * item.quantity);
+                  } else {
+                    // 发票订单
+                    unitPrice = item.costPrice || 0;
+                    itemTotal = unitPrice * item.quantity;
+                  }
+                  
+                  return `
+                    <tr>
+                      <td>
+                        <strong>${item.productName || item.name}</strong>
+                        ${item.model ? `<br><small style="color: #6b7280;">型号: ${item.model}</small>` : ''}
+                        ${item.color ? `<br><small style="color: #6b7280;">颜色: ${item.color}</small>` : ''}
+                        ${item.serialNumber ? `<br><small style="color: #059669;">序列号: ${item.serialNumber}</small>` : ''}
+                      </td>
+                      <td style="text-align: center;"><strong>${item.quantity}</strong></td>
+                      <td style="text-align: right;">€${unitPrice.toFixed(2)}</td>
+                      <td style="text-align: right;"><strong style="color: #7c3aed;">€${itemTotal.toFixed(2)}</strong></td>
+                      <td>
+                        <span style="background: ${item.taxClassification?.includes('23') ? '#fef3c7' : item.taxClassification?.includes('13') ? '#dbeafe' : '#f3f4f6'}; 
+                                     padding: 2px 8px; border-radius: 4px; font-size: 12px;">
+                          ${item.taxClassification || 'N/A'}
+                        </span>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+              <tfoot>
+                <tr style="background: #f8fafc; font-weight: bold;">
+                  <td colspan="3" style="text-align: right; padding-right: 20px;">合计:</td>
+                  <td style="text-align: right; color: #7c3aed;">€${totalAmount.toFixed(2)}</td>
+                  <td></td>
+                </tr>
+                <tr style="background: #f8fafc;">
+                  <td colspan="3" style="text-align: right; padding-right: 20px;">税额:</td>
+                  <td style="text-align: right; color: #059669; font-weight: bold;">€${taxAmount.toFixed(2)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          
+          <div style="text-align: right;">
+            <button class="btn btn-primary" onclick="downloadPurchaseOrderPDF('${orderNumber}', '${orderType}')">
+              📥 下载PDF
+            </button>
+          </div>
+        `;
+        
+        // 显示模态框 - 使用DOM操作
+        const modal = document.getElementById('purchaseOrderModal');
+        const content = document.getElementById('purchaseOrderContent');
+        
+        if (!modal) {
+          // 如果模态框不存在，创建它
+          const modalHTML = `
+            <div id="purchaseOrderModal" style="display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+              <div style="background: white; border-radius: 10px; padding: 30px; max-width: 1000px; width: 90%; max-height: 90vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                  <h3 style="margin: 0;">📦 采购订单详情</h3>
+                  <button onclick="closePurchaseOrderModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
+                </div>
+                
+                <div id="purchaseOrderContent">
+                  ${detailsHTML}
+                </div>
+                
+                <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+                  <button onclick="closePurchaseOrderModal()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+                    关闭
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+          document.body.insertAdjacentHTML('beforeend', modalHTML);
+        } else {
+          // 如果模态框存在，更新内容并显示
+          content.innerHTML = detailsHTML;
+          modal.style.display = 'flex';
+        }
+        
+      } catch (error) {
+        console.error(`[${new Date().toLocaleTimeString()}] ❌ 获取采购订单详情失败:`, error);
+        alert('获取订单详情失败: ' + error.message);
+      }
+    }
+    
+    // 关闭采购订单详情模态框
+    function closePurchaseOrderModal() {
+      const modal = document.getElementById('purchaseOrderModal');
+      if (modal) {
+        modal.style.display = 'none';
+      }
+    }
+    
+    // 下载采购订单PDF
+    async function downloadPurchaseOrderPDF(orderNumber, orderType) {
+      try {
+        console.log(`[${new Date().toLocaleTimeString()}] 下载采购订单PDF: ${orderNumber} (${orderType})`);
+        
+        // 根据订单类型使用不同的PDF生成API
+        let pdfUrl = '';
+        
+        if (orderType === 'transfer') {
+          pdfUrl = `${API_BASE}/transfers/${orderNumber}/pdf`;
+        } else if (orderType === 'warehouse') {
+          // 商户下载仓库订单PDF - 后端会根据用户公司信息判断视角
+          pdfUrl = `${API_BASE}/warehouse-orders/number/${orderNumber}/pdf?userId=${merchantId}`;
+        } else if (orderType === 'invoice') {
+          pdfUrl = `${API_BASE}/admin/purchase-orders/admin-${orderNumber}/pdf`;
+        }
+        
+        // 打开新窗口下载PDF
+        window.open(pdfUrl, '_blank');
+        
+      } catch (error) {
+        console.error(`[${new Date().toLocaleTimeString()}] ❌ 下载PDF失败:`, error);
+        alert('下载PDF失败: ' + error.message);
+      }
+    }
+    
+    // 加载库存报表 - Top 20热销产品
+    async function loadInventoryReport(startDate, endDate) {
+      const container = document.getElementById('inventoryReport');
+      container.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        // 构建API URL，包含日期范围参数
+        let apiUrl = `${API_BASE}/merchant/inventory-report?merchantId=${merchantId}`;
+        if (startDate && endDate) {
+          apiUrl += `&startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`;
+        }
+        
+        const response = await fetch(apiUrl);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          const { top20, reportDate, monthStart, monthEnd, summary } = result.data;
+          
+          const reportMonth = new Date(monthStart).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' });
+          
+          if (top20.length === 0) {
+            container.innerHTML = `
+              <div style="text-align: center; padding: 40px; color: #999;">
+                <p style="font-size: 16px; margin-bottom: 10px;">📊 本月暂无销售数据</p>
+                <p style="font-size: 14px;">开始销售后，这里将显示热销产品统计</p>
+              </div>
+            `;
+            return;
+          }
+          
+          container.innerHTML = `
+            <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
+              <h3 style="margin: 0 0 10px 0; color: #1e40af;">📊 ${reportMonth} - Top 20 热销产品</h3>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; font-size: 14px;">
+                <div>
+                  <span style="color: #6b7280;">报表生成时间:</span>
+                  <strong>${new Date(reportDate).toLocaleString('zh-CN')}</strong>
+                </div>
+                <div>
+                  <span style="color: #6b7280;">统计周期:</span>
+                  <strong>${new Date(monthStart).toLocaleDateString('zh-CN')} - ${new Date(monthEnd).toLocaleDateString('zh-CN')}</strong>
+                </div>
+                <div>
+                  <span style="color: #6b7280;">产品种类:</span>
+                  <strong>${summary.totalProductTypes} 种</strong>
+                </div>
+                <div>
+                  <span style="color: #6b7280;">销售记录:</span>
+                  <strong>${summary.totalSalesRecords} 条</strong>
+                </div>
+              </div>
+            </div>
+            
+            <div style="overflow-x: auto;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th style="text-align: center; width: 60px;">排名</th>
+                    <th>产品名称</th>
+                    <th style="text-align: center;">销售量</th>
+                    <th style="text-align: right;">平均售价</th>
+                    <th style="text-align: center;">当前库存</th>
+                    <th style="text-align: center;">预计销售时间</th>
+                    <th style="text-align: center;">建议订货量</th>
+                    <th style="text-align: right;">本月营收</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${top20.map((item, index) => {
+                    const rank = index + 1;
+                    const rankBadge = rank <= 3 ? 
+                      `<span style="display: inline-block; width: 30px; height: 30px; line-height: 30px; border-radius: 50%; background: ${rank === 1 ? '#fbbf24' : rank === 2 ? '#d1d5db' : '#f59e0b'}; color: white; font-weight: bold;">${rank}</span>` :
+                      `<span style="font-weight: bold; color: #6b7280;">${rank}</span>`;
+                    
+                    // 产品名称显示（包含颜色）
+                    const productDisplay = item.color ? 
+                      `${item.productName} <span style="color: #6b7280; font-size: 0.9em;">(${item.color})</span>` :
+                      item.productName;
+                    
+                    const stockStatus = item.currentStock === 0 ? 
+                      '<span style="color: #dc2626; font-weight: bold;">缺货</span>' :
+                      item.estimatedDays < 7 && item.estimatedDays > 0 ?
+                        `<span style="color: #dc2626;">${item.currentStock}</span>` :
+                        item.estimatedDays < 15 && item.estimatedDays > 0 ?
+                          `<span style="color: #f59e0b;">${item.currentStock}</span>` :
+                          `<span style="color: #059669;">${item.currentStock}</span>`;
+                    
+                    const estimatedDaysText = item.estimatedDays === 0 ?
+                      '<span style="color: #dc2626;">已缺货</span>' :
+                      item.estimatedDays === 999 ?
+                        '<span style="color: #6b7280;">无销售</span>' :
+                        item.estimatedDays < 7 ?
+                          `<span style="color: #dc2626; font-weight: bold;">${item.estimatedDays} 天</span>` :
+                          item.estimatedDays < 15 ?
+                            `<span style="color: #f59e0b;">${item.estimatedDays} 天</span>` :
+                            `<span style="color: #059669;">${item.estimatedDays} 天</span>`;
+                    
+                    const orderSuggestion = item.suggestedOrderQty > 0 ?
+                      `<span style="color: #3b82f6; font-weight: bold;">${item.suggestedOrderQty}</span>` :
+                      '<span style="color: #6b7280;">-</span>';
+                    
+                    return `
+                      <tr>
+                        <td style="text-align: center;">${rankBadge}</td>
+                        <td><strong>${productDisplay}</strong></td>
+                        <td style="text-align: center;"><strong style="color: #3b82f6;">${item.salesQuantity}</strong></td>
+                        <td style="text-align: right;">€${item.avgSalePrice.toFixed(2)}</td>
+                        <td style="text-align: center;">${stockStatus}</td>
+                        <td style="text-align: center;">${estimatedDaysText}</td>
+                        <td style="text-align: center;">${orderSuggestion}</td>
+                        <td style="text-align: right;"><strong>€${item.totalRevenue.toFixed(2)}</strong></td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+                <tfoot>
+                  <tr style="background: #f8fafc; font-weight: bold;">
+                    <td colspan="2" style="text-align: right; padding-right: 20px;">合计:</td>
+                    <td style="text-align: center; color: #3b82f6;">
+                      ${top20.reduce((sum, item) => sum + item.salesQuantity, 0)}
+                    </td>
+                    <td></td>
+                    <td style="text-align: center; color: #059669;">
+                      ${top20.reduce((sum, item) => sum + item.currentStock, 0)}
+                    </td>
+                    <td></td>
+                    <td style="text-align: center; color: #3b82f6;">
+                      ${top20.reduce((sum, item) => sum + item.suggestedOrderQty, 0)}
+                    </td>
+                    <td style="text-align: right; color: #7c3aed;">
+                      €${top20.reduce((sum, item) => sum + item.totalRevenue, 0).toFixed(2)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            
+            <div style="margin-top: 20px; padding: 15px; background: #fffbeb; border-radius: 8px; border-left: 4px solid #f59e0b;">
+              <h4 style="margin: 0 0 10px 0; color: #92400e;">📝 说明</h4>
+              <ul style="margin: 0; padding-left: 20px; color: #78350f; line-height: 1.8;">
+                <li><strong>产品名称:</strong> 产品名称（括号内为颜色）</li>
+                <li><strong>销售量:</strong> 本月实际销售数量（不含维修业务）</li>
+                <li><strong>平均售价:</strong> 本月该产品的平均销售价格</li>
+                <li><strong>当前库存:</strong> 当前可用库存数量（<span style="color: #dc2626;">红色</span>表示库存紧张，<span style="color: #f59e0b;">橙色</span>表示库存偏低，<span style="color: #059669;">绿色</span>表示库存充足）</li>
+                <li><strong>预计销售时间:</strong> 按当前销售速度，库存预计可销售的天数</li>
+                <li><strong>建议订货量:</strong> 建议补货数量（按1个月销售量计算）</li>
+                <li><strong>本月营收:</strong> 该产品本月的总销售额</li>
+              </ul>
+            </div>
+          `;
+        } else {
+          throw new Error(result.error || '获取报表失败');
+        }
+      } catch (error) {
+        console.error('加载库存报表失败:', error);
+        container.innerHTML = `
+          <div style="text-align: center; padding: 40px; color: #dc2626;">
+            <p style="font-size: 16px; margin-bottom: 10px;">❌ 加载失败</p>
+            <p style="font-size: 14px;">${error.message}</p>
+            <button class="btn btn-primary" onclick="loadInventoryReport()" style="margin-top: 15px;">🔄 重新加载</button>
+          </div>
+        `;
+      }
     }
 
     // 生成税务报表
@@ -8685,11 +9855,58 @@
     function generateInterCompanyInvoicePDF(transfer) {
       const printWindow = window.open('', '_blank');
       
-      // 计算VAT
-      const subtotal = transfer.totalAmount;
-      const vatRate = 0.23;
-      const vatAmount = subtotal * vatRate;
-      const totalAmount = subtotal + vatAmount;
+      // 根据每个产品的税务分类计算税额
+      let subtotalByTax = {
+        'VAT_23': 0,
+        'VAT_0': 0,
+        'MARGIN_VAT_0': 0,
+        'SERVICE_VAT_13_5': 0
+      };
+      
+      let totalSubtotal = 0;
+      let totalVAT = 0;
+      
+      // 为每个产品计算税额
+      const itemsWithTax = transfer.items.map(item => {
+        const itemTotal = item.transferPrice * item.quantity;
+        const taxClass = item.taxClassification || 'VAT_23';
+        
+        let vatRate = 0;
+        let vatAmount = 0;
+        
+        switch(taxClass) {
+          case 'VAT_23':
+            vatRate = 0.23;
+            vatAmount = itemTotal * vatRate;
+            break;
+          case 'SERVICE_VAT_13_5':
+            vatRate = 0.135;
+            vatAmount = itemTotal * vatRate;
+            break;
+          case 'VAT_0':
+          case 'MARGIN_VAT_0':
+            vatRate = 0;
+            vatAmount = 0;
+            break;
+          default:
+            vatRate = 0.23;
+            vatAmount = itemTotal * vatRate;
+        }
+        
+        subtotalByTax[taxClass] = (subtotalByTax[taxClass] || 0) + itemTotal;
+        totalSubtotal += itemTotal;
+        totalVAT += vatAmount;
+        
+        return {
+          ...item,
+          itemTotal: itemTotal,
+          vatRate: vatRate,
+          vatAmount: vatAmount,
+          taxClass: taxClass
+        };
+      });
+      
+      const totalAmount = totalSubtotal + totalVAT;
       
       const html = `
         <!DOCTYPE html>
@@ -8762,19 +9979,23 @@
                 <th class="text-center">Serial Number</th>
                 <th class="text-center">Condition</th>
                 <th class="text-center">Quantity</th>
-                <th class="text-right">Unit Price (Excl. VAT)</th>
-                <th class="text-right">Total (Excl. VAT)</th>
+                <th class="text-right">Unit Price</th>
+                <th class="text-center">VAT Rate</th>
+                <th class="text-right">VAT Amount</th>
+                <th class="text-right">Total</th>
               </tr>
             </thead>
             <tbody>
-              ${transfer.items.map(item => `
+              ${itemsWithTax.map(item => `
                 <tr>
                   <td>${item.productName}</td>
                   <td class="text-center" style="font-family: monospace; font-size: 11px;">${item.serialNumber || '-'}</td>
                   <td class="text-center">${item.condition || '-'}</td>
                   <td class="text-center">${item.quantity}</td>
                   <td class="text-right">€${item.transferPrice.toFixed(2)}</td>
-                  <td class="text-right">€${(item.transferPrice * item.quantity).toFixed(2)}</td>
+                  <td class="text-center">${(item.vatRate * 100).toFixed(1)}%</td>
+                  <td class="text-right">€${item.vatAmount.toFixed(2)}</td>
+                  <td class="text-right">€${(item.itemTotal + item.vatAmount).toFixed(2)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -8783,11 +10004,35 @@
           <div class="total-section">
             <div class="total-row">
               <span>Subtotal (Excl. VAT):</span>
-              <span>€${subtotal.toFixed(2)}</span>
+              <span>€${totalSubtotal.toFixed(2)}</span>
             </div>
-            <div class="total-row">
-              <span>VAT (23%):</span>
-              <span>€${vatAmount.toFixed(2)}</span>
+            ${subtotalByTax['VAT_23'] > 0 ? `
+            <div class="total-row" style="font-size: 13px; color: #666;">
+              <span>VAT 23% on €${subtotalByTax['VAT_23'].toFixed(2)}:</span>
+              <span>€${(subtotalByTax['VAT_23'] * 0.23).toFixed(2)}</span>
+            </div>
+            ` : ''}
+            ${subtotalByTax['SERVICE_VAT_13_5'] > 0 ? `
+            <div class="total-row" style="font-size: 13px; color: #666;">
+              <span>VAT 13.5% on €${subtotalByTax['SERVICE_VAT_13_5'].toFixed(2)}:</span>
+              <span>€${(subtotalByTax['SERVICE_VAT_13_5'] * 0.135).toFixed(2)}</span>
+            </div>
+            ` : ''}
+            ${subtotalByTax['VAT_0'] > 0 ? `
+            <div class="total-row" style="font-size: 13px; color: #666;">
+              <span>VAT 0% on €${subtotalByTax['VAT_0'].toFixed(2)}:</span>
+              <span>€0.00</span>
+            </div>
+            ` : ''}
+            ${subtotalByTax['MARGIN_VAT_0'] > 0 ? `
+            <div class="total-row" style="font-size: 13px; color: #666;">
+              <span>Margin VAT 0% on €${subtotalByTax['MARGIN_VAT_0'].toFixed(2)}:</span>
+              <span>€0.00</span>
+            </div>
+            ` : ''}
+            <div class="total-row" style="border-top: 1px solid #ddd; padding-top: 8px; margin-top: 8px;">
+              <span>Total VAT:</span>
+              <span>€${totalVAT.toFixed(2)}</span>
             </div>
             <div class="total-row final">
               <span>Total Amount (Incl. VAT):</span>

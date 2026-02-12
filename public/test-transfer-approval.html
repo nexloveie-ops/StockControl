@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>测试调货批准IMEI选择</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .test-section {
+      background: #f5f5f5;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 5px;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      cursor: pointer;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    .log {
+      background: #fff;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>测试调货批准IMEI选择功能</h1>
+  
+  <div class="test-section">
+    <h3>步骤1: 检查最新订单</h3>
+    <button onclick="checkLatestTransfer()">检查最新调货订单</button>
+    <div id="transfer-info" class="log"></div>
+  </div>
+  
+  <div class="test-section">
+    <h3>步骤2: 测试批准流程</h3>
+    <input type="text" id="transferId" placeholder="输入调货ID" style="width: 300px; padding: 8px;">
+    <button onclick="testApprove()">测试批准</button>
+    <div id="approve-log" class="log"></div>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+    const merchantId = 'MurrayRanelagh'; // 测试用
+
+    function log(elementId, message) {
+      const element = document.getElementById(elementId);
+      element.innerHTML += message + '<br>';
+      element.scrollTop = element.scrollHeight;
+    }
+
+    async function checkLatestTransfer() {
+      const logEl = document.getElementById('transfer-info');
+      logEl.innerHTML = '';
+      
+      try {
+        log('transfer-info', '正在获取调货列表...');
+        const response = await fetch(`${API_BASE}/merchant/inventory/transfer/list?merchantId=${merchantId}&type=pending`);
+        const result = await response.json();
+        
+        if (result.success && result.data && result.data.length > 0) {
+          const transfer = result.data[0];
+          log('transfer-info', `找到订单: ${transfer.transferNumber}`);
+          log('transfer-info', `状态: ${transfer.status}`);
+          log('transfer-info', `产品数量: ${transfer.items.length}`);
+          log('transfer-info', '');
+          
+          transfer.items.forEach((item, i) => {
+            log('transfer-info', `产品${i+1}: ${item.productName}`);
+            log('transfer-info', `  - inventoryId: ${item.inventoryId}`);
+            log('transfer-info', `  - 序列号: ${item.serialNumber || '空'}`);
+            log('transfer-info', `  - IMEI: ${item.imei || '空'}`);
+          });
+          
+          document.getElementById('transferId').value = transfer._id;
+        } else {
+          log('transfer-info', '没有找到待审批的订单');
+        }
+      } catch (error) {
+        log('transfer-info', '错误: ' + error.message);
+      }
+    }
+
+    async function testApprove() {
+      const logEl = document.getElementById('approve-log');
+      logEl.innerHTML = '';
+      const transferId = document.getElementById('transferId').value;
+      
+      if (!transferId) {
+        alert('请先输入调货ID');
+        return;
+      }
+      
+      try {
+        log('approve-log', '=== 开始批准流程 ===');
+        log('approve-log', '调货ID: ' + transferId);
+        
+        // 1. 获取调货详情
+        log('approve-log', '\n1. 获取调货详情...');
+        const detailResponse = await fetch(`${API_BASE}/merchant/inventory/transfer/${transferId}`);
+        const detailResult = await detailResponse.json();
+        
+        if (!detailResult.success) {
+          log('approve-log', '❌ 获取详情失败: ' + detailResult.error);
+          return;
+        }
+        
+        const transfer = detailResult.data;
+        log('approve-log', '✅ 获取成功');
+        log('approve-log', `调出方: ${transfer.fromMerchant}`);
+        log('approve-log', `调入方: ${transfer.toMerchant}`);
+        log('approve-log', `产品数量: ${transfer.items.length}`);
+        
+        // 2. 检查每个产品
+        log('approve-log', '\n2. 检查产品是否需要选择IMEI...');
+        const itemsNeedingIMEI = [];
+        
+        for (const item of transfer.items) {
+          log('approve-log', `\n检查: ${item.productName}`);
+          log('approve-log', `  inventoryId: ${item.inventoryId}`);
+          
+          // 查询库存
+          const invResponse = await fetch(`${API_BASE}/merchant/inventory?merchantId=${transfer.fromMerchant}`);
+          const invResult = await invResponse.json();
+          
+          if (invResult.success && invResult.data) {
+            const inventory = invResult.data.find(inv => inv._id === item.inventoryId);
+            
+            if (inventory) {
+              log('approve-log', `  找到库存记录`);
+              log('approve-log', `  序列号: ${inventory.serialNumber || '空'}`);
+              log('approve-log', `  IMEI: ${inventory.imei || '空'}`);
+              
+              if (inventory.serialNumber || inventory.imei) {
+                log('approve-log', `  ✅ 这是设备，需要选择IMEI`);
+                
+                // 查询相同产品的所有设备
+                const sameProductDevices = invResult.data.filter(inv => 
+                  inv.productName === item.productName &&
+                  inv.status === 'active' &&
+                  inv.quantity > 0 &&
+                  (inv.serialNumber || inv.imei)
+                );
+                
+                log('approve-log', `  找到 ${sameProductDevices.length} 个可用设备`);
+                
+                itemsNeedingIMEI.push({
+                  ...item,
+                  availableDevices: sameProductDevices
+                });
+              } else {
+                log('approve-log', `  ℹ️ 这是配件，不需要选择IMEI`);
+              }
+            } else {
+              log('approve-log', `  ⚠️ 未找到库存记录`);
+            }
+          }
+        }
+        
+        log('approve-log', `\n=== 检查完成 ===`);
+        log('approve-log', `需要选择IMEI的产品: ${itemsNeedingIMEI.length}`);
+        
+        if (itemsNeedingIMEI.length > 0) {
+          log('approve-log', '\n✅ 应该显示IMEI选择界面');
+          log('approve-log', '产品列表:');
+          itemsNeedingIMEI.forEach((item, i) => {
+            log('approve-log', `  ${i+1}. ${item.productName} - ${item.availableDevices.length}个可选设备`);
+          });
+        } else {
+          log('approve-log', '\nℹ️ 没有设备需要选择IMEI，可以直接批准');
+        }
+        
+      } catch (error) {
+        log('approve-log', '❌ 错误: ' + error.message);
+        console.error(error);
+      }
+    }
+  </script>
+</body>
+</html>
