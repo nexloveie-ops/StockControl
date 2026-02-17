@@ -9,8 +9,20 @@ const supplierSchema = new mongoose.Schema({
   code: {
     type: String,
     required: true,
-    unique: true,
-    uppercase: true
+    uppercase: true,
+    index: true
+  },
+  // 商户ID（用于数据隔离）
+  merchantId: {
+    type: String,
+    default: null,
+    index: true
+  },
+  // VAT号码
+  vatNumber: {
+    type: String,
+    trim: true,
+    default: ''
   },
   contact: {
     person: String,
@@ -31,5 +43,8 @@ const supplierSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+// 复合索引：确保同一商户下code唯一
+supplierSchema.index({ code: 1, merchantId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Supplier', supplierSchema);

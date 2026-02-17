@@ -96,6 +96,19 @@ const merchantSaleSchema = new mongoose.Schema({
     refundCondition: {
       type: String,
       default: null
+    },
+    // 快速销售标记
+    isQuickSale: {
+      type: Boolean,
+      default: false
+    },
+    quickSaleCategory: {
+      type: String,
+      default: null
+    },
+    quickSaleDescription: {
+      type: String,
+      default: null
     }
   }],
   

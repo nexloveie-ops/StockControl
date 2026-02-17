@@ -346,7 +346,7 @@
       <div class="stat-card" onclick="showTaxCalculationDetails()" style="cursor: pointer;"
            onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 16px rgba(0,0,0,0.15)';"
            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.1)';">
-        <h3>应缴税额 📊</h3>
+        <h3>本日应缴税额 📊</h3>
         <div class="value" id="taxDue">-</div>
         <small style="color: #666; font-size: 12px;">点击查看计算过程</small>
       </div>
@@ -360,6 +360,7 @@
       <button class="tab" onclick="switchTab('group-inventory')">群组库存</button>
       <button class="tab" onclick="switchTab('transfer-management')">调货管理</button>
       <button class="tab" onclick="switchTab('warehouse-order')">仓库订货</button>
+      <button class="tab" onclick="switchTab('inventory-management')">入库管理</button>
       <button class="tab" onclick="switchTab('reports')">报表中心</button>
       <button class="tab" onclick="switchTab('tax-report')">税务报表</button>
     </div>
@@ -390,14 +391,20 @@
           </div>
         </div>
         
-        <!-- 全局搜索框 -->
-        <div style="margin-bottom: 20px;">
+        <!-- 全局搜索框和快速销售 -->
+        <div style="margin-bottom: 20px; display: flex; gap: 10px;">
           <input type="text" id="globalProductSearchInput" 
             placeholder="🔍 搜索产品名称、IMEI、序列号、条形码或备注..." 
             oninput="globalSearchProducts()"
-            style="width: 100%; padding: 12px 20px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 15px; transition: border-color 0.2s;"
+            style="flex: 1; padding: 12px 20px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 15px; transition: border-color 0.2s;"
             onfocus="this.style.borderColor='#3b82f6'"
             onblur="this.style.borderColor='#e5e7eb'">
+          <button onclick="showQuickSaleModal()" 
+            style="padding: 12px 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; white-space: nowrap; box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3); transition: transform 0.2s;"
+            onmouseover="this.style.transform='translateY(-2px)'"
+            onmouseout="this.style.transform='translateY(0)'">
+            ⚡ 快速销售
+          </button>
         </div>
         
         <!-- 产品分类列表 -->
@@ -599,6 +606,96 @@
       </div>
     </div>
 
+    <!-- 快速销售模态框 -->
+    <div id="quickSaleModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+      <div style="background: white; border-radius: 12px; padding: 30px; max-width: 550px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+        <div style="display: flex; align-items: center; margin-bottom: 25px;">
+          <span style="font-size: 32px; margin-right: 15px;">⚡</span>
+          <div>
+            <h3 style="margin: 0; font-size: 24px; color: #1f2937;">快速销售</h3>
+            <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">无需库存，直接销售</p>
+          </div>
+        </div>
+        
+        <form id="quickSaleForm" onsubmit="addQuickSaleToCart(event)">
+          <div style="display: grid; gap: 20px;">
+            <!-- 产品大类 -->
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">
+                产品大类 <span style="color: #ef4444;">*</span>
+              </label>
+              <select id="quickSaleCategory" required style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 15px; background: white;">
+                <option value="">-- 请选择 --</option>
+                <option value="newDevices">📱 新设备 (New Devices)</option>
+                <option value="usedDevices">♻️ 二手设备 (Used Devices)</option>
+                <option value="accessories">🎧 配件 (Accessories)</option>
+                <option value="services">🔧 服务 (Services)</option>
+              </select>
+            </div>
+            
+            <!-- 产品描述 -->
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">
+                产品描述 <span style="color: #ef4444;">*</span>
+              </label>
+              <input type="text" id="quickSaleDescription" required 
+                placeholder="例如: iPhone 14 Screen Protector" 
+                style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 15px;">
+              <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 13px;">请输入产品的详细描述</p>
+            </div>
+            
+            <!-- 数量 -->
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">
+                数量 <span style="color: #ef4444;">*</span>
+              </label>
+              <input type="number" id="quickSaleQuantity" required min="1" value="1" 
+                style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 15px;">
+            </div>
+            
+            <!-- 单价 -->
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">
+                单价 (€) <span style="color: #ef4444;">*</span>
+              </label>
+              <input type="number" id="quickSalePrice" required min="0" step="0.01" 
+                placeholder="0.00" 
+                style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 15px;">
+            </div>
+            
+            <!-- 税务分类 -->
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">
+                税务分类 <span style="color: #ef4444;">*</span>
+              </label>
+              <select id="quickSaleTaxClass" required style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 15px; background: white;">
+                <option value="">-- 请选择 --</option>
+                <option value="VAT_23">VAT 23%</option>
+                <option value="SERVICE_VAT_13_5">VAT 13.5% (Service)</option>
+                <option value="VAT_0">VAT 0%</option>
+                <option value="MARGIN_VAT_0">Margin VAT</option>
+              </select>
+            </div>
+          </div>
+          
+          <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+            <button type="button" onclick="closeQuickSaleModal()" 
+              style="padding: 12px 24px; background: #6b7280; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: background 0.2s;"
+              onmouseover="this.style.background='#4b5563'"
+              onmouseout="this.style.background='#6b7280'">
+              取消
+            </button>
+            <button type="submit" 
+              style="padding: 12px 24px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3); transition: transform 0.2s;"
+              onmouseover="this.style.transform='translateY(-2px)'"
+              onmouseout="this.style.transform='translateY(0)'">
+              ✅ 添加到购物车
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- 维修业务 -->
     <div id="repairs" class="tab-content">
       <div class="card">
@@ -625,6 +722,15 @@
           <button onclick="filterRepairs('ready_for_sale')" id="filterBtn_ready_for_sale" class="btn" style="padding: 8px 16px; background: #ec4899; color: white;">
             等待销售
           </button>
+        </div>
+        
+        <!-- 搜索框 -->
+        <div style="margin-bottom: 20px;">
+          <input type="text" id="repairSearchInput" placeholder="🔍 搜索：客户、设备、IMEI、问题描述、维修地点..." 
+            oninput="searchRepairs()" 
+            style="width: 100%; padding: 12px 20px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; transition: border-color 0.3s;"
+            onfocus="this.style.borderColor='#3b82f6'"
+            onblur="this.style.borderColor='#e5e7eb'">
         </div>
         
         <div id="repairsTable">
@@ -724,6 +830,20 @@
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- 维修详情模态框 -->
+    <div id="repairDetailModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+      <div style="background: white; border-radius: 12px; padding: 30px; max-width: 800px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+          <h3 style="margin: 0;">🔍 维修订单详情</h3>
+          <button onclick="closeRepairDetail()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #666;">&times;</button>
+        </div>
+        
+        <div id="repairDetailContent">
+          <div class="loading">加载中...</div>
+        </div>
       </div>
     </div>
 
@@ -963,6 +1083,22 @@
         
         <div id="dailySalesDate" style="font-size: 16px; color: #666; margin-bottom: 20px;"></div>
         
+        <!-- 有效销售笔数（可点击） -->
+        <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <span style="color: #6b7280;">有效销售笔数:</span>
+              <strong id="validSalesCount" style="font-size: 20px; color: #2563eb; margin-left: 10px;">-</strong>
+            </div>
+            <button onclick="showAdminSalesManager()" 
+              style="padding: 8px 16px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; opacity: 0.3; transition: opacity 0.2s;"
+              onmouseover="this.style.opacity='1'"
+              onmouseout="this.style.opacity='0.3'">
+              🔒 管理
+            </button>
+          </div>
+        </div>
+        
         <div id="dailySalesContent">
           <div class="loading">加载中...</div>
         </div>
@@ -972,6 +1108,254 @@
             关闭
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- 管理员销售管理模态框（隐藏功能） -->
+    <div id="adminSalesManagerModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; align-items: center; justify-content: center;">
+      <div style="background: white; border-radius: 12px; padding: 30px; max-width: 900px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+          <div>
+            <h3 style="margin: 0; color: #dc2626;">🔒 管理员销售管理</h3>
+            <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">当日所有现金销售记录</p>
+          </div>
+          <button onclick="closeAdminSalesManager()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #666;">&times;</button>
+        </div>
+        
+        <div id="adminSalesContent">
+          <div class="loading">请输入密码...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 添加/编辑供货商模态框 -->
+    <div id="supplierModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+      <div style="background: white; border-radius: 12px; padding: 30px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <h3 id="supplierModalTitle" style="margin-bottom: 20px;">📦 添加供货商</h3>
+        
+        <form id="supplierForm" onsubmit="saveSupplier(event)">
+          <input type="hidden" id="supplierId">
+          
+          <div style="display: grid; gap: 15px;">
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 5px;">
+                供货商名称 <span style="color: #ef4444;">*</span>
+              </label>
+              <input type="text" id="supplierName" required 
+                style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            </div>
+            
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 5px;">
+                供货商代码 <span style="color: #ef4444;">*</span>
+              </label>
+              <input type="text" id="supplierCode" required 
+                placeholder="例如: SUP001"
+                style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px; text-transform: uppercase;">
+              <small style="color: #6b7280;">代码将自动转换为大写</small>
+            </div>
+            
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 5px;">VAT号码</label>
+              <input type="text" id="supplierVatNumber" 
+                placeholder="例如: IE1234567X"
+                style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+              <small style="color: #6b7280;">供货商的增值税号码</small>
+            </div>
+            
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 5px;">联系人</label>
+              <input type="text" id="supplierContactPerson" 
+                style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            </div>
+            
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 5px;">联系电话</label>
+              <input type="text" id="supplierContactPhone" 
+                style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            </div>
+            
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 5px;">邮箱</label>
+              <input type="email" id="supplierContactEmail" 
+                style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            </div>
+            
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 5px;">地址</label>
+              <textarea id="supplierContactAddress" rows="2"
+                style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;"></textarea>
+            </div>
+            
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 5px;">付款条款</label>
+              <select id="supplierPaymentTerms" 
+                style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+                <option value="cash">现金</option>
+                <option value="net15">Net 15</option>
+                <option value="net30" selected>Net 30</option>
+                <option value="net60">Net 60</option>
+              </select>
+            </div>
+            
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 5px;">备注</label>
+              <textarea id="supplierNotes" rows="3"
+                style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;"></textarea>
+            </div>
+          </div>
+          
+          <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+            <button type="button" onclick="closeSupplierModal()" 
+              style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+              取消
+            </button>
+            <button type="submit" 
+              style="padding: 10px 20px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+              保存
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 添加产品入库模态框 -->
+    <div id="addInventoryModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+      <div style="background: white; border-radius: 12px; padding: 30px; max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <h3 style="margin-bottom: 20px;">📥 产品入库</h3>
+        
+        <form id="addInventoryForm" onsubmit="saveInventoryProduct(event)">
+          <div style="display: grid; gap: 15px;">
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 5px;">
+                供货商 <span style="color: #ef4444;">*</span>
+              </label>
+              <select id="invSupplier" required 
+                style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+                <option value="">-- 请选择供货商 --</option>
+              </select>
+              <small style="color: #6b7280;">如果没有供货商，请先在"供货商管理"中添加</small>
+            </div>
+            
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 5px;">
+                产品分类 <span style="color: #ef4444;">*</span>
+              </label>
+              <select id="invCategory" required 
+                style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+                <option value="">-- 请选择分类 --</option>
+                <option value="newDevices">新设备</option>
+                <option value="usedDevices">二手设备</option>
+                <option value="accessories">配件</option>
+              </select>
+            </div>
+            
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 5px;">
+                产品名称 <span style="color: #ef4444;">*</span>
+              </label>
+              <input type="text" id="invProductName" required 
+                placeholder="例如: iPhone 14 Pro"
+                style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px;">品牌</label>
+                <input type="text" id="invBrand" 
+                  placeholder="例如: Apple"
+                  style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+              </div>
+              
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px;">型号</label>
+                <input type="text" id="invModel" 
+                  placeholder="例如: A2890"
+                  style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+              </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px;">颜色</label>
+                <input type="text" id="invColor" 
+                  placeholder="例如: 深空黑"
+                  style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+              </div>
+              
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px;">成色</label>
+                <select id="invCondition" 
+                  style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+                  <option value="全新">全新</option>
+                  <option value="99新">99新</option>
+                  <option value="95新">95新</option>
+                  <option value="9成新">9成新</option>
+                  <option value="8成新">8成新</option>
+                </select>
+              </div>
+            </div>
+            
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 5px;">
+                数量 <span style="color: #ef4444;">*</span>
+              </label>
+              <input type="number" id="invQuantity" required min="1" value="1"
+                style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px;">
+                  成本价 (€) <span style="color: #ef4444;">*</span>
+                </label>
+                <input type="number" id="invCostPrice" required min="0" step="0.01"
+                  placeholder="0.00"
+                  style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+              </div>
+              
+              <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px;">
+                  零售价 (€) <span style="color: #ef4444;">*</span>
+                </label>
+                <input type="number" id="invRetailPrice" required min="0" step="0.01"
+                  placeholder="0.00"
+                  style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+              </div>
+            </div>
+            
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 5px;">
+                税务分类 <span style="color: #ef4444;">*</span>
+              </label>
+              <select id="invTaxClass" required 
+                style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+                <option value="">-- 请选择 --</option>
+                <option value="VAT 23%">VAT 23%</option>
+                <option value="VAT 13.5%">VAT 13.5% (Service)</option>
+                <option value="VAT 0%">VAT 0%</option>
+                <option value="Margin VAT">Margin VAT</option>
+              </select>
+            </div>
+            
+            <div>
+              <label style="display: block; font-weight: 600; margin-bottom: 5px;">备注</label>
+              <textarea id="invNotes" rows="2"
+                style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;"></textarea>
+            </div>
+          </div>
+          
+          <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+            <button type="button" onclick="closeAddInventoryModal()" 
+              style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+              取消
+            </button>
+            <button type="submit" 
+              style="padding: 10px 20px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+              保存入库
+            </button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -1491,6 +1875,189 @@
       </div>
     </div>
 
+    <!-- 供货商管理模态框 -->
+    <div id="supplierModal" class="modal">
+      <div class="modal-content" style="max-width: 600px;">
+        <span class="close" onclick="closeSupplierModal()">&times;</span>
+        <h2 id="supplierModalTitle">添加供货商</h2>
+        
+        <form id="supplierForm" onsubmit="saveSupplier(event)">
+          <input type="hidden" id="supplierId">
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 600;">供货商名称 *</label>
+              <input type="text" id="supplierName" required style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 600;">供货商代码 *</label>
+              <input type="text" id="supplierCode" required style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px; text-transform: uppercase;">
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 600;">联系人</label>
+              <input type="text" id="supplierContactPerson" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 600;">联系电话</label>
+              <input type="text" id="supplierContactPhone" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 600;">邮箱</label>
+            <input type="email" id="supplierContactEmail" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+          </div>
+          
+          <div style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 600;">地址</label>
+            <textarea id="supplierContactAddress" rows="2" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;"></textarea>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 600;">付款条款</label>
+              <select id="supplierPaymentTerms" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+                <option value="cash">现金</option>
+                <option value="net15">Net 15</option>
+                <option value="net30" selected>Net 30</option>
+                <option value="net60">Net 60</option>
+              </select>
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 20px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 600;">备注</label>
+            <textarea id="supplierNotes" rows="3" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;"></textarea>
+          </div>
+          
+          <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button type="button" onclick="closeSupplierModal()" class="btn" style="padding: 10px 20px; background: #6b7280; color: white;">取消</button>
+            <button type="submit" class="btn btn-success" style="padding: 10px 20px;">保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 产品入库模态框 -->
+    <div id="addInventoryModal" class="modal">
+      <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+        <span class="close" onclick="closeAddInventoryModal()">&times;</span>
+        <h2>📥 添加产品入库</h2>
+        
+        <form id="addInventoryForm" onsubmit="saveInventoryProduct(event)">
+          <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
+            <p style="margin: 0; color: #1e40af; font-size: 14px;">
+              💡 <strong>提示:</strong> 产品入库后会自动添加到"我的库存"中，只有您可以查看和销售。
+            </p>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 600;">供货商</label>
+              <select id="inventorySupplier" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+                <option value="">请选择供货商</option>
+              </select>
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 600;">产品分类 *</label>
+              <select id="inventoryCategory" required style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+                <option value="">请选择分类</option>
+                <option value="newDevices">新设备</option>
+                <option value="usedDevices">二手设备</option>
+                <option value="accessories">配件</option>
+              </select>
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 600;">产品名称 *</label>
+              <input type="text" id="inventoryProductName" required style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 600;">品牌</label>
+              <input type="text" id="inventoryBrand" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 600;">型号</label>
+              <input type="text" id="inventoryModel" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 600;">颜色</label>
+              <input type="text" id="inventoryColor" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 600;">成色</label>
+              <select id="inventoryCondition" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+                <option value="new">全新</option>
+                <option value="like-new">99新</option>
+                <option value="excellent">95新</option>
+                <option value="good">90新</option>
+                <option value="fair">85新</option>
+              </select>
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 600;">数量 *</label>
+              <input type="number" id="inventoryQuantity" required min="1" value="1" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 600;">成本价 (€) *</label>
+              <input type="number" id="inventoryCostPrice" required step="0.01" min="0" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 600;">批发价 (€) *</label>
+              <input type="number" id="inventoryWholesalePrice" required step="0.01" min="0" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 600;">零售价 (€) *</label>
+              <input type="number" id="inventoryRetailPrice" required step="0.01" min="0" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 600;">税务分类 *</label>
+              <select id="inventoryTaxClassification" required style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+                <option value="">请选择税务分类</option>
+                <option value="standard">标准税率 (21%)</option>
+                <option value="reduced">低税率 (9%)</option>
+                <option value="exempt">免税 (0%)</option>
+                <option value="margin">差价征税</option>
+              </select>
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 5px; font-weight: 600;">条形码</label>
+              <input type="text" id="inventoryBarcode" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 600;">序列号/IMEI</label>
+            <input type="text" id="inventorySerialNumber" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+          </div>
+          
+          <div style="margin-bottom: 20px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 600;">备注</label>
+            <textarea id="inventoryNotes" rows="3" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px;"></textarea>
+          </div>
+          
+          <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button type="button" onclick="closeAddInventoryModal()" class="btn" style="padding: 10px 20px; background: #6b7280; color: white;">取消</button>
+            <button type="submit" class="btn btn-success" style="padding: 10px 20px;">保存入库</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- 销售订单详情和退款对话框 -->
     <div id="saleDetailModal" class="modal">
       <div class="modal-content" style="max-width: 1000px; max-height: 90vh; overflow-y: auto;">
@@ -1588,6 +2155,164 @@
         </div>
       </div>
     </div>
+
+    <!-- 入库管理 -->
+    <div id="inventory-management" class="tab-content">
+      <!-- 子标签页 -->
+      <div style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">
+        <button onclick="switchInventoryTab('suppliers')" id="invSupplierTabBtn" class="btn btn-primary" style="padding: 8px 16px;">
+          📦 供货商管理
+        </button>
+        <button onclick="openSmartReceivingTab()" id="invProductTabBtn" class="btn" style="padding: 8px 16px; background: #f7fafc; color: #4a5568;">
+          📥 产品入库
+        </button>
+      </div>
+
+      <!-- 供货商管理 -->
+      <div id="invSuppliersTab" style="display: block;">
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">📦 我的供货商</h2>
+            <button class="btn btn-success" onclick="showAddSupplierModal()">+ 添加供货商</button>
+          </div>
+          
+          <!-- 搜索框 -->
+          <div style="margin-bottom: 20px;">
+            <input type="text" id="supplierSearchInput" 
+              placeholder="🔍 搜索供货商名称、联系人、电话..." 
+              oninput="searchMySuppliers()"
+              style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 15px;">
+          </div>
+          
+          <div id="mySuppliersTable">
+            <div class="loading">加载中...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 产品入库 -->
+      <div id="invProductsTab" style="display: none;">
+        <!-- 此功能已迁移到独立页面，点击上方"产品入库"按钮将在新标签页打开 -->
+      </div>
+          <div style="display: flex; gap: 15px; margin-bottom: 25px;">
+            <button onclick="switchMerchantReceivingMode('upload')" id="merchantUploadModeBtn" class="btn btn-primary">
+              📤 发票上传入库
+            </button>
+            <button onclick="switchMerchantReceivingMode('manual')" id="merchantManualModeBtn" class="btn" style="background: #48bb78; color: white;">
+              ✏️ 手动录入入库
+            </button>
+          </div>
+          
+          <!-- 发票上传模式 -->
+          <div id="merchantUploadMode" style="display: block;">
+            <div style="border: 2px dashed #cbd5e0; border-radius: 12px; padding: 60px 40px; text-align: center; background: #f7fafc; cursor: pointer; transition: all 0.3s;" 
+                 onclick="document.getElementById('merchantFileInput').click()">
+              <div style="font-size: 64px; margin-bottom: 20px;">📄</div>
+              <div>
+                <button onclick="event.stopPropagation(); document.getElementById('merchantFileInput').click()" class="btn btn-primary" style="padding: 12px 24px; font-size: 16px;">
+                  📤 上传发票图片
+                </button>
+                <input type="file" id="merchantFileInput" accept="image/*,application/pdf" style="display: none;" onchange="handleMerchantFileUpload(event)">
+              </div>
+              <div style="margin-top: 15px; color: #718096; font-size: 14px;">
+                支持格式：JPG, PNG, PDF<br>
+                上传发票图片进行智能识别和自动入库
+              </div>
+            </div>
+            
+            <div id="merchantRecognitionResult" style="display: none; margin-top: 20px;"></div>
+          </div>
+          
+          <!-- 手动录入模式 -->
+          <div id="merchantManualMode" style="display: none;">
+            <div style="background: #f7fafc; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+              <h3>📝 手动录入产品信息</h3>
+              
+              <!-- 配件产品变体说明 -->
+              <div style="background: #e7f3ff; border-left: 4px solid #2196f3; padding: 12px; margin: 15px 0; border-radius: 4px;">
+                <div style="display: flex; align-items: start; gap: 8px;">
+                  <span style="font-size: 18px;">💡</span>
+                  <div style="flex: 1;">
+                    <strong style="color: #1976d2; font-size: 14px;">产品录入说明</strong>
+                    <p style="margin: 6px 0 0 0; color: #555; font-size: 13px; line-height: 1.5;">
+                      <strong>• 设备产品（手机/平板/手表）：</strong>选择包含"设备"、"手机"、"Phone"等关键字的分类后，系统会自动显示IMEI/SN输入框<br>
+                      <strong>• 配件产品（手机壳/保护膜/数据线）：</strong>填写品牌、型号/规格和颜色/类型字段，用于区分不同变体
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 供应商信息 -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                <div>
+                  <label style="display: block; margin-bottom: 5px; font-weight: 500;">供应商</label>
+                  <select id="merchantManualSupplier" style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                    <option value="">选择供应商...</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="display: block; margin-bottom: 5px; font-weight: 500;">发票号码</label>
+                  <input type="text" id="merchantManualInvoiceNumber" placeholder="输入发票号码" 
+                         style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                </div>
+              </div>
+              
+              <!-- 横向滚动提示 -->
+              <div style="background: #e0f2fe; border: 1px solid #0ea5e9; border-radius: 6px; padding: 10px; margin-bottom: 15px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 18px;">👉</span>
+                  <span style="color: #0c4a6e; font-size: 13px;">
+                    <strong>提示：</strong>表格较宽，请横向滚动查看所有列（包括"成色"和"操作"列）
+                  </span>
+                </div>
+              </div>
+              
+              <!-- 产品信息表单 -->
+              <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow-x: auto;">
+                <table style="width: 100%; margin: 0; min-width: 1600px;">
+                  <thead style="background: #f7fafc;">
+                    <tr>
+                      <th style="padding: 12px; text-align: left; min-width: 150px;">产品名称</th>
+                      <th style="padding: 12px; text-align: left; min-width: 100px;">品牌</th>
+                      <th style="padding: 12px; text-align: left; min-width: 120px;">型号/规格</th>
+                      <th style="padding: 12px; text-align: left; min-width: 100px;">颜色/类型</th>
+                      <th style="padding: 12px; text-align: left; min-width: 150px;">分类</th>
+                      <th style="padding: 12px; text-align: left; min-width: 80px;">数量</th>
+                      <th style="padding: 12px; text-align: left; min-width: 100px;">进货价</th>
+                      <th style="padding: 12px; text-align: left; min-width: 100px;">批发价</th>
+                      <th style="padding: 12px; text-align: left; min-width: 100px;">零售价</th>
+                      <th style="padding: 12px; text-align: left; min-width: 120px;">税务分类</th>
+                      <th style="padding: 12px; text-align: left; min-width: 150px;">条码/IMEI/SN</th>
+                      <th style="padding: 12px; text-align: left; min-width: 120px; background: #fef3c7;">成色 ⭐</th>
+                      <th style="padding: 12px; text-align: left; min-width: 80px;">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="merchantManualProductsTable">
+                    <!-- 动态生成的产品行 -->
+                  </tbody>
+                </table>
+              </div>
+              
+              <div style="display: flex; gap: 15px; justify-content: space-between; margin-top: 20px;">
+                <div style="display: flex; gap: 10px;">
+                  <button onclick="addMerchantManualProduct()" class="btn btn-success">
+                    ➕ 添加产品
+                  </button>
+                </div>
+                <div>
+                  <button onclick="clearMerchantManualForm()" class="btn" style="background: #f7fafc; color: #4a5568; border: 1px solid #e2e8f0;">
+                    🗑️ 清空
+                  </button>
+                  <button onclick="confirmMerchantManualReceiving()" class="btn btn-success">
+                    ✅ 确认入库
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -1627,6 +2352,7 @@
         case 'group-inventory': loadGroupInventory(); break;
         case 'transfer-management': loadTransferManagement(); break;
         case 'warehouse-order': switchWarehouseTab('order'); break;
+        case 'inventory-management': loadMySuppliers(); break;
         case 'reports': loadReports(); break;
       }
     }
@@ -1642,10 +2368,46 @@
           document.getElementById('myInventory').textContent = stats.myInventory || 0;
           document.getElementById('dailySales').textContent = '€' + (stats.dailySales || 0).toFixed(2);
           document.getElementById('dailyRepairs').textContent = '€' + (stats.dailyRepairs || 0).toFixed(2);
-          document.getElementById('taxDue').textContent = '€' + (stats.taxDue || 0).toFixed(2);
+          
+          // 计算当日应缴税额
+          await loadDailyTaxDue();
         }
       } catch (error) {
         console.error('加载统计数据失败:', error);
+      }
+    }
+    
+    // 加载当日应缴税额
+    async function loadDailyTaxDue() {
+      try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        const startDate = today.toISOString();
+        const endDate = tomorrow.toISOString();
+        
+        // 获取当日销售记录
+        const response = await fetch(`${API_BASE}/merchant/sales?merchantId=${merchantId}&startDate=${startDate}&endDate=${endDate}`);
+        const result = await response.json();
+        
+        let dailyTaxDue = 0;
+        
+        if (result.success && result.data && result.data.length > 0) {
+          // 过滤掉已退款的销售记录
+          const validSales = result.data.filter(sale => !sale.status || sale.status.toUpperCase() !== 'REFUNDED');
+          
+          // 计算当日应缴税额
+          validSales.forEach(sale => {
+            dailyTaxDue += sale.totalTax || 0;
+          });
+        }
+        
+        document.getElementById('taxDue').textContent = '€' + dailyTaxDue.toFixed(2);
+      } catch (error) {
+        console.error('加载当日应缴税额失败:', error);
+        document.getElementById('taxDue').textContent = '€0.00';
       }
     }
 
@@ -1669,6 +2431,9 @@
           // 过滤掉已退款的销售记录（不区分大小写）
           const sales = result.data.filter(sale => !sale.status || sale.status.toUpperCase() !== 'REFUNDED');
           const refundedSales = result.data.filter(sale => sale.status && sale.status.toUpperCase() === 'REFUNDED');
+          
+          // 更新有效销售笔数显示
+          document.getElementById('validSalesCount').textContent = sales.length;
           
           if (sales.length === 0) {
             document.getElementById('dailySalesContent').innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">今日暂无有效销售记录（所有销售已退款）</p>';
@@ -1797,6 +2562,194 @@
     function closeDailySalesModal() {
       document.getElementById('dailySalesModal').style.display = 'none';
     }
+    
+    // ==================== 管理员销售管理（隐藏功能） ====================
+    
+    // 显示管理员销售管理
+    function showAdminSalesManager() {
+      // 验证密码（当前时间的小时+分钟）
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const correctPassword = hours + minutes;
+      
+      const password = prompt('请输入管理员密码（4位数字）:');
+      
+      if (password !== correctPassword) {
+        alert('❌ 密码错误');
+        return;
+      }
+      
+      // 密码正确，显示管理界面
+      document.getElementById('adminSalesManagerModal').style.display = 'flex';
+      loadAdminSalesData();
+    }
+    
+    // 关闭管理员销售管理
+    function closeAdminSalesManager() {
+      document.getElementById('adminSalesManagerModal').style.display = 'none';
+    }
+    
+    // 加载管理员销售数据（当日现金配件）
+    async function loadAdminSalesData() {
+      const content = document.getElementById('adminSalesContent');
+      content.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const today = new Date();
+        const startDate = new Date(today.setHours(0, 0, 0, 0)).toISOString();
+        const endDate = new Date(today.setHours(23, 59, 59, 999)).toISOString();
+        
+        const response = await fetch(`${API_BASE}/merchant/sales?merchantId=${merchantId}&startDate=${startDate}&endDate=${endDate}`);
+        const result = await response.json();
+        
+        if (!result.success || !result.data || result.data.length === 0) {
+          content.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">今日暂无销售记录</p>';
+          return;
+        }
+        
+        // 过滤：现金支付 + 未退款
+        const filteredSales = result.data.filter(sale => 
+          sale.paymentMethod === 'CASH' && (!sale.status || sale.status.toUpperCase() !== 'REFUNDED')
+        );
+        
+        if (filteredSales.length === 0) {
+          content.innerHTML = `
+            <div style="text-align: center; padding: 40px;">
+              <p style="color: #6b7280; font-size: 16px; margin-bottom: 10px;">📦 今日暂无现金销售记录</p>
+            </div>
+          `;
+          return;
+        }
+        
+        // 计算总金额
+        const totalAmount = filteredSales.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0);
+        
+        // 显示销售记录
+        let html = `
+          <div style="margin-bottom: 20px; padding: 15px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <span style="color: #92400e;">💰 当日现金销售记录:</span>
+                <strong style="font-size: 20px; color: #b45309; margin-left: 10px;">${filteredSales.length} 笔</strong>
+              </div>
+              <div style="font-size: 18px; color: #92400e; font-weight: 600;">
+                总计: €${totalAmount.toFixed(2)}
+              </div>
+            </div>
+          </div>
+          
+          <div style="max-height: 500px; overflow-y: auto;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead style="position: sticky; top: 0; background: white; z-index: 1;">
+                <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
+                  <th style="padding: 12px; text-align: left;">时间</th>
+                  <th style="padding: 12px; text-align: left;">客户</th>
+                  <th style="padding: 12px; text-align: left;">产品</th>
+                  <th style="padding: 12px; text-align: right;">数量</th>
+                  <th style="padding: 12px; text-align: right;">金额</th>
+                  <th style="padding: 12px; text-align: center; width: 100px;">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+        
+        filteredSales.forEach(sale => {
+          // 更健壮的日期处理
+          let time = '-';
+          try {
+            const dateValue = sale.date || sale.saleDate || sale.createdAt;
+            if (dateValue) {
+              const dateObj = new Date(dateValue);
+              if (!isNaN(dateObj.getTime())) {
+                time = dateObj.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+              }
+            }
+          } catch (e) {
+            console.error('日期解析错误:', e);
+          }
+          
+          const customerDisplay = sale.customerPhone || '散客';
+          
+          // 显示每个销售订单的所有产品
+          sale.items.forEach((item, index) => {
+            const itemTotal = (item.price * item.quantity).toFixed(2);
+            html += `
+              <tr style="border-bottom: 1px solid #e5e7eb;">
+                ${index === 0 ? `
+                  <td style="padding: 12px;" rowspan="${sale.items.length}">${time}</td>
+                  <td style="padding: 12px;" rowspan="${sale.items.length}">
+                    <div style="font-weight: 600;">${customerDisplay}</div>
+                  </td>
+                ` : ''}
+                <td style="padding: 12px;">
+                  <div style="font-weight: 600;">${item.productName}</div>
+                  ${item.serialNumber ? `<div style="font-size: 12px; color: #666;">SN: ${item.serialNumber}</div>` : ''}
+                  ${item.imei ? `<div style="font-size: 12px; color: #666;">IMEI: ${item.imei}</div>` : ''}
+                </td>
+                <td style="padding: 12px; text-align: right;">${item.quantity}</td>
+                <td style="padding: 12px; text-align: right; font-weight: 600; color: #2563eb;">€${itemTotal}</td>
+                ${index === 0 ? `
+                  <td style="padding: 12px; text-align: center;" rowspan="${sale.items.length}">
+                    <button onclick="deleteAdminSale('${sale._id}')" 
+                      style="padding: 6px 12px; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;"
+                      onmouseover="this.style.background='#b91c1c'"
+                      onmouseout="this.style.background='#dc2626'">
+                      🗑️ 删除
+                    </button>
+                  </td>
+                ` : ''}
+              </tr>
+            `;
+          });
+        });
+        
+        html += `
+              </tbody>
+            </table>
+          </div>
+          
+          <div style="margin-top: 20px; padding: 15px; background: #fee2e2; border-radius: 8px; border-left: 4px solid #dc2626;">
+            <p style="margin: 0; color: #991b1b; font-size: 13px;">
+              ⚠️ <strong>警告:</strong> 删除操作不可恢复，请谨慎操作！删除后将恢复库存并更新相关统计数据。
+            </p>
+          </div>
+        `;
+        
+        content.innerHTML = html;
+        
+      } catch (error) {
+        console.error('加载管理员销售数据失败:', error);
+        content.innerHTML = `<p style="text-align: center; color: #dc2626; padding: 40px;">❌ 加载失败: ${error.message}</p>`;
+      }
+    }
+    
+    // 删除销售记录
+    async function deleteAdminSale(saleId) {
+      if (!confirm('⚠️ 确定要删除这条销售记录吗？\n\n此操作将：\n1. 删除销售记录\n2. 恢复库存数量\n3. 删除相关的维修记录（如果有）\n4. 更新统计数据\n\n此操作不可恢复！')) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/sales/${saleId}`, {
+          method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert('✅ 销售记录已删除');
+          // 重新加载数据
+          loadAdminSalesData();
+          // 刷新统计数据
+          loadStats();
+        } else {
+          alert('❌ 删除失败: ' + result.error);
+        }
+      } catch (error) {
+        alert('❌ 删除失败: ' + error.message);
+      }
+    }
 
     // 显示本日维修明细
     async function showDailyRepairsDetails() {
@@ -1847,22 +2800,14 @@
             let html = `
               <div style="margin-bottom: 20px; padding: 15px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
                 <h4 style="margin-bottom: 10px; color: #92400e;">维修汇总</h4>
-                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
                   <div>
                     <div style="font-size: 12px; color: #666;">订单数量</div>
                     <div style="font-size: 20px; font-weight: bold; color: #f59e0b;">${todayRepairs.length}</div>
                   </div>
                   <div>
-                    <div style="font-size: 12px; color: #666;">维修成本</div>
-                    <div style="font-size: 20px; font-weight: bold; color: #dc3545;">€${totalCost.toFixed(2)}</div>
-                  </div>
-                  <div>
                     <div style="font-size: 12px; color: #666;">预计收入</div>
                     <div style="font-size: 20px; font-weight: bold; color: #10b981;">€${totalSalePrice.toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <div style="font-size: 12px; color: #666;">预计利润</div>
-                    <div style="font-size: 20px; font-weight: bold; color: #8b5cf6;">€${(totalSalePrice - totalCost).toFixed(2)}</div>
                   </div>
                 </div>
                 <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #fde68a;">
@@ -1884,7 +2829,7 @@
                     <th style="padding: 12px; text-align: left;">客户</th>
                     <th style="padding: 12px; text-align: left;">设备</th>
                     <th style="padding: 12px; text-align: left;">问题</th>
-                    <th style="padding: 12px; text-align: right;">成本</th>
+                    <th style="padding: 12px; text-align: left;">维修地点</th>
                     <th style="padding: 12px; text-align: right;">售价</th>
                     <th style="padding: 12px; text-align: center;">状态</th>
                   </tr>
@@ -1915,11 +2860,11 @@
                     ${repair.deviceName}<br>
                     <small style="color: #666;">${repair.deviceIMEI || repair.deviceSN || '-'}</small>
                   </td>
-                  <td style="padding: 12px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${repair.problemDescription}">
+                  <td style="padding: 12px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${(repair.problemDescription || '').replace(/"/g, '&quot;')}">
                     ${repair.problemDescription}
                   </td>
-                  <td style="padding: 12px; text-align: right; color: #dc3545;">
-                    €${(repair.repairCost || 0).toFixed(2)}
+                  <td style="padding: 12px;">
+                    ${repair.repairLocation || '<span style="color: #10b981;">自己维修</span>'}
                   </td>
                   <td style="padding: 12px; text-align: right; font-weight: 600; color: #10b981;">
                     €${(repair.salePrice || 0).toFixed(2)}
@@ -1961,14 +2906,17 @@
       document.getElementById('taxCalculationModal').style.display = 'flex';
       
       const today = new Date();
-      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-      const dateStr = `${firstDay.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })} - ${today.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })}`;
-      document.getElementById('taxCalculationDate').textContent = `📅 本月统计期间: ${dateStr}`;
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      const dateStr = today.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      document.getElementById('taxCalculationDate').textContent = `📅 本日统计: ${dateStr}`;
       document.getElementById('taxCalculationContent').innerHTML = '<div class="loading">加载中...</div>';
       
       try {
-        const startDate = firstDay.toISOString();
-        const endDate = new Date(today.setHours(23, 59, 59, 999)).toISOString();
+        const startDate = today.toISOString();
+        const endDate = tomorrow.toISOString();
         
         const response = await fetch(`${API_BASE}/merchant/sales?merchantId=${merchantId}&startDate=${startDate}&endDate=${endDate}`);
         const result = await response.json();
@@ -2299,16 +3247,13 @@
                       问题: ${repair.problemDescription}
                     </div>
                     <div style="display: flex; gap: 15px; align-items: center;">
-                      <span style="background: #fef3c7; color: #92400e; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;">
-                        成本: €${repair.repairCost.toFixed(2)}
-                      </span>
                       <span style="color: #10b981; font-size: 20px; font-weight: bold;">
-                        售价: €${repair.salePrice.toFixed(2)}
+                        售价: €${(repair.salePrice || 0).toFixed(2)}
                       </span>
                     </div>
                   </div>
                   <div>
-                    <button onclick="addRepairToCart('${repair._id}', '${repair.deviceName}', ${repair.repairCost}, ${repair.salePrice}, '${repair.customerPhone}')" 
+                    <button onclick="addRepairToCart('${repair._id}', '${repair.deviceName}', ${repair.repairCost || 0}, ${repair.salePrice || 0}, '${repair.customerPhone}')" 
                       style="padding: 12px 24px; background: #f59e0b; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">
                       + 加入购物车
                     </button>
@@ -2997,12 +3942,74 @@
           quantity: 1,
           maxQty,
           taxClassification,
-          serialNumber
+          serialNumber,
+          isQuickSale: false // 标记为非快速销售
         });
       }
       
       updateCartDisplay();
       alert(`✅ ${productName} 已添加到购物车`);
+    }
+    
+    // 显示快速销售模态框
+    function showQuickSaleModal() {
+      document.getElementById('quickSaleModal').style.display = 'flex';
+      // 重置表单
+      document.getElementById('quickSaleForm').reset();
+    }
+    
+    // 关闭快速销售模态框
+    function closeQuickSaleModal() {
+      document.getElementById('quickSaleModal').style.display = 'none';
+    }
+    
+    // 添加快速销售产品到购物车
+    function addQuickSaleToCart(event) {
+      event.preventDefault();
+      
+      const category = document.getElementById('quickSaleCategory').value;
+      const description = document.getElementById('quickSaleDescription').value.trim();
+      const quantity = parseInt(document.getElementById('quickSaleQuantity').value);
+      const price = parseFloat(document.getElementById('quickSalePrice').value);
+      const taxClass = document.getElementById('quickSaleTaxClass').value;
+      
+      if (!category || !description || !quantity || !price || !taxClass) {
+        alert('请填写所有必填项');
+        return;
+      }
+      
+      // 生成唯一ID（使用时间戳）
+      const quickSaleId = `QS-${Date.now()}`;
+      
+      // 获取分类显示名称
+      const categoryNames = {
+        'newDevices': '📱 新设备',
+        'usedDevices': '♻️ 二手设备',
+        'accessories': '🎧 配件',
+        'services': '🔧 服务'
+      };
+      
+      const categoryDisplay = categoryNames[category] || category;
+      const productName = `⚡ ${categoryDisplay} - ${description}`;
+      
+      // 添加到购物车
+      cart.push({
+        inventoryId: quickSaleId, // 使用特殊ID
+        productName: productName,
+        price: price,
+        quantity: quantity,
+        maxQty: 999, // 快速销售没有库存限制
+        taxClassification: taxClass,
+        serialNumber: null,
+        isQuickSale: true, // 标记为快速销售
+        quickSaleCategory: category,
+        quickSaleDescription: description
+      });
+      
+      updateCartDisplay();
+      closeQuickSaleModal();
+      
+      alert(`✅ ${productName} 已添加到购物车\n数量: ${quantity}\n单价: €${price.toFixed(2)}`);
     }
     
     // 更新购物车显示
@@ -3184,13 +4191,16 @@
         customerPhone: customerPhone || null,
         paymentMethod: selectedPaymentMethod,
         items: cart.map(item => ({
-          inventoryId: item.inventoryId || null,
+          inventoryId: item.isQuickSale ? null : (item.inventoryId || null), // 快速销售没有inventoryId
           repairId: item.repairId || null,
           productName: item.productName,
           quantity: item.quantity,
           price: item.price,  // 使用修改后的价格
           taxClassification: item.taxClassification,
-          serialNumber: item.serialNumber
+          serialNumber: item.serialNumber,
+          isQuickSale: item.isQuickSale || false, // 标记是否为快速销售
+          quickSaleCategory: item.quickSaleCategory || null,
+          quickSaleDescription: item.quickSaleDescription || null
         })),
         totalAmount: totalAmount  // 使用计算后的总金额
       };
@@ -4720,6 +5730,7 @@
               <th>成本价范围</th>
               <th>零售价</th>
               <th>税务分类</th>
+              <th>位置</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -4733,6 +5744,12 @@
               const brandText = (item.brand && item.brand !== 'Unknown') ? item.brand : '';
               const modelText = (item.model && item.model !== 'Unknown') ? item.model : '';
               const brandModelDisplay = `${brandText} ${modelText}`.trim() || '-';
+              
+              // 处理位置显示
+              const locations = [...new Set(item.records.map(r => r.location).filter(l => l))];
+              const locationDisplay = locations.length === 0 ? '-' : 
+                                     locations.length === 1 ? locations[0] : 
+                                     `${locations[0]} +${locations.length - 1}`;
               
               return `
               <tr ${item.totalQuantity === 0 ? 'style="background: #fff3cd; cursor: pointer;"' : 'style="cursor: pointer;"'}
@@ -4755,6 +5772,7 @@
                 <td>${costDisplay}</td>
                 <td>€${item.retailPrice.toFixed(2)}</td>
                 <td>${getTaxBadge(item.taxClassification)}</td>
+                <td style="font-size: 12px;">${locationDisplay}</td>
                 <td onclick="event.stopPropagation()">
                   ${item.records.length > 1 ? `
                     <button onclick="showInventoryRecords('${item.productName}', '${item.brand || ''}', '${item.model || ''}', '${item.color || ''}', '${item.condition || ''}')" class="btn-sm" style="background: #3b82f6; color: white; margin-right: 5px;">
@@ -7877,22 +8895,13 @@
           taxAmount = orderDetails.taxAmount || 0;
           
         } else if (orderType === 'invoice') {
-          items = orderDetails.products || [];
-          supplier = orderDetails.supplier || '未知供货商';
+          items = orderDetails.items || orderDetails.products || [];
+          supplier = orderDetails.supplier?.name || orderDetails.supplier || '未知供货商';
           orderDate = new Date(orderDetails.invoiceDate || orderDetails.createdAt).toLocaleDateString('zh-CN');
           
-          items.forEach(item => {
-            const itemTotal = (item.costPrice || 0) * item.quantity;
-            totalAmount += itemTotal;
-            
-            // 只有VAT_23和VAT_13_5才计算税额，Margin VAT不计算
-            if (item.taxClassification === 'VAT_23' || item.taxClassification === 'VAT 23%') {
-              taxAmount += itemTotal - (itemTotal / 1.23);
-            } else if (item.taxClassification === 'VAT_13_5' || item.taxClassification === 'VAT 13.5%') {
-              taxAmount += itemTotal - (itemTotal / 1.135);
-            }
-            // MARGIN_VAT_0 和 VAT_0 不计算税额（税额为0）
-          });
+          // 使用后端已经计算好的总金额和税额
+          totalAmount = orderDetails.totalAmount || 0;
+          taxAmount = orderDetails.taxAmount || 0;
         }
         
         detailsHTML = `
@@ -7918,15 +8927,18 @@
                 <tr>
                   <th>产品名称</th>
                   <th style="text-align: center; width: 80px;">数量</th>
-                  <th style="text-align: right; width: 120px;">单价</th>
-                  <th style="text-align: right; width: 120px;">总价</th>
-                  <th style="width: 120px;">税分类</th>
+                  <th style="text-align: center; width: 100px;">成色</th>
+                  <th style="text-align: right; width: 100px;">单价</th>
+                  <th style="text-align: right; width: 100px;">总价</th>
+                  <th style="text-align: center; width: 100px;">税分类</th>
+                  <th style="text-align: right; width: 100px;">税额</th>
                 </tr>
               </thead>
               <tbody>
                 ${items.map(item => {
                   let unitPrice = 0;
                   let itemTotal = 0;
+                  let itemTax = 0;
                   
                   if (orderType === 'transfer') {
                     unitPrice = item.transferPrice || item.costPrice || 0;
@@ -7936,9 +8948,20 @@
                     unitPrice = item.wholesalePrice || 0;
                     itemTotal = item.subtotal || (unitPrice * item.quantity);
                   } else {
-                    // 发票订单
-                    unitPrice = item.costPrice || 0;
-                    itemTotal = unitPrice * item.quantity;
+                    // 发票订单 - 使用后端计算好的价格
+                    unitPrice = item.unitCost || item.costPrice || 0;
+                    itemTotal = item.totalCost || (unitPrice * (item.quantity || 1));
+                    itemTax = item.taxAmount || 0;
+                  }
+                  
+                  // 如果没有taxAmount，根据税分类计算
+                  if (itemTax === 0 && itemTotal > 0) {
+                    const taxClass = item.taxClassification || item.vatRate || '';
+                    if (taxClass.includes('23')) {
+                      itemTax = itemTotal - (itemTotal / 1.23);
+                    } else if (taxClass.includes('13')) {
+                      itemTax = itemTotal - (itemTotal / 1.135);
+                    }
                   }
                   
                   return `
@@ -7947,31 +8970,39 @@
                         <strong>${item.productName || item.name}</strong>
                         ${item.model ? `<br><small style="color: #6b7280;">型号: ${item.model}</small>` : ''}
                         ${item.color ? `<br><small style="color: #6b7280;">颜色: ${item.color}</small>` : ''}
-                        ${item.serialNumber ? `<br><small style="color: #059669;">序列号: ${item.serialNumber}</small>` : ''}
+                        ${item.serialNumber || (item.serialNumbers && item.serialNumbers.length > 0) ? `<br><small style="color: #059669;">序列号: ${item.serialNumber || item.serialNumbers.join(', ')}</small>` : ''}
                       </td>
-                      <td style="text-align: center;"><strong>${item.quantity}</strong></td>
-                      <td style="text-align: right;">€${unitPrice.toFixed(2)}</td>
-                      <td style="text-align: right;"><strong style="color: #7c3aed;">€${itemTotal.toFixed(2)}</strong></td>
-                      <td>
-                        <span style="background: ${item.taxClassification?.includes('23') ? '#fef3c7' : item.taxClassification?.includes('13') ? '#dbeafe' : '#f3f4f6'}; 
-                                     padding: 2px 8px; border-radius: 4px; font-size: 12px;">
-                          ${item.taxClassification || 'N/A'}
+                      <td style="text-align: center;"><strong>${item.quantity || 1}</strong></td>
+                      <td style="text-align: center;">
+                        <span style="background: #e0f2fe; color: #0c4a6e; padding: 3px 8px; border-radius: 4px; font-size: 11px;">
+                          ${item.condition || '-'}
                         </span>
                       </td>
+                      <td style="text-align: right;">€${unitPrice.toFixed(2)}</td>
+                      <td style="text-align: right;"><strong style="color: #7c3aed;">€${itemTotal.toFixed(2)}</strong></td>
+                      <td style="text-align: center;">
+                        <span style="background: ${(item.taxClassification || item.vatRate || '').includes('23') ? '#fef3c7' : (item.taxClassification || item.vatRate || '').includes('13') ? '#dbeafe' : '#f3f4f6'}; 
+                                     padding: 2px 8px; border-radius: 4px; font-size: 12px;">
+                          ${item.taxClassification || item.vatRate || 'N/A'}
+                        </span>
+                      </td>
+                      <td style="text-align: right;"><strong style="color: #059669;">€${itemTax.toFixed(2)}</strong></td>
                     </tr>
                   `;
                 }).join('')}
               </tbody>
               <tfoot>
                 <tr style="background: #f8fafc; font-weight: bold;">
-                  <td colspan="3" style="text-align: right; padding-right: 20px;">合计:</td>
+                  <td colspan="4" style="text-align: right; padding-right: 20px;">合计:</td>
                   <td style="text-align: right; color: #7c3aed;">€${totalAmount.toFixed(2)}</td>
+                  <td></td>
                   <td></td>
                 </tr>
                 <tr style="background: #f8fafc;">
-                  <td colspan="3" style="text-align: right; padding-right: 20px;">税额:</td>
-                  <td style="text-align: right; color: #059669; font-weight: bold;">€${taxAmount.toFixed(2)}</td>
+                  <td colspan="4" style="text-align: right; padding-right: 20px;">税额:</td>
                   <td></td>
+                  <td></td>
+                  <td style="text-align: right; color: #059669; font-weight: bold;">€${taxAmount.toFixed(2)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -8594,6 +9625,7 @@
     // ==================== 维修业务功能 ====================
     
     let currentRepairFilter = 'all';
+    let allRepairsData = []; // 存储所有维修记录
     
     // 加载维修记录
     async function loadRepairs(status = null) {
@@ -8609,55 +9641,9 @@
         const response = await fetch(url);
         const result = await response.json();
         
-        if (result.success && result.data.length > 0) {
-          const html = `
-            <table>
-              <thead>
-                <tr>
-                  <th>接收日期</th>
-                  <th>客户</th>
-                  <th>设备</th>
-                  <th>IMEI/SN</th>
-                  <th>问题描述</th>
-                  <th>维修地点</th>
-                  <th>成本</th>
-                  <th>售价</th>
-                  <th>状态</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${result.data.map(repair => `
-                  <tr style="${repair.status !== 'sold' ? 'cursor: pointer;' : ''}" 
-                      ${repair.status !== 'sold' ? `onclick="showEditRepairModal('${repair._id}')"` : ''}
-                      ${repair.status !== 'sold' ? `onmouseover="this.style.background='#f0f9ff'"` : ''}
-                      ${repair.status !== 'sold' ? `onmouseout="this.style.background=''"` : ''}>
-                    <td>${new Date(repair.receivedDate).toLocaleDateString('zh-CN')}</td>
-                    <td>
-                      <div style="font-weight: 600;">${repair.customerPhone}</div>
-                      ${repair.customerName ? `<small style="color: #666;">${repair.customerName}</small>` : ''}
-                    </td>
-                    <td><strong>${repair.deviceName}</strong></td>
-                    <td style="font-size: 11px; color: #666;">
-                      ${repair.deviceIMEI ? `IMEI: ${repair.deviceIMEI}<br>` : ''}
-                      ${repair.deviceSN ? `SN: ${repair.deviceSN}` : '-'}
-                    </td>
-                    <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${repair.problemDescription}">
-                      ${repair.problemDescription}
-                    </td>
-                    <td>${repair.repairLocation || '<span style="color: #10b981;">自己维修</span>'}</td>
-                    <td style="color: #666;">€${repair.repairCost.toFixed(2)}</td>
-                    <td><strong style="color: #10b981;">€${repair.salePrice.toFixed(2)}</strong></td>
-                    <td>${getRepairStatusBadge(repair.status)}</td>
-                    <td onclick="event.stopPropagation()">
-                      ${getRepairActions(repair)}
-                    </td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          `;
-          container.innerHTML = html;
+        if (result.success) {
+          allRepairsData = result.data; // 保存所有数据
+          displayRepairs(allRepairsData);
         } else {
           container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">暂无维修记录</p>';
         }
@@ -8665,6 +9651,95 @@
         console.error('加载维修记录失败:', error);
         container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
       }
+    }
+    
+    // 显示维修记录
+    function displayRepairs(repairs) {
+      const container = document.getElementById('repairsTable');
+      
+      if (repairs.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">暂无维修记录</p>';
+        return;
+      }
+      
+      const html = `
+        <table>
+          <thead>
+            <tr>
+              <th>接收日期</th>
+              <th>客户</th>
+              <th>设备</th>
+              <th>IMEI/SN</th>
+              <th>问题描述</th>
+              <th>维修地点</th>
+              <th>售价</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${repairs.map(repair => `
+              <tr style="cursor: pointer;" 
+                  onclick="showRepairDetail('${repair._id}')"
+                  onmouseover="this.style.background='#f0f9ff'"
+                  onmouseout="this.style.background=''">
+                <td>${new Date(repair.receivedDate).toLocaleDateString('zh-CN')}</td>
+                <td>
+                  <div style="font-weight: 600;">${repair.customerPhone}</div>
+                  ${repair.customerName ? `<small style="color: #666;">${repair.customerName}</small>` : ''}
+                </td>
+                <td><strong>${repair.deviceName}</strong></td>
+                <td style="font-size: 11px; color: #666;">
+                  ${repair.deviceIMEI ? `IMEI: ${repair.deviceIMEI}<br>` : ''}
+                  ${repair.deviceSN ? `SN: ${repair.deviceSN}` : '-'}
+                </td>
+                <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${(repair.problemDescription || '').replace(/"/g, '&quot;')}">
+                  ${repair.problemDescription}
+                </td>
+                <td>${repair.repairLocation || '<span style="color: #10b981;">自己维修</span>'}</td>
+                <td><strong style="color: #10b981;">€${(repair.salePrice || 0).toFixed(2)}</strong></td>
+                <td>${getRepairStatusBadge(repair.status)}</td>
+                <td onclick="event.stopPropagation()">
+                  ${getRepairActions(repair)}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+      container.innerHTML = html;
+    }
+    
+    // 搜索维修记录
+    function searchRepairs() {
+      const searchTerm = document.getElementById('repairSearchInput').value.toLowerCase().trim();
+      
+      if (!searchTerm) {
+        // 如果搜索框为空，显示所有记录
+        displayRepairs(allRepairsData);
+        return;
+      }
+      
+      // 过滤记录
+      const filtered = allRepairsData.filter(repair => {
+        const customerPhone = (repair.customerPhone || '').toLowerCase();
+        const customerName = (repair.customerName || '').toLowerCase();
+        const deviceName = (repair.deviceName || '').toLowerCase();
+        const deviceIMEI = (repair.deviceIMEI || '').toLowerCase();
+        const deviceSN = (repair.deviceSN || '').toLowerCase();
+        const problemDescription = (repair.problemDescription || '').toLowerCase();
+        const repairLocation = (repair.repairLocation || '').toLowerCase();
+        
+        return customerPhone.includes(searchTerm) ||
+               customerName.includes(searchTerm) ||
+               deviceName.includes(searchTerm) ||
+               deviceIMEI.includes(searchTerm) ||
+               deviceSN.includes(searchTerm) ||
+               problemDescription.includes(searchTerm) ||
+               repairLocation.includes(searchTerm);
+      });
+      
+      displayRepairs(filtered);
     }
     
     // 筛选维修记录
@@ -8676,6 +9751,9 @@
         btn.style.opacity = '0.6';
       });
       document.getElementById(`filterBtn_${status}`).style.opacity = '1';
+      
+      // 清空搜索框
+      document.getElementById('repairSearchInput').value = '';
       
       // 加载数据
       loadRepairs(status === 'all' ? null : status);
@@ -9313,6 +10391,155 @@
       } catch (error) {
         alert('❌ 删除失败: ' + error.message);
       }
+    }
+    
+    // 显示维修订单详情
+    async function showRepairDetail(repairId) {
+      document.getElementById('repairDetailModal').style.display = 'flex';
+      const content = document.getElementById('repairDetailContent');
+      content.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/repairs/${repairId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          const repair = result.data;
+          
+          const statusNames = {
+            'pending': '待维修',
+            'sent_out': '已送出',
+            'retrieved': '已取回',
+            'completed': '已完成',
+            'ready_for_sale': '等待销售',
+            'sold': '已销售',
+            'cancelled': '已取消'
+          };
+          
+          const html = `
+            <div style="display: grid; gap: 20px;">
+              <!-- 状态标签 -->
+              <div style="text-align: center;">
+                ${getRepairStatusBadge(repair.status)}
+              </div>
+              
+              <!-- 客户信息 -->
+              <div style="background: #f0f9ff; padding: 20px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                <h4 style="margin: 0 0 15px 0; color: #1e40af;">👤 客户信息</h4>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                  <div>
+                    <div style="font-size: 12px; color: #666; margin-bottom: 5px;">客户电话</div>
+                    <div style="font-weight: 600; font-size: 16px;">${repair.customerPhone}</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 12px; color: #666; margin-bottom: 5px;">客户姓名</div>
+                    <div style="font-weight: 600; font-size: 16px;">${repair.customerName || '-'}</div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 设备信息 -->
+              <div style="background: #fef3c7; padding: 20px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                <h4 style="margin: 0 0 15px 0; color: #92400e;">📱 设备信息</h4>
+                <div style="display: grid; gap: 15px;">
+                  <div>
+                    <div style="font-size: 12px; color: #666; margin-bottom: 5px;">设备名称</div>
+                    <div style="font-weight: 600; font-size: 16px;">${repair.deviceName}</div>
+                  </div>
+                  <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                    <div>
+                      <div style="font-size: 12px; color: #666; margin-bottom: 5px;">IMEI</div>
+                      <div style="font-weight: 600;">${repair.deviceIMEI || '-'}</div>
+                    </div>
+                    <div>
+                      <div style="font-size: 12px; color: #666; margin-bottom: 5px;">序列号 (SN)</div>
+                      <div style="font-weight: 600;">${repair.deviceSN || '-'}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 维修信息 -->
+              <div style="background: #fce7f3; padding: 20px; border-radius: 8px; border-left: 4px solid #ec4899;">
+                <h4 style="margin: 0 0 15px 0; color: #9f1239;">🔧 维修信息</h4>
+                <div style="display: grid; gap: 15px;">
+                  <div>
+                    <div style="font-size: 12px; color: #666; margin-bottom: 5px;">问题描述</div>
+                    <div style="font-weight: 600; line-height: 1.6;">${repair.problemDescription}</div>
+                  </div>
+                  <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                    <div>
+                      <div style="font-size: 12px; color: #666; margin-bottom: 5px;">维修地点</div>
+                      <div style="font-weight: 600;">${repair.repairLocation || '<span style="color: #10b981;">自己维修</span>'}</div>
+                    </div>
+                    <div>
+                      <div style="font-size: 12px; color: #666; margin-bottom: 5px;">维修成本</div>
+                      <div style="font-weight: 600; color: #dc2626;">€${(repair.repairCost || 0).toFixed(2)}</div>
+                    </div>
+                  </div>
+                  <div>
+                    <div style="font-size: 12px; color: #666; margin-bottom: 5px;">售价</div>
+                    <div style="font-weight: 600; font-size: 20px; color: #10b981;">€${(repair.salePrice || 0).toFixed(2)}</div>
+                  </div>
+                  ${repair.repairNotes ? `
+                    <div>
+                      <div style="font-size: 12px; color: #666; margin-bottom: 5px;">备注</div>
+                      <div style="font-weight: 600; line-height: 1.6;">${repair.repairNotes}</div>
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+              
+              <!-- 时间信息 -->
+              <div style="background: #f3f4f6; padding: 20px; border-radius: 8px;">
+                <h4 style="margin: 0 0 15px 0; color: #374151;">📅 时间信息</h4>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                  <div>
+                    <div style="font-size: 12px; color: #666; margin-bottom: 5px;">接收日期</div>
+                    <div style="font-weight: 600;">${new Date(repair.receivedDate).toLocaleString('zh-CN')}</div>
+                  </div>
+                  ${repair.expectedCompletionDate ? `
+                    <div>
+                      <div style="font-size: 12px; color: #666; margin-bottom: 5px;">预计完成日期</div>
+                      <div style="font-weight: 600;">${new Date(repair.expectedCompletionDate).toLocaleDateString('zh-CN')}</div>
+                    </div>
+                  ` : ''}
+                  ${repair.soldDate ? `
+                    <div>
+                      <div style="font-size: 12px; color: #666; margin-bottom: 5px;">销售日期</div>
+                      <div style="font-weight: 600;">${new Date(repair.soldDate).toLocaleString('zh-CN')}</div>
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+              
+              <!-- 操作按钮 -->
+              <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                ${repair.status !== 'sold' ? `
+                  <button onclick="closeRepairDetail(); showEditRepairModal('${repair._id}')" class="btn btn-primary">
+                    ✏️ 编辑
+                  </button>
+                ` : ''}
+                <button onclick="closeRepairDetail()" class="btn" style="background: #6b7280; color: white;">
+                  关闭
+                </button>
+              </div>
+            </div>
+          `;
+          
+          content.innerHTML = html;
+        } else {
+          content.innerHTML = '<p style="text-align: center; color: #dc2626; padding: 40px;">加载失败</p>';
+        }
+      } catch (error) {
+        console.error('加载维修详情失败:', error);
+        content.innerHTML = `<p style="text-align: center; color: #dc2626; padding: 40px;">加载失败: ${error.message}</p>`;
+      }
+    }
+    
+    // 关闭维修详情
+    function closeRepairDetail() {
+      document.getElementById('repairDetailModal').style.display = 'none';
     }
     
     // 显示编辑维修订单模态框
@@ -10691,6 +11918,886 @@
         console.error('确认收货失败:', error);
         alert('❌ 确认收货失败: ' + error.message);
       }
+    }
+
+    // ==================== 入库管理功能 ====================
+    
+    // 打开智能产品录入系统（新标签页）
+    function openSmartReceivingTab() {
+      window.open('/test-receiving.html', '_blank');
+    }
+    
+    // 切换入库管理子标签页
+    function switchInventoryTab(tabName) {
+      // 更新按钮样式
+      document.getElementById('invSupplierTabBtn').className = tabName === 'suppliers' ? 'btn btn-primary' : 'btn';
+      document.getElementById('invSupplierTabBtn').style.background = tabName === 'suppliers' ? '#3b82f6' : '#f7fafc';
+      document.getElementById('invSupplierTabBtn').style.color = tabName === 'suppliers' ? 'white' : '#4a5568';
+      
+      document.getElementById('invProductTabBtn').className = tabName === 'products' ? 'btn btn-primary' : 'btn';
+      document.getElementById('invProductTabBtn').style.background = tabName === 'products' ? '#3b82f6' : '#f7fafc';
+      document.getElementById('invProductTabBtn').style.color = tabName === 'products' ? 'white' : '#4a5568';
+      
+      // 切换显示内容
+      document.getElementById('invSuppliersTab').style.display = tabName === 'suppliers' ? 'block' : 'none';
+      document.getElementById('invProductsTab').style.display = tabName === 'products' ? 'block' : 'none';
+      
+      // 加载数据
+      if (tabName === 'suppliers') {
+        loadMySuppliers();
+      } else if (tabName === 'products') {
+        loadMyInventoryRecords();
+        loadMerchantSuppliersForManual();
+      }
+    }
+    
+    // 切换商户入库方式（发票上传/手动录入）
+    function switchMerchantReceivingMode(mode) {
+      const uploadBtn = document.getElementById('merchantUploadModeBtn');
+      const manualBtn = document.getElementById('merchantManualModeBtn');
+      const uploadMode = document.getElementById('merchantUploadMode');
+      const manualMode = document.getElementById('merchantManualMode');
+      
+      if (mode === 'upload') {
+        uploadBtn.className = 'btn btn-primary';
+        manualBtn.className = 'btn';
+        manualBtn.style.background = '#48bb78';
+        manualBtn.style.color = 'white';
+        uploadMode.style.display = 'block';
+        manualMode.style.display = 'none';
+      } else {
+        uploadBtn.className = 'btn';
+        uploadBtn.style.background = '#3b82f6';
+        uploadBtn.style.color = 'white';
+        manualBtn.className = 'btn btn-primary';
+        uploadMode.style.display = 'none';
+        manualMode.style.display = 'block';
+        
+        // 加载供应商列表
+        loadMerchantSuppliersForManual();
+        
+        // 初始化产品表格
+        if (!window.merchantManualProducts || window.merchantManualProducts.length === 0) {
+          window.merchantManualProducts = [];
+          addMerchantManualProduct();
+        }
+      }
+    }
+    
+    // 为商户手动录入加载供应商
+    async function loadMerchantSuppliersForManual() {
+      try {
+        const response = await fetch(`${API_BASE}/merchant/suppliers?merchantId=${merchantId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          const select = document.getElementById('merchantManualSupplier');
+          select.innerHTML = '<option value="">选择供应商...</option>';
+          
+          result.data.forEach(supplier => {
+            const option = new Option(supplier.name, supplier._id);
+            select.add(option);
+          });
+        }
+      } catch (error) {
+        console.error('加载供应商列表失败:', error);
+      }
+    }
+    
+    // 添加商户手动录入产品行
+    function addMerchantManualProduct() {
+      const table = document.getElementById('merchantManualProductsTable');
+      if (!window.merchantManualProducts) window.merchantManualProducts = [];
+      
+      const index = window.merchantManualProducts.length;
+      const row = table.insertRow();
+      row.id = `merchantManualRow${index}`;
+      
+      row.innerHTML = `
+        <td style="padding: 8px;">
+          <input type="text" id="merchantManualProductName${index}" 
+                 onchange="updateMerchantManualProduct(${index}, 'productName', this.value)"
+                 style="width: 100%; padding: 6px; border: 1px solid #e2e8f0; border-radius: 4px;" 
+                 placeholder="产品名称">
+        </td>
+        <td style="padding: 8px;">
+          <input type="text" id="merchantManualBrand${index}" 
+                 onchange="updateMerchantManualProduct(${index}, 'brand', this.value)"
+                 style="width: 100%; padding: 6px; border: 1px solid #e2e8f0; border-radius: 4px;" 
+                 placeholder="品牌">
+        </td>
+        <td style="padding: 8px;">
+          <input type="text" id="merchantManualModel${index}" 
+                 onchange="updateMerchantManualProduct(${index}, 'model', this.value)"
+                 style="width: 100%; padding: 6px; border: 1px solid #e2e8f0; border-radius: 4px;" 
+                 placeholder="型号/规格">
+        </td>
+        <td style="padding: 8px;">
+          <input type="text" id="merchantManualColor${index}" 
+                 onchange="updateMerchantManualProduct(${index}, 'color', this.value)"
+                 style="width: 100%; padding: 6px; border: 1px solid #e2e8f0; border-radius: 4px;" 
+                 placeholder="颜色/类型">
+        </td>
+        <td style="padding: 8px;">
+          <select id="merchantManualCategory${index}" 
+                  onchange="updateMerchantManualProduct(${index}, 'category', this.value); updateMerchantManualProductRow(${index});"
+                  style="width: 100%; padding: 6px; border: 1px solid #e2e8f0; border-radius: 4px;">
+            <option value="">选择分类...</option>
+          </select>
+        </td>
+        <td style="padding: 8px;">
+          <input type="number" id="merchantManualQuantity${index}" 
+                 onchange="updateMerchantManualProduct(${index}, 'quantity', this.value); updateMerchantManualProductRow(${index});"
+                 style="width: 100%; padding: 6px; border: 1px solid #e2e8f0; border-radius: 4px;" 
+                 placeholder="数量" min="1" value="1">
+        </td>
+        <td style="padding: 8px;">
+          <input type="number" id="merchantManualCostPrice${index}" 
+                 onchange="updateMerchantManualProduct(${index}, 'costPrice', this.value)"
+                 style="width: 100%; padding: 6px; border: 1px solid #e2e8f0; border-radius: 4px;" 
+                 placeholder="进货价" step="0.01" min="0">
+        </td>
+        <td style="padding: 8px;">
+          <input type="number" id="merchantManualWholesalePrice${index}" 
+                 onchange="updateMerchantManualProduct(${index}, 'wholesalePrice', this.value)"
+                 style="width: 100%; padding: 6px; border: 1px solid #e2e8f0; border-radius: 4px;" 
+                 placeholder="批发价" step="0.01" min="0">
+        </td>
+        <td style="padding: 8px;">
+          <input type="number" id="merchantManualRetailPrice${index}" 
+                 onchange="updateMerchantManualProduct(${index}, 'retailPrice', this.value)"
+                 style="width: 100%; padding: 6px; border: 1px solid #e2e8f0; border-radius: 4px;" 
+                 placeholder="零售价" step="0.01" min="0">
+        </td>
+        <td style="padding: 8px;">
+          <select id="merchantManualTaxClass${index}" 
+                  onchange="updateMerchantManualProduct(${index}, 'taxClassification', this.value)"
+                  style="width: 100%; padding: 6px; border: 1px solid #e2e8f0; border-radius: 4px;">
+            <option value="">选择税务...</option>
+          </select>
+        </td>
+        <td style="padding: 8px;">
+          <div id="merchantManualBarcodeCell${index}">
+            <input type="text" id="merchantManualBarcode${index}" 
+                   onchange="updateMerchantManualProduct(${index}, 'barcode', this.value)"
+                   style="width: 100%; padding: 6px; border: 1px solid #e2e8f0; border-radius: 4px;" 
+                   placeholder="条码">
+          </div>
+        </td>
+        <td style="padding: 8px; background: #fffbeb;">
+          <select id="merchantManualCondition${index}" 
+                  onchange="updateMerchantManualProduct(${index}, 'condition', this.value)"
+                  style="width: 100%; padding: 6px; border: 2px solid #f59e0b; border-radius: 4px; background: white;">
+            <option value="">选择成色...</option>
+          </select>
+        </td>
+        <td style="padding: 8px;">
+          <button onclick="removeMerchantManualProduct(${index})" class="btn" style="padding: 4px 8px; background: #ef4444; color: white; font-size: 12px;">
+            ❌
+          </button>
+        </td>
+      `;
+      
+      // 加载分类列表
+      loadCategoriesForMerchantManual(index);
+      
+      // 加载税率列表
+      loadVatRatesForMerchantManual(index);
+      
+      // 加载成色列表
+      loadConditionsForMerchantManual(index);
+      
+      // 初始化产品数据
+      window.merchantManualProducts[index] = {
+        productName: '',
+        brand: '',
+        model: '',
+        color: '',
+        category: '',
+        quantity: 1,
+        costPrice: 0,
+        wholesalePrice: 0,
+        retailPrice: 0,
+        taxClassification: '',
+        barcode: '',
+        condition: '',
+        serialNumbers: []
+      };
+    }
+    
+    // 为商户手动录入加载分类
+    async function loadCategoriesForMerchantManual(index) {
+      try {
+        console.log(`🔄 加载分类列表 for index ${index}`);
+        const response = await fetch(`${API_BASE}/categories`);
+        const result = await response.json();
+        
+        console.log('📋 分类API响应:', result);
+        
+        if (result.success && result.data) {
+          const select = document.getElementById(`merchantManualCategory${index}`);
+          if (!select) {
+            console.error(`❌ 找不到元素: merchantManualCategory${index}`);
+            return;
+          }
+          
+          select.innerHTML = '<option value="">选择分类...</option>';
+          
+          result.data.forEach(category => {
+            // 使用type作为显示名称和值
+            const option = new Option(category.type, category.type);
+            select.add(option);
+          });
+          
+          console.log(`✅ 已加载 ${result.data.length} 个分类`);
+        } else {
+          console.error('❌ 分类数据为空或API失败');
+        }
+      } catch (error) {
+        console.error('❌ 加载分类失败:', error);
+      }
+    }
+    
+    // 为商户手动录入加载税率
+    async function loadVatRatesForMerchantManual(index) {
+      try {
+        console.log(`🔄 加载税率列表 for index ${index}`);
+        const response = await fetch(`${API_BASE}/vat-rates`);
+        const result = await response.json();
+        
+        console.log('💰 税率API响应:', result);
+        
+        if (result.success && result.data) {
+          const select = document.getElementById(`merchantManualTaxClass${index}`);
+          if (!select) {
+            console.error(`❌ 找不到元素: merchantManualTaxClass${index}`);
+            return;
+          }
+          
+          select.innerHTML = '<option value="">选择税务...</option>';
+          
+          result.data.forEach(vatRate => {
+            // 显示：税率代码，值：code
+            const displayText = vatRate.code;
+            const option = new Option(displayText, vatRate.code);
+            select.add(option);
+          });
+          
+          console.log(`✅ 已加载 ${result.data.length} 个税率`);
+        } else {
+          console.error('❌ 税率数据为空或API失败');
+        }
+      } catch (error) {
+        console.error('❌ 加载税率失败:', error);
+      }
+    }
+    
+    // 为商户手动录入加载成色列表
+    async function loadConditionsForMerchantManual(index) {
+      try {
+        console.log(`🔄 加载成色列表 for index ${index}`);
+        const response = await fetch(`${API_BASE}/merchant/conditions`);
+        const result = await response.json();
+        
+        console.log('🎨 成色API响应:', result);
+        
+        if (result.success && result.data) {
+          const select = document.getElementById(`merchantManualCondition${index}`);
+          if (!select) {
+            console.error(`❌ 找不到元素: merchantManualCondition${index}`);
+            return;
+          }
+          
+          select.innerHTML = '<option value="">选择成色...</option>';
+          
+          result.data.forEach(condition => {
+            // 显示：名称，值：code
+            const option = new Option(condition.name, condition.code);
+            select.add(option);
+          });
+          
+          console.log(`✅ 已加载 ${result.data.length} 个成色选项`);
+        } else {
+          console.error('❌ 成色数据为空或API失败');
+        }
+      } catch (error) {
+        console.error('❌ 加载成色失败:', error);
+      }
+    }
+    
+    // 更新商户手动录入产品数据
+    function updateMerchantManualProduct(index, field, value) {
+      if (!window.merchantManualProducts) window.merchantManualProducts = [];
+      if (!window.merchantManualProducts[index]) window.merchantManualProducts[index] = {};
+      window.merchantManualProducts[index][field] = value;
+    }
+    
+    // 更新商户手动录入产品行（处理设备类产品的序列号输入）
+    function updateMerchantManualProductRow(index) {
+      const product = window.merchantManualProducts[index];
+      const categorySelect = document.getElementById(`merchantManualCategory${index}`);
+      const categoryValue = categorySelect.value || '';
+      const categoryText = categorySelect.options[categorySelect.selectedIndex]?.text || '';
+      
+      console.log(`🔄 更新产品行 ${index}, 分类: ${categoryValue}, 文本: ${categoryText}`);
+      
+      // 判断是否为设备类产品
+      // 只有包含"Device"、"设备"关键字的才是设备类
+      // 排除"Phone Case"、"Phone Accessories"等配件类
+      const isDevice = categoryValue.toLowerCase().includes('device') || 
+                      categoryValue.includes('设备') || 
+                      categoryText.includes('设备');
+      
+      console.log(`   是否为设备类: ${isDevice}`);
+      
+      const barcodeCell = document.getElementById(`merchantManualBarcodeCell${index}`);
+      
+      if (isDevice) {
+        // 设备类产品：显示序列号输入
+        const quantity = parseInt(product.quantity) || 1;
+        console.log(`   生成 ${quantity} 个IMEI/SN输入框`);
+        
+        let html = '<div style="display: flex; flex-direction: column; gap: 4px;">';
+        
+        for (let i = 0; i < quantity; i++) {
+          const serialValue = product.serialNumbers && product.serialNumbers[i] ? product.serialNumbers[i].serialNumber : '';
+          const colorValue = product.serialNumbers && product.serialNumbers[i] ? product.serialNumbers[i].color : '';
+          
+          html += `
+            <div style="display: flex; gap: 4px;">
+              <input type="text" 
+                     value="${serialValue}"
+                     onchange="updateMerchantManualSerialNumber(${index}, ${i}, this.value, document.getElementById('merchantManualSerialColor${index}_${i}').value)"
+                     style="flex: 1; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 12px;" 
+                     placeholder="IMEI/SN ${i + 1}">
+              <input type="text" 
+                     id="merchantManualSerialColor${index}_${i}"
+                     value="${colorValue}"
+                     onchange="updateMerchantManualSerialNumber(${index}, ${i}, document.getElementById('merchantManualSerialColor${index}_${i}').previousElementSibling.value, this.value)"
+                     style="width: 60px; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 12px;" 
+                     placeholder="颜色">
+            </div>
+          `;
+        }
+        
+        html += '</div>';
+        barcodeCell.innerHTML = html;
+      } else {
+        // 配件类产品：显示条码输入
+        console.log('   显示条码输入框');
+        barcodeCell.innerHTML = `
+          <input type="text" id="merchantManualBarcode${index}" 
+                 value="${product.barcode || ''}"
+                 onchange="updateMerchantManualProduct(${index}, 'barcode', this.value)"
+                 style="width: 100%; padding: 6px; border: 1px solid #e2e8f0; border-radius: 4px;" 
+                 placeholder="条码">
+        `;
+      }
+    }
+    
+    // 更新商户手动录入序列号和颜色
+    function updateMerchantManualSerialNumber(productIndex, serialIndex, serialNumber, color) {
+      if (!window.merchantManualProducts[productIndex].serialNumbers) {
+        window.merchantManualProducts[productIndex].serialNumbers = [];
+      }
+      
+      window.merchantManualProducts[productIndex].serialNumbers[serialIndex] = {
+        serialNumber: serialNumber,
+        color: color || ''
+      };
+    }
+    
+    // 移除商户手动录入产品行
+    function removeMerchantManualProduct(index) {
+      const row = document.getElementById(`merchantManualRow${index}`);
+      if (row) {
+        row.remove();
+      }
+      
+      if (window.merchantManualProducts) {
+        window.merchantManualProducts[index] = null;
+      }
+    }
+    
+    // 清空商户手动录入表单
+    function clearMerchantManualForm() {
+      document.getElementById('merchantManualSupplier').value = '';
+      document.getElementById('merchantManualInvoiceNumber').value = '';
+      document.getElementById('merchantManualProductsTable').innerHTML = '';
+      window.merchantManualProducts = [];
+      addMerchantManualProduct();
+    }
+    
+    // 确认商户手动录入
+    async function confirmMerchantManualReceiving() {
+      const supplierId = document.getElementById('merchantManualSupplier').value;
+      const invoiceNumber = document.getElementById('merchantManualInvoiceNumber').value;
+      
+      if (!invoiceNumber) {
+        alert('❌ 请输入发票号码');
+        return;
+      }
+      
+      // 过滤掉空行
+      const products = window.merchantManualProducts.filter(p => p && p.productName);
+      
+      if (products.length === 0) {
+        alert('❌ 请至少添加一个产品');
+        return;
+      }
+      
+      // 验证必填字段
+      for (let i = 0; i < products.length; i++) {
+        const p = products[i];
+        if (!p.productName || !p.category || !p.costPrice || !p.wholesalePrice || !p.retailPrice || !p.taxClassification) {
+          alert(`❌ 产品 ${i + 1}: 请填写所有必填字段（产品名称、分类、价格、税务分类）`);
+          return;
+        }
+      }
+      
+      try {
+        let successCount = 0;
+        let failCount = 0;
+        
+        // 使用现有API逐个添加产品
+        for (const p of products) {
+          try {
+            // 处理序列号（设备类产品）
+            if (p.serialNumbers && p.serialNumbers.length > 0) {
+              // 设备类产品：每个序列号创建一个库存记录
+              for (const sn of p.serialNumbers) {
+                if (sn.serialNumber) {
+                  const response = await fetch(`${API_BASE}/merchant/inventory/add`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      merchantId,
+                      productName: p.productName,
+                      brand: p.brand,
+                      model: p.model,
+                      color: sn.color || p.color,
+                      category: p.category,
+                      quantity: 1,
+                      costPrice: parseFloat(p.costPrice),
+                      wholesalePrice: parseFloat(p.wholesalePrice),
+                      retailPrice: parseFloat(p.retailPrice),
+                      taxClassification: p.taxClassification,
+                      serialNumber: sn.serialNumber,
+                      condition: p.condition,
+                      notes: `发票号: ${invoiceNumber}${supplierId ? ` | 供货商ID: ${supplierId}` : ''}`
+                    })
+                  });
+                  
+                  const result = await response.json();
+                  if (result.success) {
+                    successCount++;
+                  } else {
+                    failCount++;
+                    console.error('入库失败:', result.error);
+                  }
+                }
+              }
+            } else {
+              // 配件类产品：按数量创建库存记录
+              const response = await fetch(`${API_BASE}/merchant/inventory/add`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  merchantId,
+                  productName: p.productName,
+                  brand: p.brand,
+                  model: p.model,
+                  color: p.color,
+                  category: p.category,
+                  quantity: parseInt(p.quantity) || 1,
+                  costPrice: parseFloat(p.costPrice),
+                  wholesalePrice: parseFloat(p.wholesalePrice),
+                  retailPrice: parseFloat(p.retailPrice),
+                  taxClassification: p.taxClassification,
+                  barcode: p.barcode,
+                  condition: p.condition,
+                  notes: `发票号: ${invoiceNumber}${supplierId ? ` | 供货商ID: ${supplierId}` : ''}`
+                })
+              });
+              
+              const result = await response.json();
+              if (result.success) {
+                successCount++;
+              } else {
+                failCount++;
+                console.error('入库失败:', result.error);
+              }
+            }
+          } catch (error) {
+            failCount++;
+            console.error('产品入库失败:', error);
+          }
+        }
+        
+        if (successCount > 0) {
+          alert(`✅ 入库完成！\n\n成功: ${successCount} 个\n失败: ${failCount} 个`);
+          clearMerchantManualForm();
+          loadMyInventoryRecords();
+        } else {
+          alert(`❌ 入库失败！所有产品都未能成功入库。`);
+        }
+      } catch (error) {
+        console.error('手动入库失败:', error);
+        alert('❌ 手动入库失败: ' + error.message);
+      }
+    }
+    
+    // 处理商户发票文件上传
+    async function handleMerchantFileUpload(event) {
+      alert('📋 发票识别功能开发中...\n\n请使用"✏️ 手动录入入库"功能。\n\n提示：手动录入功能支持：\n• 批量添加产品\n• 设备类产品IMEI/SN录入\n• 配件类产品批量入库');
+      event.target.value = '';
+    }
+    
+    
+    // 加载供货商列表
+    async function loadMySuppliers() {
+      const tableDiv = document.getElementById('mySuppliersTable');
+      tableDiv.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const searchTerm = document.getElementById('supplierSearchInput').value;
+        const url = `${API_BASE}/merchant/suppliers?merchantId=${merchantId}${searchTerm ? '&search=' + encodeURIComponent(searchTerm) : ''}`;
+        
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (result.success && result.data && result.data.length > 0) {
+          let html = `
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
+                  <th style="padding: 12px; text-align: left;">供货商名称</th>
+                  <th style="padding: 12px; text-align: left;">代码</th>
+                  <th style="padding: 12px; text-align: left;">VAT号码</th>
+                  <th style="padding: 12px; text-align: left;">联系人</th>
+                  <th style="padding: 12px; text-align: left;">电话</th>
+                  <th style="padding: 12px; text-align: left;">邮箱</th>
+                  <th style="padding: 12px; text-align: center;">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+          `;
+          
+          result.data.forEach(supplier => {
+            html += `
+              <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 12px; font-weight: 600;">${supplier.name}</td>
+                <td style="padding: 12px;"><span style="background: #e0e7ff; color: #3730a3; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">${supplier.code}</span></td>
+                <td style="padding: 12px;">${supplier.vatNumber || '-'}</td>
+                <td style="padding: 12px;">${supplier.contact?.person || '-'}</td>
+                <td style="padding: 12px;">${supplier.contact?.phone || '-'}</td>
+                <td style="padding: 12px;">${supplier.contact?.email || '-'}</td>
+                <td style="padding: 12px; text-align: center;">
+                  <button onclick="editSupplier('${supplier._id}')" class="btn btn-sm" style="padding: 6px 12px; margin-right: 5px; background: #3b82f6; color: white;">✏️ 编辑</button>
+                  <button onclick="deleteSupplier('${supplier._id}')" class="btn btn-sm" style="padding: 6px 12px; background: #ef4444; color: white;">🗑️ 删除</button>
+                </td>
+              </tr>
+            `;
+          });
+          
+          html += `
+              </tbody>
+            </table>
+          `;
+          
+          tableDiv.innerHTML = html;
+        } else {
+          tableDiv.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">暂无供货商数据</p>';
+        }
+      } catch (error) {
+        console.error('加载供货商列表失败:', error);
+        tableDiv.innerHTML = `<p style="text-align: center; color: #dc3545; padding: 40px;">加载失败: ${error.message}</p>`;
+      }
+    }
+    
+    // 搜索供货商
+    function searchMySuppliers() {
+      loadMySuppliers();
+    }
+    
+    // 显示添加供货商对话框
+    function showAddSupplierModal() {
+      document.getElementById('supplierModalTitle').textContent = '添加供货商';
+      document.getElementById('supplierForm').reset();
+      document.getElementById('supplierId').value = '';
+      document.getElementById('supplierModal').style.display = 'flex';
+    }
+    
+    // 关闭供货商对话框
+    function closeSupplierModal() {
+      document.getElementById('supplierModal').style.display = 'none';
+    }
+    
+    // 保存供货商
+    async function saveSupplier(event) {
+      event.preventDefault();
+      
+      const supplierId = document.getElementById('supplierId').value;
+      const name = document.getElementById('supplierName').value;
+      const code = document.getElementById('supplierCode').value;
+      const vatNumber = document.getElementById('supplierVatNumber').value;
+      const contactPerson = document.getElementById('supplierContactPerson').value;
+      const contactPhone = document.getElementById('supplierContactPhone').value;
+      const contactEmail = document.getElementById('supplierContactEmail').value;
+      const contactAddress = document.getElementById('supplierContactAddress').value;
+      const paymentTerms = document.getElementById('supplierPaymentTerms').value;
+      const notes = document.getElementById('supplierNotes').value;
+      
+      try {
+        const url = supplierId ? `${API_BASE}/merchant/suppliers/${supplierId}` : `${API_BASE}/merchant/suppliers`;
+        const method = supplierId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+          method: method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            merchantId,
+            name,
+            code,
+            vatNumber,
+            contactPerson,
+            contactPhone,
+            contactEmail,
+            contactAddress,
+            paymentTerms,
+            notes
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert(supplierId ? '✅ 供货商已更新' : '✅ 供货商已添加');
+          closeSupplierModal();
+          loadMySuppliers();
+        } else {
+          alert('❌ 操作失败: ' + result.error);
+        }
+      } catch (error) {
+        console.error('保存供货商失败:', error);
+        alert('❌ 操作失败: ' + error.message);
+      }
+    }
+    
+    // 编辑供货商
+    async function editSupplier(supplierId) {
+      try {
+        const response = await fetch(`${API_BASE}/merchant/suppliers?merchantId=${merchantId}`);
+        const result = await response.json();
+        
+        if (result.success) {
+          const supplier = result.data.find(s => s._id === supplierId);
+          if (supplier) {
+            document.getElementById('supplierModalTitle').textContent = '编辑供货商';
+            document.getElementById('supplierId').value = supplier._id;
+            document.getElementById('supplierName').value = supplier.name;
+            document.getElementById('supplierCode').value = supplier.code;
+            document.getElementById('supplierVatNumber').value = supplier.vatNumber || '';
+            document.getElementById('supplierContactPerson').value = supplier.contact?.person || '';
+            document.getElementById('supplierContactPhone').value = supplier.contact?.phone || '';
+            document.getElementById('supplierContactEmail').value = supplier.contact?.email || '';
+            document.getElementById('supplierContactAddress').value = supplier.contact?.address || '';
+            document.getElementById('supplierPaymentTerms').value = supplier.paymentTerms || 'net30';
+            document.getElementById('supplierNotes').value = supplier.notes || '';
+            document.getElementById('supplierModal').style.display = 'flex';
+          }
+        }
+      } catch (error) {
+        console.error('加载供货商信息失败:', error);
+        alert('❌ 加载失败: ' + error.message);
+      }
+    }
+    
+    // 删除供货商
+    async function deleteSupplier(supplierId) {
+      if (!confirm('确定要删除这个供货商吗？')) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/suppliers/${supplierId}?merchantId=${merchantId}`, {
+          method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert('✅ 供货商已删除');
+          loadMySuppliers();
+        } else {
+          alert('❌ 删除失败: ' + result.error);
+        }
+      } catch (error) {
+        console.error('删除供货商失败:', error);
+        alert('❌ 删除失败: ' + error.message);
+      }
+    }
+    
+    // 加载供货商到下拉框
+    async function loadSuppliersToDropdown() {
+      try {
+        const response = await fetch(`${API_BASE}/merchant/suppliers?merchantId=${merchantId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          const select = document.getElementById('inventorySupplier');
+          const filterSelect = document.getElementById('filterSupplier');
+          
+          // 清空现有选项（保留第一个"请选择"）
+          select.innerHTML = '<option value="">请选择供货商</option>';
+          filterSelect.innerHTML = '<option value="">全部供货商</option>';
+          
+          result.data.forEach(supplier => {
+            const option = new Option(supplier.name, supplier._id);
+            const filterOption = new Option(supplier.name, supplier._id);
+            select.add(option);
+            filterSelect.add(filterOption);
+          });
+        }
+      } catch (error) {
+        console.error('加载供货商列表失败:', error);
+      }
+    }
+    
+    // 显示产品入库对话框
+    function showAddInventoryModal() {
+      document.getElementById('addInventoryForm').reset();
+      document.getElementById('addInventoryModal').style.display = 'flex';
+      loadSuppliersToDropdown();
+    }
+    
+    // 关闭产品入库对话框
+    function closeAddInventoryModal() {
+      document.getElementById('addInventoryModal').style.display = 'none';
+    }
+    
+    // 保存产品入库
+    async function saveInventoryProduct(event) {
+      event.preventDefault();
+      
+      const supplier = document.getElementById('inventorySupplier').value;
+      const productName = document.getElementById('inventoryProductName').value;
+      const brand = document.getElementById('inventoryBrand').value;
+      const model = document.getElementById('inventoryModel').value;
+      const color = document.getElementById('inventoryColor').value;
+      const condition = document.getElementById('inventoryCondition').value;
+      const category = document.getElementById('inventoryCategory').value;
+      const quantity = parseInt(document.getElementById('inventoryQuantity').value);
+      const costPrice = parseFloat(document.getElementById('inventoryCostPrice').value);
+      const wholesalePrice = parseFloat(document.getElementById('inventoryWholesalePrice').value);
+      const retailPrice = parseFloat(document.getElementById('inventoryRetailPrice').value);
+      const taxClassification = document.getElementById('inventoryTaxClassification').value;
+      const barcode = document.getElementById('inventoryBarcode').value;
+      const serialNumber = document.getElementById('inventorySerialNumber').value;
+      const notes = document.getElementById('inventoryNotes').value;
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/inventory/add`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            merchantId,
+            supplier,
+            productName,
+            brand,
+            model,
+            color,
+            condition,
+            category,
+            quantity,
+            costPrice,
+            wholesalePrice,
+            retailPrice,
+            taxClassification,
+            barcode,
+            serialNumber,
+            notes
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert('✅ 产品已入库');
+          closeAddInventoryModal();
+          loadMyInventoryRecords();
+        } else {
+          alert('❌ 入库失败: ' + result.error);
+        }
+      } catch (error) {
+        console.error('产品入库失败:', error);
+        alert('❌ 入库失败: ' + error.message);
+      }
+    }
+    
+    // 加载入库记录
+    async function loadMyInventoryRecords() {
+      const tableDiv = document.getElementById('myInventoryRecordsTable');
+      tableDiv.innerHTML = '<div class="loading">加载中...</div>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/merchant/inventory?merchantId=${merchantId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data && result.data.length > 0) {
+          let html = `
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
+                  <th style="padding: 12px; text-align: left;">产品名称</th>
+                  <th style="padding: 12px; text-align: left;">品牌</th>
+                  <th style="padding: 12px; text-align: left;">型号</th>
+                  <th style="padding: 12px; text-align: left;">颜色</th>
+                  <th style="padding: 12px; text-align: center;">数量</th>
+                  <th style="padding: 12px; text-align: right;">成本价</th>
+                  <th style="padding: 12px; text-align: right;">零售价</th>
+                  <th style="padding: 12px; text-align: left;">入库时间</th>
+                </tr>
+              </thead>
+              <tbody>
+          `;
+          
+          result.data.forEach(item => {
+            const date = new Date(item.createdAt || item.date);
+            const dateStr = date.toLocaleDateString('zh-CN');
+            
+            html += `
+              <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 12px; font-weight: 600;">${item.productName}</td>
+                <td style="padding: 12px;">${item.brand || '-'}</td>
+                <td style="padding: 12px;">${item.model || '-'}</td>
+                <td style="padding: 12px;">${item.color || '-'}</td>
+                <td style="padding: 12px; text-align: center; font-weight: 600;">${item.quantity}</td>
+                <td style="padding: 12px; text-align: right;">€${(item.costPrice || 0).toFixed(2)}</td>
+                <td style="padding: 12px; text-align: right; color: #10b981; font-weight: 600;">€${(item.retailPrice || 0).toFixed(2)}</td>
+                <td style="padding: 12px;">${dateStr}</td>
+              </tr>
+            `;
+          });
+          
+          html += `
+              </tbody>
+            </table>
+          `;
+          
+          tableDiv.innerHTML = html;
+        } else {
+          tableDiv.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">暂无入库记录</p>';
+        }
+      } catch (error) {
+        console.error('加载入库记录失败:', error);
+        tableDiv.innerHTML = `<p style="text-align: center; color: #dc3545; padding: 40px;">加载失败: ${error.message}</p>`;
+      }
+    }
+    
+    // 筛选入库记录
+    function filterMyInventory() {
+      loadMyInventoryRecords();
     }
 
     // 初始化

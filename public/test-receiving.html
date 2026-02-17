@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能产品录入系统（测试版）</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+    
+    .header h1 {
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      font-size: 16px;
+      opacity: 0.9;
+    }
+    
+    .content {
+      padding: 30px;
+    }
+    
+    .section {
+      margin-bottom: 30px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 12px;
+      border: 2px solid #e9ecef;
+    }
+    
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 15px;
+      color: #495057;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-group label {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #495057;
+      font-size: 14px;
+    }
+    
+    .form-group input,
+    .form-group select {
+      padding: 12px;
+      border: 2px solid #dee2e6;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+    
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    
+    .required {
+      color: #dc3545;
+    }
+    
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn-success {
+      background: #28a745;
+      color: white;
+    }
+    
+    .btn-success:hover {
+      background: #218838;
+    }
+    
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+    
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+    }
+    
+    .product-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .product-table th {
+      background: #667eea;
+      color: white;
+      padding: 12px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    
+    .product-table td {
+      padding: 12px;
+      border-bottom: 1px solid #dee2e6;
+    }
+    
+    .product-table input,
+    .product-table select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    
+    .product-table tr:hover {
+      background: #f8f9fa;
+    }
+    
+    .action-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
+    
+    .alert {
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .alert-info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+    
+    .alert-warning {
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeaa7;
+    }
+    
+    .alert-success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h1>📦 智能产品录入系统</h1>
+          <p>测试版 - 支持配件、设备、变体产品混合录入</p>
+        </div>
+        <div style="text-align: right;">
+          <div id="userInfo" style="background: rgba(255,255,255,0.2); padding: 15px 20px; border-radius: 8px;">
+            <div style="font-size: 14px; margin-bottom: 5px;">👤 <span id="userName">加载中...</span></div>
+            <div style="font-size: 12px; opacity: 0.9;">🏢 <span id="companyName">-</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="content">
+      <!-- 发票信息 -->
+      <div class="section">
+        <div class="section-title">
+          📄 发票信息
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>供货商 <span class="required">*</span></label>
+            <select id="supplierId" required>
+              <option value="">-- 选择供货商 --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>发票号码 <span class="required">*</span></label>
+            <input type="text" id="invoiceNumber" placeholder="输入发票号码" required>
+          </div>
+          <div class="form-group">
+            <label>发票日期</label>
+            <input type="date" id="invoiceDate">
+          </div>
+        </div>
+      </div>
+
+      <!-- 产品录入表格 -->
+      <div class="section">
+        <div class="section-title">
+          🛍️ 产品列表
+          <button class="btn btn-primary" onclick="addProductRow()" style="margin-left: auto;">+ 添加产品</button>
+        </div>
+        
+        <div style="overflow-x: auto;">
+          <table class="product-table" id="productTable">
+            <thead>
+              <tr>
+                <th style="width: 40px;">#</th>
+                <th style="width: 200px;">产品名称 <span class="required">*</span></th>
+                <th style="width: 120px;">品牌</th>
+                <th style="width: 150px;">分类 <span class="required">*</span></th>
+                <th style="width: 100px;">型号</th>
+                <th style="width: 100px;">颜色</th>
+                <th style="width: 100px;">变体</th>
+                <th style="width: 80px;">数量</th>
+                <th style="width: 100px;">成色</th>
+                <th style="width: 100px;">进货价(€)</th>
+                <th style="width: 100px;">批发价(€)</th>
+                <th style="width: 100px;">零售价(€)</th>
+                <th style="width: 120px;">税务分类</th>
+                <th style="width: 100px;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="productTableBody">
+              <!-- 动态生成 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 操作按钮 -->
+      <div class="action-buttons">
+        <button class="btn btn-secondary" onclick="clearAll()">🗑️ 清空</button>
+        <button class="btn btn-primary" onclick="previewData()">👁️ 预览数据</button>
+        <button class="btn btn-success" onclick="submitReceiving()">✅ 确认入库</button>
+      </div>
+      
+      <!-- 提示信息 -->
+      <div id="alertContainer"></div>
+    </div>
+  </div>
+
+  <!-- IMEI/SN批量输入模态框 -->
+  <div id="imeiModal" class="modal">
+    <div class="modal-content">
+      <h3 style="margin-bottom: 20px;">📱 批量输入IMEI/SN</h3>
+      <p style="color: #666; margin-bottom: 15px;">每行一个序列号</p>
+      <textarea id="imeiInput" rows="10" style="width: 100%; padding: 10px; border: 2px solid #dee2e6; border-radius: 8px; font-family: monospace;"></textarea>
+      <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+        <button class="btn btn-secondary" onclick="closeImeiModal()">取消</button>
+        <button class="btn btn-success" onclick="saveImeiList()">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 变体选择模态框 -->
+  <div id="variantModal" class="modal">
+    <div class="modal-content">
+      <h3 style="margin-bottom: 20px;">🎨 配置产品变体</h3>
+      <div id="variantInfo" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <div style="font-weight: 600; margin-bottom: 5px;">产品信息</div>
+        <div id="variantProductInfo" style="color: #666;"></div>
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; font-weight: 600; margin-bottom: 8px;">型号/规格 <span style="color: #999; font-weight: normal; font-size: 13px;">(用逗号分隔多个型号)</span></label>
+        <input type="text" id="variantModel" placeholder="例如: iPhone 11, iPhone 12, iPhone 13" style="width: 100%; padding: 10px; border: 2px solid #dee2e6; border-radius: 8px;">
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; font-weight: 600; margin-bottom: 8px;">颜色/类型 <span style="color: #999; font-weight: normal; font-size: 13px;">(用逗号分隔多个颜色)</span></label>
+        <input type="text" id="variantColor" placeholder="例如: Black, White, Red" style="width: 100%; padding: 10px; border: 2px solid #dee2e6; border-radius: 8px;">
+      </div>
+      
+      <div style="background: #e7f3ff; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <div style="font-size: 13px; color: #0c4a6e;">
+          💡 <strong>提示：</strong>点击"生成变体列表"后，可以为每个型号+颜色组合单独设置数量
+        </div>
+      </div>
+      
+      <div style="display: flex; gap: 10px; justify-content: flex-end; margin-bottom: 20px;">
+        <button class="btn btn-secondary" onclick="closeVariantModal()">取消</button>
+        <button class="btn btn-primary" onclick="generateVariantList()">📋 生成变体列表</button>
+      </div>
+      
+      <!-- 变体列表 -->
+      <div id="variantListContainer" style="display: none;">
+        <h4 style="margin-bottom: 15px; color: #495057;">变体列表（为每个变体设置数量）</h4>
+        <div style="max-height: 400px; overflow-y: auto; border: 2px solid #dee2e6; border-radius: 8px; padding: 15px; background: #f8f9fa;">
+          <table style="width: 100%; border-collapse: collapse;" id="variantListTable">
+            <thead>
+              <tr style="background: #667eea; color: white;">
+                <th style="padding: 10px; text-align: left;">型号</th>
+                <th style="padding: 10px; text-align: left;">颜色</th>
+                <th style="padding: 10px; text-align: center; width: 120px;">数量</th>
+              </tr>
+            </thead>
+            <tbody id="variantListBody">
+              <!-- 动态生成 -->
+            </tbody>
+          </table>
+        </div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px;">
+          <button class="btn btn-success" onclick="saveVariantList()">✅ 确认保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+    const merchantId = localStorage.getItem('username') || 'MurrayRanelagh';
+    let productRows = [];
+    let currentImeiRowIndex = null;
+    let currentVariantRowIndex = null;
+
+    // 页面加载时初始化
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadUserInfo();
+      await loadSuppliers();
+      await loadCategories();
+      await loadConditions();
+      await loadTaxRates();
+      addProductRow(); // 添加第一行
+      
+      // 设置默认日期为今天
+      document.getElementById('invoiceDate').valueAsDate = new Date();
+    });
+
+    // 加载用户信息
+    async function loadUserInfo() {
+      try {
+        const response = await fetch(`${API_BASE}/users/profile?username=${merchantId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          const user = result.data;
+          document.getElementById('userName').textContent = user.fullName || user.username;
+          document.getElementById('companyName').textContent = user.companyInfo?.name || user.retailInfo?.storeGroup?.name || '未设置';
+        } else {
+          document.getElementById('userName').textContent = merchantId;
+          document.getElementById('companyName').textContent = '未设置';
+        }
+      } catch (error) {
+        console.error('加载用户信息失败:', error);
+        document.getElementById('userName').textContent = merchantId;
+        document.getElementById('companyName').textContent = '加载失败';
+      }
+    }
+
+    // 加载供货商列表
+    async function loadSuppliers() {
+      try {
+        const response = await fetch(`${API_BASE}/merchant/suppliers?merchantId=${merchantId}`);
+        const result = await response.json();
+        
+        const select = document.getElementById('supplierId');
+        result.data.forEach(supplier => {
+          const option = document.createElement('option');
+          option.value = supplier._id;
+          option.textContent = supplier.name;
+          select.appendChild(option);
+        });
+      } catch (error) {
+        console.error('加载供货商失败:', error);
+      }
+    }
+
+    let categories = [];
+    let conditions = [];
+    let taxRates = [];
+
+    // 加载分类列表
+    async function loadCategories() {
+      try {
+        const response = await fetch(`${API_BASE}/categories`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          categories = result.data.filter(c => c.isActive);
+          console.log('✅ 加载分类成功:', categories.length, '个');
+        } else {
+          console.error('❌ 加载分类失败:', result);
+          showAlert('加载分类失败', 'warning');
+        }
+      } catch (error) {
+        console.error('❌ 加载分类失败:', error);
+        showAlert('加载分类失败: ' + error.message, 'warning');
+      }
+    }
+
+    // 加载成色列表
+    async function loadConditions() {
+      try {
+        const response = await fetch(`${API_BASE}/merchant/conditions`);
+        const result = await response.json();
+        conditions = result.data.filter(c => c.isActive);
+      } catch (error) {
+        console.error('加载成色失败:', error);
+      }
+    }
+
+    // 加载税率列表
+    async function loadTaxRates() {
+      try {
+        const response = await fetch(`${API_BASE}/vat-rates`);
+        const result = await response.json();
+        taxRates = result.data.filter(t => t.isActive);
+      } catch (error) {
+        console.error('加载税率失败:', error);
+      }
+    }
+
+    // 添加产品行
+    function addProductRow() {
+      const rowIndex = productRows.length;
+      productRows.push({
+        productName: '',
+        brand: '',
+        category: '',
+        model: '',
+        color: '',
+        quantity: 1,
+        condition: '',
+        costPrice: 0,
+        wholesalePrice: 0,
+        retailPrice: 0,
+        taxClassification: '',
+        imeiList: []
+      });
+      
+      renderProductTable();
+    }
+
+    // 渲染产品表格
+    function renderProductTable() {
+      const tbody = document.getElementById('productTableBody');
+      tbody.innerHTML = '';
+      
+      productRows.forEach((row, index) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${index + 1}</td>
+          <td><input type="text" value="${row.productName}" onchange="updateRow(${index}, 'productName', this.value)" placeholder="产品名称"></td>
+          <td><input type="text" value="${row.brand}" onchange="updateRow(${index}, 'brand', this.value)" placeholder="品牌"></td>
+          <td>${renderCategorySelect(index, row.category)}</td>
+          <td><input type="text" value="${row.model}" onchange="updateRow(${index}, 'model', this.value)" placeholder="型号"></td>
+          <td><input type="text" value="${row.color}" onchange="updateRow(${index}, 'color', this.value)" placeholder="颜色"></td>
+          <td>${renderVariantButton(index, row)}</td>
+          <td>${renderQuantityOrImei(index, row)}</td>
+          <td>${renderConditionSelect(index, row.condition)}</td>
+          <td><input type="number" value="${row.costPrice}" onchange="updateRow(${index}, 'costPrice', parseFloat(this.value))" step="0.01" min="0"></td>
+          <td><input type="number" value="${row.wholesalePrice}" onchange="updateRow(${index}, 'wholesalePrice', parseFloat(this.value))" step="0.01" min="0"></td>
+          <td><input type="number" value="${row.retailPrice}" onchange="updateRow(${index}, 'retailPrice', parseFloat(this.value))" step="0.01" min="0"></td>
+          <td>${renderTaxSelect(index, row.taxClassification)}</td>
+          <td>
+            <button class="btn btn-danger" onclick="deleteRow(${index})" style="padding: 6px 12px; font-size: 12px;">删除</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // 渲染分类下拉框
+    function renderCategorySelect(index, value) {
+      let html = `<select onchange="updateRow(${index}, 'category', this.value); onCategoryChange(${index}, this.value)">`;
+      html += '<option value="">-- 选择分类 --</option>';
+      categories.forEach(cat => {
+        const displayName = (cat.description && cat.description.trim()) ? cat.description : cat.type;
+        html += `<option value="${cat.type}" ${value === cat.type ? 'selected' : ''}>${displayName}</option>`;
+      });
+      html += '</select>';
+      return html;
+    }
+
+    // 渲染成色下拉框
+    function renderConditionSelect(index, value) {
+      let html = `<select onchange="updateRow(${index}, 'condition', this.value)">`;
+      html += '<option value="">-- 选择成色 --</option>';
+      conditions.forEach(cond => {
+        const displayName = (cond.name && cond.name.trim()) ? cond.name : cond.code;
+        html += `<option value="${cond.code}" ${value === cond.code ? 'selected' : ''}>${displayName}</option>`;
+      });
+      html += '</select>';
+      return html;
+    }
+
+    // 渲染税务分类下拉框
+    function renderTaxSelect(index, value) {
+      let html = `<select onchange="updateRow(${index}, 'taxClassification', this.value)">`;
+      html += '<option value="">-- 选择税率 --</option>';
+      taxRates.forEach(tax => {
+        const displayName = (tax.name && tax.name.trim()) ? tax.name : tax.code;
+        html += `<option value="${tax.code}" ${value === tax.code ? 'selected' : ''}>${displayName}</option>`;
+      });
+      html += '</select>';
+      return html;
+    }
+
+    // 渲染变体按钮
+    function renderVariantButton(index, row) {
+      // 检查是否是配件类产品（可能有变体）
+      const category = row.category || '';
+      const categoryLower = category.toLowerCase();
+      
+      // 配件类：包含 accessory, case, charger, cable, 配件 等关键字
+      const isAccessory = categoryLower.includes('accessory') || 
+                         categoryLower.includes('case') ||
+                         categoryLower.includes('charger') ||
+                         categoryLower.includes('cable') ||
+                         categoryLower.includes('配件');
+      
+      console.log(`[变体检查] 行${index}: category="${category}", isAccessory=${isAccessory}`);
+      
+      if (isAccessory) {
+        const hasVariant = row.variantSelected ? '✓' : '';
+        const variantInfo = (row.model || row.color) ? `${row.model || ''} ${row.color || ''}`.trim() : '';
+        return `
+          <button class="btn btn-primary" onclick="openVariantModal(${index})" style="padding: 6px 12px; font-size: 12px;" title="${variantInfo}">
+            ${hasVariant} 选择变体
+          </button>
+        `;
+      } else {
+        return '<span style="color: #999;">-</span>';
+      }
+    }
+
+    // 渲染数量或IMEI输入
+    function renderQuantityOrImei(index, row) {
+      const category = row.category || '';
+      const categoryLower = category.toLowerCase();
+      
+      // 更精确的设备类判断：必须包含"device"关键字
+      // 排除配件类（accessory, case, charger, cable等）
+      const isDevice = categoryLower.includes('device') && 
+                      !categoryLower.includes('accessory') &&
+                      !categoryLower.includes('case') &&
+                      !categoryLower.includes('charger') &&
+                      !categoryLower.includes('cable') &&
+                      !categoryLower.includes('配件');
+      
+      if (isDevice) {
+        const imeiCount = row.imeiList ? row.imeiList.length : 0;
+        return `
+          <button class="btn btn-primary" onclick="openImeiModal(${index})" style="padding: 6px 12px; font-size: 12px;">
+            ${imeiCount > 0 ? `已录入 ${imeiCount}` : '录入IMEI'}
+          </button>
+        `;
+      } else {
+        return `<input type="number" value="${row.quantity}" onchange="updateRow(${index}, 'quantity', parseInt(this.value))" min="1" style="width: 60px;">`;
+      }
+    }
+
+    // 分类变化时的处理
+    function onCategoryChange(index, category) {
+      // 更精确的设备类判断：必须包含"device"关键字，排除配件类
+      const categoryLower = category.toLowerCase();
+      const isDevice = categoryLower.includes('device') && 
+                      !categoryLower.includes('accessory') &&
+                      !categoryLower.includes('case') &&
+                      !categoryLower.includes('charger') &&
+                      !categoryLower.includes('cable') &&
+                      !categoryLower.includes('配件');
+      
+      if (isDevice) {
+        productRows[index].quantity = 0;
+        productRows[index].imeiList = [];
+      } else {
+        productRows[index].quantity = 1;
+        productRows[index].imeiList = [];
+      }
+      
+      renderProductTable();
+    }
+
+    // 更新行数据
+    function updateRow(index, field, value) {
+      productRows[index][field] = value;
+    }
+
+    // 删除行
+    function deleteRow(index) {
+      if (confirm('确定要删除这一行吗？')) {
+        productRows.splice(index, 1);
+        renderProductTable();
+      }
+    }
+
+    // 打开IMEI模态框
+    function openImeiModal(index) {
+      currentImeiRowIndex = index;
+      const row = productRows[index];
+      document.getElementById('imeiInput').value = (row.imeiList || []).join('\n');
+      document.getElementById('imeiModal').style.display = 'flex';
+    }
+
+    // 关闭IMEI模态框
+    function closeImeiModal() {
+      document.getElementById('imeiModal').style.display = 'none';
+      currentImeiRowIndex = null;
+    }
+
+    // 保存IMEI列表
+    function saveImeiList() {
+      const input = document.getElementById('imeiInput').value;
+      const imeiList = input.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+      
+      if (currentImeiRowIndex !== null) {
+        productRows[currentImeiRowIndex].imeiList = imeiList;
+        productRows[currentImeiRowIndex].quantity = imeiList.length;
+        renderProductTable();
+      }
+      
+      closeImeiModal();
+    }
+
+    // 打开变体模态框
+    function openVariantModal(index) {
+      currentVariantRowIndex = index;
+      const row = productRows[index];
+      
+      document.getElementById('variantProductInfo').textContent = 
+        `${row.brand || ''} ${row.productName || ''}`.trim() || '未设置产品信息';
+      
+      document.getElementById('variantModel').value = row.model || '';
+      document.getElementById('variantColor').value = row.color || '';
+      
+      // 隐藏变体列表
+      document.getElementById('variantListContainer').style.display = 'none';
+      
+      // 如果已有变体数据，显示列表
+      if (row.variants && row.variants.length > 0) {
+        generateVariantList();
+      }
+      
+      document.getElementById('variantModal').style.display = 'flex';
+    }
+
+    // 关闭变体模态框
+    function closeVariantModal() {
+      document.getElementById('variantModal').style.display = 'none';
+      currentVariantRowIndex = null;
+    }
+
+    // 生成变体列表
+    function generateVariantList() {
+      const modelInput = document.getElementById('variantModel').value.trim();
+      const colorInput = document.getElementById('variantColor').value.trim();
+      
+      if (!modelInput && !colorInput) {
+        showAlert('请至少填写型号或颜色', 'warning');
+        return;
+      }
+      
+      const models = modelInput ? modelInput.split(',').map(s => s.trim()).filter(s => s) : [''];
+      const colors = colorInput ? colorInput.split(',').map(s => s.trim()).filter(s => s) : [''];
+      
+      const tbody = document.getElementById('variantListBody');
+      tbody.innerHTML = '';
+      
+      // 获取当前行已有的变体数据
+      const row = productRows[currentVariantRowIndex];
+      const existingVariants = row.variants || [];
+      
+      // 生成所有组合
+      for (const model of models) {
+        for (const color of colors) {
+          // 查找是否已有该变体的数量
+          const existing = existingVariants.find(v => v.model === model && v.color === color);
+          const quantity = existing ? existing.quantity : 1;
+          
+          const tr = document.createElement('tr');
+          tr.style.borderBottom = '1px solid #dee2e6';
+          tr.innerHTML = `
+            <td style="padding: 10px;">${model || '-'}</td>
+            <td style="padding: 10px;">${color || '-'}</td>
+            <td style="padding: 10px; text-align: center;">
+              <input type="number" value="${quantity}" min="0" 
+                data-model="${model}" data-color="${color}"
+                style="width: 80px; padding: 6px; border: 1px solid #dee2e6; border-radius: 4px; text-align: center;">
+            </td>
+          `;
+          tbody.appendChild(tr);
+        }
+      }
+      
+      document.getElementById('variantListContainer').style.display = 'block';
+    }
+
+    // 保存变体列表
+    function saveVariantList() {
+      if (currentVariantRowIndex === null) return;
+      
+      const inputs = document.querySelectorAll('#variantListBody input[type="number"]');
+      const variants = [];
+      let totalQuantity = 0;
+      
+      inputs.forEach(input => {
+        const model = input.dataset.model;
+        const color = input.dataset.color;
+        const quantity = parseInt(input.value) || 0;
+        
+        if (quantity > 0) {
+          variants.push({ model, color, quantity });
+          totalQuantity += quantity;
+        }
+      });
+      
+      if (variants.length === 0) {
+        showAlert('请至少为一个变体设置数量', 'warning');
+        return;
+      }
+      
+      // 保存到产品行
+      const modelInput = document.getElementById('variantModel').value.trim();
+      const colorInput = document.getElementById('variantColor').value.trim();
+      
+      productRows[currentVariantRowIndex].model = modelInput;
+      productRows[currentVariantRowIndex].color = colorInput;
+      productRows[currentVariantRowIndex].variants = variants;
+      productRows[currentVariantRowIndex].quantity = totalQuantity;
+      productRows[currentVariantRowIndex].variantSelected = true;
+      
+      renderProductTable();
+      closeVariantModal();
+      showAlert(`✅ 已保存 ${variants.length} 个变体，总数量: ${totalQuantity}`, 'success');
+    }
+
+    // 清空所有数据
+    function clearAll() {
+      if (confirm('确定要清空所有数据吗？')) {
+        productRows = [];
+        document.getElementById('supplierId').value = '';
+        document.getElementById('invoiceNumber').value = '';
+        addProductRow();
+      }
+    }
+
+    // 预览数据
+    function previewData() {
+      const supplierId = document.getElementById('supplierId').value;
+      const invoiceNumber = document.getElementById('invoiceNumber').value;
+      
+      if (!supplierId || !invoiceNumber) {
+        showAlert('请填写供货商和发票号码', 'warning');
+        return;
+      }
+      
+      const validRows = productRows.filter(row => row.productName && row.category);
+      
+      if (validRows.length === 0) {
+        showAlert('请至少添加一个有效的产品', 'warning');
+        return;
+      }
+      
+      console.log('预览数据:', {
+        supplierId,
+        invoiceNumber,
+        products: validRows
+      });
+      
+      showAlert(`准备入库 ${validRows.length} 个产品`, 'info');
+    }
+
+    // 提交入库
+    async function submitReceiving() {
+      const supplierId = document.getElementById('supplierId').value;
+      const invoiceNumber = document.getElementById('invoiceNumber').value;
+      
+      if (!supplierId || !invoiceNumber) {
+        showAlert('请填写供货商和发票号码', 'warning');
+        return;
+      }
+      
+      const validRows = productRows.filter(row => {
+        if (!row.productName || !row.category) return false;
+        
+        // 检查设备类产品是否有IMEI
+        // 更精确的设备类判断：必须包含"device"关键字，排除配件类
+        const categoryLower = row.category.toLowerCase();
+        const isDevice = categoryLower.includes('device') && 
+                        !categoryLower.includes('accessory') &&
+                        !categoryLower.includes('case') &&
+                        !categoryLower.includes('charger') &&
+                        !categoryLower.includes('cable') &&
+                        !categoryLower.includes('配件');
+        
+        if (isDevice && (!row.imeiList || row.imeiList.length === 0)) {
+          console.log(`❌ 设备类产品 "${row.productName}" 缺少IMEI`);
+          return false;
+        }
+        
+        return true;
+      });
+      
+      if (validRows.length === 0) {
+        showAlert('没有有效的产品可以入库', 'warning');
+        return;
+      }
+      
+      try {
+        let successCount = 0;
+        let failCount = 0;
+        
+        for (const row of validRows) {
+          // 使用相同的设备类判断逻辑
+          const categoryLower = row.category.toLowerCase();
+          const isDevice = categoryLower.includes('device') && 
+                          !categoryLower.includes('accessory') &&
+                          !categoryLower.includes('case') &&
+                          !categoryLower.includes('charger') &&
+                          !categoryLower.includes('cable') &&
+                          !categoryLower.includes('配件');
+          
+          if (isDevice && row.imeiList && row.imeiList.length > 0) {
+            // 设备产品：每个IMEI创建一条记录
+            for (const imei of row.imeiList) {
+              try {
+                const response = await fetch(`${API_BASE}/merchant/inventory/add`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    merchantId,
+                    productName: row.productName,
+                    brand: row.brand,
+                    model: row.model,
+                    color: row.color,
+                    category: row.category,
+                    quantity: 1,
+                    costPrice: parseFloat(row.costPrice) || 0,
+                    wholesalePrice: parseFloat(row.wholesalePrice) || 0,
+                    retailPrice: parseFloat(row.retailPrice) || 0,
+                    taxClassification: row.taxClassification,
+                    serialNumber: imei,
+                    condition: row.condition,
+                    notes: `发票号: ${invoiceNumber} | 供货商ID: ${supplierId}`
+                  })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                  successCount++;
+                } else {
+                  failCount++;
+                  console.error('入库失败:', result.error);
+                }
+              } catch (error) {
+                failCount++;
+                console.error('入库失败:', error);
+              }
+            }
+          } else {
+            // 配件产品：检查是否有变体
+            const hasVariants = row.variants && row.variants.length > 0;
+            
+            if (hasVariants) {
+              // 有变体：为每个变体创建独立记录
+              console.log(`📦 变体产品: ${row.productName}, 共 ${row.variants.length} 个变体`);
+              
+              for (const variant of row.variants) {
+                if (variant.quantity <= 0) continue;
+                
+                try {
+                  const response = await fetch(`${API_BASE}/merchant/inventory/add`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      merchantId,
+                      productName: row.productName,
+                      brand: row.brand,
+                      model: variant.model,
+                      color: variant.color,
+                      category: row.category,
+                      quantity: variant.quantity,
+                      costPrice: parseFloat(row.costPrice) || 0,
+                      wholesalePrice: parseFloat(row.wholesalePrice) || 0,
+                      retailPrice: parseFloat(row.retailPrice) || 0,
+                      taxClassification: row.taxClassification,
+                      condition: row.condition,
+                      notes: `发票号: ${invoiceNumber} | 供货商ID: ${supplierId}`
+                    })
+                  });
+                  
+                  const result = await response.json();
+                  if (result.success) {
+                    successCount++;
+                    console.log(`  ✅ ${variant.model} - ${variant.color} (x${variant.quantity}): 成功`);
+                  } else {
+                    failCount++;
+                    console.error(`  ❌ ${variant.model} - ${variant.color}: 失败`, result.error);
+                  }
+                } catch (error) {
+                  failCount++;
+                  console.error(`  ❌ ${variant.model} - ${variant.color}: 失败`, error);
+                }
+              }
+            } else {
+              // 无变体：按原来的方式创建单条记录
+              try {
+                const response = await fetch(`${API_BASE}/merchant/inventory/add`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    merchantId,
+                    productName: row.productName,
+                    brand: row.brand,
+                    model: row.model,
+                    color: row.color,
+                    category: row.category,
+                    quantity: parseInt(row.quantity) || 1,
+                    costPrice: parseFloat(row.costPrice) || 0,
+                    wholesalePrice: parseFloat(row.wholesalePrice) || 0,
+                    retailPrice: parseFloat(row.retailPrice) || 0,
+                    taxClassification: row.taxClassification,
+                    condition: row.condition,
+                    notes: `发票号: ${invoiceNumber} | 供货商ID: ${supplierId}`
+                  })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                  successCount++;
+                } else {
+                  failCount++;
+                  console.error('入库失败:', result.error);
+                }
+              } catch (error) {
+                failCount++;
+                console.error('入库失败:', error);
+              }
+            }
+          }
+        }
+        
+        if (successCount > 0) {
+          showAlert(`✅ 入库完成！成功: ${successCount} 个，失败: ${failCount} 个`, 'success');
+          
+          // 清空表单
+          setTimeout(() => {
+            clearAll();
+          }, 2000);
+        } else {
+          showAlert('❌ 入库失败！所有产品都未能成功入库。', 'warning');
+        }
+      } catch (error) {
+        console.error('入库失败:', error);
+        showAlert('❌ 入库失败: ' + error.message, 'warning');
+      }
+    }
+
+    // 显示提示信息
+    function showAlert(message, type = 'info') {
+      const container = document.getElementById('alertContainer');
+      const alert = document.createElement('div');
+      alert.className = `alert alert-${type}`;
+      alert.textContent = message;
+      container.appendChild(alert);
+      
+      setTimeout(() => {
+        alert.remove();
+      }, 5000);
+    }
+  </script>
+</body>
+</html>

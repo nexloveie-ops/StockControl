@@ -1596,12 +1596,24 @@ app.get('/api/admin/purchase-orders/:invoiceId', async (req, res) => {
         .populate('items.product', 'name barcode serialNumbers');
       
       if (!invoice) {
-        console.log(`   PurchaseInvoice中未找到，查询AdminInventory`);
+        console.log(`   PurchaseInvoice中未找到，查询AdminInventory和MerchantInventory`);
         
         // 从AdminInventory查找产品
         const adminProducts = await AdminInventory.find({ invoiceNumber }).lean();
         
-        if (adminProducts.length === 0) {
+        // 从MerchantInventory查找产品（从notes字段匹配发票号）
+        const MerchantInventory = require('./models/MerchantInventory');
+        const merchantProducts = await MerchantInventory.find({
+          notes: { $regex: new RegExp(`发票号:\\s*${invoiceNumber}`, 'i') }
+        }).lean();
+        
+        console.log(`   AdminInventory中找到 ${adminProducts.length} 个产品`);
+        console.log(`   MerchantInventory中找到 ${merchantProducts.length} 个产品`);
+        
+        // 合并产品列表
+        const allProducts = [...adminProducts, ...merchantProducts];
+        
+        if (allProducts.length === 0) {
           console.log(`❌ 发票不存在: ${invoiceNumber}`);
           return res.status(404).json({
             success: false,
@@ -1609,31 +1621,88 @@ app.get('/api/admin/purchase-orders/:invoiceId', async (req, res) => {
           });
         }
         
-        console.log(`   AdminInventory中找到 ${adminProducts.length} 个产品`);
-        
         // 获取供货商信息
-        const supplierName = adminProducts[0].supplier;
-        const supplier = supplierName ? await SupplierNew.findOne({ name: supplierName }).lean() : null;
+        let supplierName = '未知供货商';
+        let supplierId = null;
+        
+        // 优先从AdminInventory获取供货商
+        if (adminProducts.length > 0 && adminProducts[0].supplier) {
+          supplierName = adminProducts[0].supplier;
+          console.log(`   从AdminInventory获取供货商: ${supplierName}`);
+        } 
+        // 如果AdminInventory没有，从MerchantInventory的notes提取
+        else if (merchantProducts.length > 0) {
+          // 遍历所有产品，找到第一个包含供货商ID的notes
+          for (const product of merchantProducts) {
+            if (product.notes) {
+              const supplierMatch = product.notes.match(/供货商ID:\s*([^\s|]+)/i);
+              if (supplierMatch) {
+                supplierId = supplierMatch[1].trim();
+                console.log(`   从MerchantInventory获取供货商ID: ${supplierId}`);
+                break; // 找到就退出循环
+              }
+            }
+          }
+          
+          if (!supplierId) {
+            console.log(`   ⚠️ 所有产品的notes中都未找到供货商ID`);
+          }
+        }
+        
+        // 查询完整的供货商信息
+        let supplierInfo = null;
+        const Supplier = require('./models/Supplier');
+        
+        if (supplierId) {
+          // 按ID查询
+          try {
+            supplierInfo = await Supplier.findById(supplierId).lean();
+            if (supplierInfo) {
+              supplierName = supplierInfo.name;
+              console.log(`   ✅ 找到供货商: ${supplierName}`);
+            } else {
+              console.log(`   ⚠️ 未找到供货商ID: ${supplierId}`);
+              // 尝试按名称查询
+              supplierInfo = await Supplier.findOne({ name: supplierId }).lean();
+              if (supplierInfo) {
+                supplierName = supplierInfo.name;
+                console.log(`   ✅ 按名称找到供货商: ${supplierName}`);
+              }
+            }
+          } catch (err) {
+            console.log(`   ❌ 查询供货商失败: ${err.message}`);
+          }
+        } else if (supplierName && supplierName !== '未知供货商') {
+          // 按名称查询
+          supplierInfo = await Supplier.findOne({ name: supplierName }).lean();
+          if (supplierInfo) {
+            console.log(`   ✅ 找到供货商: ${supplierName}`);
+          } else {
+            console.log(`   ⚠️ 未找到供货商: ${supplierName}`);
+          }
+        }
+        
+        const supplier = await SupplierNew.findOne({ name: supplierName }).lean();
         
         // 构造虚拟发票对象
         invoice = {
           _id: `admin-${invoiceNumber}`,
           invoiceNumber: invoiceNumber,
-          supplier: supplier || { name: supplierName || '未知供货商' },
-          invoiceDate: adminProducts[0].createdAt,
+          supplier: supplier || { name: supplierName },
+          invoiceDate: allProducts[0].createdAt,
           dueDate: null,
           currency: 'EUR',
           paymentStatus: '已付款',
           paidAmount: 0,
           status: '已完成',
           receivingStatus: '已收货',
-          notes: '此发票仅存在于库存系统中',
+          notes: merchantProducts.length > 0 ? '此发票包含商户手动录入的产品' : '此发票仅存在于库存系统中',
           payments: [],
           attachments: [],
-          createdAt: adminProducts[0].createdAt,
-          updatedAt: adminProducts[0].updatedAt,
+          createdAt: allProducts[0].createdAt,
+          updatedAt: allProducts[0].updatedAt,
           items: [],
-          source: 'AdminInventory'
+          source: merchantProducts.length > 0 ? 'MerchantInventory' : 'AdminInventory'
         };
       }
     } else {
@@ -1661,7 +1730,14 @@ app.get('/api/admin/purchase-orders/:invoiceId', async (req, res) => {
       invoiceNumber: invoiceNumber
     }).lean();
     
+    // 查询MerchantInventory中关联到该订单号的产品
+    const MerchantInventory = require('./models/MerchantInventory');
+    const merchantProducts = await MerchantInventory.find({
+      notes: { $regex: new RegExp(`发票号:\\s*${invoiceNumber}`, 'i') }
+    }).lean();
+    
     console.log(`   AdminInventory products: ${adminProducts.length}`);
+    console.log(`   MerchantInventory products: ${merchantProducts.length}`);
     
     // 格式化PurchaseInvoice items
     const purchaseInvoiceItems = (invoice.items || []).map(item => {
@@ -1745,8 +1821,52 @@ app.get('/api/admin/purchase-orders/:invoiceId', async (req, res) => {
       };
     });
     
+    // 格式化MerchantInventory产品为发票items格式
+    const merchantItems = merchantProducts.map(product => {
+      // 正确映射税率
+      let vatRate = 'VAT 0%';
+      let taxMultiplier = 1.0;
+      
+      if (product.taxClassification === 'VAT_23' || product.taxClassification === 'VAT 23%') {
+        vatRate = 'VAT 23%';
+        taxMultiplier = 1.23;
+      } else if (product.taxClassification === 'VAT_13_5' || product.taxClassification === 'VAT 13.5%') {
+        vatRate = 'VAT 13.5%';
+        taxMultiplier = 1.135;
+      } else if (product.taxClassification === 'VAT_0' || product.taxClassification === 'VAT 0%') {
+        vatRate = 'VAT 0%';
+        taxMultiplier = 1.0;
+      }
+      
+      // MerchantInventory的costPrice是税前价格（不含税）
+      const unitCostExcludingTax = product.costPrice;  // 不含税单价
+      const totalCostExcludingTax = unitCostExcludingTax * (product.quantity || 1);  // 不含税总价
+      const taxAmount = totalCostExcludingTax * (taxMultiplier - 1);  // 税额
+      const unitCostIncludingTax = unitCostExcludingTax * taxMultiplier;  // 含税单价
+      const totalCostIncludingTax = totalCostExcludingTax + taxAmount;  // 含税总价
+      
+      return {
+        _id: product._id,
+        product: product._id,
+        productName: product.productName,
+        description: `${product.productName}${product.model ? ' - ' + product.model : ''}${product.color ? ' - ' + product.color : ''}`,
+        quantity: product.quantity || 1,
+        unitCost: unitCostExcludingTax, // 税前单价（采购发票显示税前价格）
+        totalCost: totalCostIncludingTax, // 含税总价
+        unitCostExcludingTax: unitCostExcludingTax, // 不含税单价
+        totalCostExcludingTax: totalCostExcludingTax, // 不含税总价
+        unitCostIncludingTax: unitCostIncludingTax, // 含税单价（备用）
+        vatRate: vatRate,
+        taxAmount: taxAmount, // 税额
+        serialNumbers: product.serialNumber ? [product.serialNumber] : [],
+        barcode: product.barcode || '',
+        condition: product.condition,
+        source: 'MerchantInventory'
+      };
+    });
+    
     // 合并所有items
-    const allItems = [...purchaseInvoiceItems, ...adminItems];
+    const allItems = [...purchaseInvoiceItems, ...adminItems, ...merchantItems];
     
     console.log(`   合并后总items: ${allItems.length}`);
     
@@ -7698,20 +7818,59 @@ app.put('/api/merchant/repairs/:id/status', async (req, res) => {
 app.delete('/api/merchant/repairs/:id', async (req, res) => {
   try {
     const RepairOrder = require('./models/RepairOrder');
+    const MerchantSale = require('./models/MerchantSale');
     const { id } = req.params;
     
-    const result = await RepairOrder.findByIdAndDelete(id);
+    // 查找维修订单
+    const repairOrder = await RepairOrder.findById(id);
     
-    if (!result) {
+    if (!repairOrder) {
       return res.status(404).json({
         success: false,
         error: '维修订单不存在'
       });
     }
     
+    // 删除维修订单
+    await RepairOrder.findByIdAndDelete(id);
+    
+    // 查找并删除包含此维修订单的销售记录
+    // 如果销售记录只包含这一个维修订单，删除整个销售记录
+    // 如果销售记录包含多个产品，只删除维修订单相关的项目
+    const salesWithRepair = await MerchantSale.find({
+      'items.repairOrderId': id
+    });
+    
+    for (const sale of salesWithRepair) {
+      // 过滤掉维修订单相关的项目
+      const remainingItems = sale.items.filter(item => 
+        !item.repairOrderId || item.repairOrderId.toString() !== id
+      );
+      
+      if (remainingItems.length === 0) {
+        // 如果没有剩余项目，删除整个销售记录
+        await MerchantSale.findByIdAndDelete(sale._id);
+        console.log(`删除销售记录 ${sale._id}，因为只包含已删除的维修订单`);
+      } else {
+        // 如果还有其他项目，更新销售记录
+        // 重新计算总金额
+        const newSubtotal = remainingItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        const newTotalTax = remainingItems.reduce((sum, item) => sum + (item.taxAmount || 0), 0);
+        const newTotalAmount = newSubtotal + newTotalTax;
+        
+        await MerchantSale.findByIdAndUpdate(sale._id, {
+          items: remainingItems,
+          subtotal: newSubtotal,
+          totalTax: newTotalTax,
+          totalAmount: newTotalAmount
+        });
+        console.log(`更新销售记录 ${sale._id}，移除已删除的维修订单`);
+      }
+    }
+    
     res.json({
       success: true,
-      message: '维修订单已删除'
+      message: '维修订单及相关销售记录已删除'
     });
   } catch (error) {
     console.error('删除维修订单失败:', error);
@@ -8182,10 +8341,35 @@ app.get('/api/merchant/purchase-report', async (req, res) => {
     
     const adminInventory = await AdminInventory.find(inventoryQuery).lean();
     
-    console.log(`   库存记录: ${adminInventory.length} 条`);
+    console.log(`   AdminInventory库存记录: ${adminInventory.length} 条`);
     
-    // 按发票号分组
+    // 4. 查询MerchantInventory中的采购记录（从notes字段提取发票号）
+    const merchantInventoryQuery = {
+      merchantId: merchantId,
+      notes: { $regex: /发票号:/, $options: 'i' }
+    };
+    
+    // 添加日期过滤
+    if (startDate && endDate) {
+      merchantInventoryQuery.createdAt = dateFilter;
+    }
+    
+    const merchantInventory = await MerchantInventory.find(merchantInventoryQuery).lean();
+    
+    console.log(`   MerchantInventory库存记录: ${merchantInventory.length} 条`);
+    
+    // 获取所有供货商信息（用于显示名称）
+    const Supplier = require('./models/Supplier');
+    const suppliers = await Supplier.find({ merchantId: merchantId }).lean();
+    const supplierMap = {};
+    suppliers.forEach(s => {
+      supplierMap[s._id.toString()] = s.name;
+    });
+    
+    // 按发票号分组（合并AdminInventory和MerchantInventory）
     const invoiceGroups = {};
+    
+    // 处理AdminInventory
     adminInventory.forEach(item => {
       const invoiceNum = item.invoiceNumber;
       if (!invoiceGroups[invoiceNum]) {
@@ -8196,6 +8380,33 @@ app.get('/api/merchant/purchase-report', async (req, res) => {
         };
       }
       invoiceGroups[invoiceNum].items.push(item);
+    });
+    
+    // 处理MerchantInventory（从notes提取发票号）
+    merchantInventory.forEach(item => {
+      // 从notes中提取发票号: "发票号: INV-123 | 供货商ID: xxx"
+      const match = item.notes.match(/发票号:\s*([^\s|]+)/i);
+      if (match) {
+        const invoiceNum = match[1];
+        
+        // 提取供货商信息
+        let supplier = '未知供货商';
+        const supplierMatch = item.notes.match(/供货商ID:\s*([^\s|]+)/i);
+        if (supplierMatch) {
+          const supplierId = supplierMatch[1];
+          // 从supplierMap查找供货商名称
+          supplier = supplierMap[supplierId] || supplierId;
+        }
+        
+        if (!invoiceGroups[invoiceNum]) {
+          invoiceGroups[invoiceNum] = {
+            items: [],
+            supplier: supplier,
+            date: item.createdAt
+          };
+        }
+        invoiceGroups[invoiceNum].items.push(item);
+      }
     });
     
     // 将分组的发票添加到订单列表
@@ -8210,7 +8421,7 @@ app.get('/api/merchant/purchase-report', async (req, res) => {
       let taxAmount = 0;
       
       group.items.forEach(item => {
-        const itemTotal = (item.costPrice || 0) * item.quantity;
+        const itemTotal = (item.costPrice || 0) * (item.quantity || 1);
         totalAmount += itemTotal;
         
         // 只有VAT_23和VAT_13_5才计算税额，Margin VAT不计算
@@ -8595,7 +8806,9 @@ app.get('/api/warehouse-orders/number/:orderNumber/pdf', async (req, res) => {
 app.get('/api/admin/purchase-orders/:invoiceId/pdf', async (req, res) => {
   try {
     const AdminInventory = require('./models/AdminInventory');
+    const MerchantInventory = require('./models/MerchantInventory');
     const CompanyInfo = require('./models/CompanyInfo');
+    const Supplier = require('./models/Supplier');
     const PDFDocument = require('pdfkit');
     
     const invoiceId = req.params.invoiceId;
@@ -8608,17 +8821,111 @@ app.get('/api/admin/purchase-orders/:invoiceId/pdf', async (req, res) => {
     
     console.log(`\n📄 生成采购发票PDF: ${invoiceNumber}`);
     
-    const [products, companyInfo] = await Promise.all([
+    // 查询AdminInventory和MerchantInventory
+    const [adminProducts, merchantProducts, companyInfo] = await Promise.all([
       AdminInventory.find({ invoiceNumber: invoiceNumber }).lean(),
+      MerchantInventory.find({
+        notes: { $regex: new RegExp(`发票号:\\s*${invoiceNumber}`, 'i') }
+      }).lean(),
       CompanyInfo.findOne({ isDefault: true }).lean()
     ]);
     
-    if (products.length === 0) {
+    // 合并产品列表
+    const allProducts = [...adminProducts, ...merchantProducts];
+    
+    console.log(`   AdminInventory: ${adminProducts.length} 个产品`);
+    console.log(`   MerchantInventory: ${merchantProducts.length} 个产品`);
+    console.log(`   合并后: ${allProducts.length} 个产品`);
+    
+    if (allProducts.length === 0) {
       return res.status(404).json({
         success: false,
         error: '发票不存在'
       });
     }
+    
+    // 获取供货商信息
+    let supplierInfo = {
+      name: 'Unknown Supplier',
+      vatNumber: '',
+      phone: '',
+      email: '',
+      address: ''
+    };
+    
+    // 优先从AdminInventory获取供货商名称
+    let supplierName = null;
+    let supplierId = null;
+    
+    if (adminProducts.length > 0 && adminProducts[0].supplier) {
+      supplierName = adminProducts[0].supplier;
+      console.log(`   从AdminInventory获取供货商: ${supplierName}`);
+    } 
+    // 如果AdminInventory没有，从MerchantInventory的notes提取
+    else if (merchantProducts.length > 0) {
+      // 遍历所有产品，找到第一个包含供货商ID的notes
+      for (const product of merchantProducts) {
+        if (product.notes) {
+          const supplierMatch = product.notes.match(/供货商ID:\s*([^\s|]+)/i);
+          if (supplierMatch) {
+            supplierId = supplierMatch[1].trim();
+            console.log(`   从MerchantInventory获取供货商ID: ${supplierId}`);
+            break; // 找到就退出循环
+          }
+        }
+      }
+      
+      if (!supplierId) {
+        console.log(`   ⚠️ 所有产品的notes中都未找到供货商ID`);
+      }
+    }
+    
+    // 根据供货商名称或ID查询完整信息
+    if (supplierId) {
+      // 按ID查询
+      try {
+        const supplier = await Supplier.findById(supplierId).lean();
+        if (supplier) {
+          supplierInfo.name = supplier.name;
+          supplierInfo.vatNumber = supplier.vatNumber || '';
+          supplierInfo.phone = supplier.contact?.phone || '';
+          supplierInfo.email = supplier.contact?.email || '';
+          supplierInfo.address = supplier.contact?.address || '';
+          console.log(`   ✅ 找到供货商: ${supplier.name}`);
+        } else {
+          console.log(`   ⚠️ 未找到供货商ID: ${supplierId}`);
+          // 尝试按名称查询
+          const supplierByName = await Supplier.findOne({ name: supplierId }).lean();
+          if (supplierByName) {
+            supplierInfo.name = supplierByName.name;
+            supplierInfo.vatNumber = supplierByName.vatNumber || '';
+            supplierInfo.phone = supplierByName.contact?.phone || '';
+            supplierInfo.email = supplierByName.contact?.email || '';
+            supplierInfo.address = supplierByName.contact?.address || '';
+            console.log(`   ✅ 按名称找到供货商: ${supplierByName.name}`);
+          }
+        }
+      } catch (err) {
+        console.log(`   ❌ 查询供货商失败: ${err.message}`);
+      }
+    } else if (supplierName) {
+      // 按名称查询
+      const supplier = await Supplier.findOne({ name: supplierName }).lean();
+      if (supplier) {
+        supplierInfo.name = supplier.name;
+        supplierInfo.vatNumber = supplier.vatNumber || '';
+        supplierInfo.phone = supplier.contact?.phone || '';
+        supplierInfo.email = supplier.contact?.email || '';
+        supplierInfo.address = supplier.contact?.address || '';
+        console.log(`   ✅ 找到供货商: ${supplier.name}`);
+      } else {
+        // 如果找不到，至少显示名称
+        supplierInfo.name = supplierName;
+        console.log(`   ⚠️ 未找到供货商，使用名称: ${supplierName}`);
+      }
+    }
+    
+    console.log(`   最终供货商: ${supplierInfo.name}`);
     
     // 创建PDF文档
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
@@ -8634,54 +8941,120 @@ app.get('/api/admin/purchase-orders/:invoiceId/pdf', async (req, res) => {
     doc.fontSize(14).font('Helvetica').text(invoiceNumber, { align: 'center' });
     doc.moveDown(1.5);
     
-    // 基本信息
-    doc.fontSize(10).font('Helvetica');
-    doc.text(`Date: ${new Date(products[0].createdAt).toLocaleDateString('en-US')}`, 50, doc.y);
-    doc.text(`Supplier: ${products[0].supplier || 'N/A'}`, 50, doc.y);
+    // 发票信息和供货商信息并排显示
+    const leftColumn = 50;
+    const rightColumn = 320;
+    let currentY = doc.y;
+    
+    // 左侧：发票信息
+    doc.fontSize(10).font('Helvetica-Bold');
+    doc.text('Invoice Information', leftColumn, currentY);
+    doc.font('Helvetica').fontSize(9);
+    doc.text(`Date: ${new Date(allProducts[0].createdAt).toLocaleDateString('en-US')}`, leftColumn, currentY + 15);
+    doc.text(`Invoice #: ${invoiceNumber}`, leftColumn, currentY + 30);
+    
+    // 右侧：供货商信息
+    doc.fontSize(10).font('Helvetica-Bold');
+    doc.text('Supplier Information', rightColumn, currentY);
+    doc.font('Helvetica').fontSize(9);
+    
+    let supplierY = currentY + 15;
+    doc.text(`Name: ${supplierInfo.name}`, rightColumn, supplierY);
+    
+    if (supplierInfo.vatNumber) {
+      supplierY += 15;
+      doc.text(`VAT #: ${supplierInfo.vatNumber}`, rightColumn, supplierY);
+    }
+    
+    if (supplierInfo.phone) {
+      supplierY += 15;
+      doc.text(`Phone: ${supplierInfo.phone}`, rightColumn, supplierY);
+    }
+    
+    if (supplierInfo.email) {
+      supplierY += 15;
+      doc.text(`Email: ${supplierInfo.email}`, rightColumn, supplierY);
+    }
+    
+    if (supplierInfo.address) {
+      supplierY += 15;
+      doc.text(`Address: ${supplierInfo.address}`, rightColumn, supplierY, { width: 230 });
+    }
+    
+    // 移动到供货商信息下方
+    doc.y = Math.max(currentY + 60, supplierY + 20);
     doc.moveDown(1);
     
-    // 产品表格
+    // 产品表格 - 优化列宽
     const tableTop = doc.y;
     const itemX = 50;
-    const qtyX = 300;
-    const priceX = 370;
-    const totalX = 470;
+    const qtyX = 200;
+    const condX = 240;
+    const priceX = 300;
+    const totalX = 370;
+    const taxClassX = 440;
+    const taxAmtX = 510;
     
     // 表头
-    doc.fontSize(10).font('Helvetica-Bold');
+    doc.fontSize(9).font('Helvetica-Bold');
     doc.text('Product', itemX, tableTop);
-    doc.text('Qty', qtyX, tableTop);
-    doc.text('Price', priceX, tableTop);
-    doc.text('Total', totalX, tableTop);
+    doc.text('Qty', qtyX, tableTop, { width: 35, align: 'center' });
+    doc.text('Cond', condX, tableTop, { width: 55, align: 'center' });
+    doc.text('Price', priceX, tableTop, { width: 65, align: 'right' });
+    doc.text('Total', totalX, tableTop, { width: 65, align: 'right' });
+    doc.text('Tax Class', taxClassX, tableTop, { width: 65, align: 'center' });
+    doc.text('Tax Amt', taxAmtX, tableTop, { width: 65, align: 'right' });
     
-    doc.moveTo(50, tableTop + 15).lineTo(550, tableTop + 15).stroke();
+    doc.moveTo(50, tableTop + 15).lineTo(580, tableTop + 15).stroke();
     
     // 产品行
     let y = tableTop + 25;
-    doc.font('Helvetica').fontSize(9);
+    doc.font('Helvetica').fontSize(8);
     
     let totalAmount = 0;
     let taxAmount = 0;
     
-    products.forEach(item => {
+    allProducts.forEach(item => {
       const unitPrice = item.costPrice || 0;
-      const itemTotal = unitPrice * item.quantity;
-      totalAmount += itemTotal;
+      const quantity = item.quantity || 1;
+      const itemTotal = unitPrice * quantity;
       
-      // 只有VAT_23和VAT_13_5才计算税额，Margin VAT不计算
+      // 计算单个产品的税额
+      let itemTax = 0;
       if (item.taxClassification === 'VAT_23' || item.taxClassification === 'VAT 23%') {
-        taxAmount += itemTotal - (itemTotal / 1.23);
+        // costPrice是税前价格，税额 = 税前价格 × 23%
+        itemTax = itemTotal * 0.23;
       } else if (item.taxClassification === 'VAT_13_5' || item.taxClassification === 'VAT 13.5%') {
-        taxAmount += itemTotal - (itemTotal / 1.135);
+        // costPrice是税前价格，税额 = 税前价格 × 13.5%
+        itemTax = itemTotal * 0.135;
       }
-      // MARGIN_VAT_0 和 VAT_0 不计算税额（税额为0）
+      // MARGIN_VAT_0 and VAT_0 have no tax
       
-      const productName = `${item.productName || 'N/A'} ${item.model || ''} ${item.color || ''}`.trim();
+      totalAmount += itemTotal;
+      taxAmount += itemTax;
       
-      doc.text(productName, itemX, y, { width: 240 });
-      doc.text(item.quantity.toString(), qtyX, y);
-      doc.text(`€${unitPrice.toFixed(2)}`, priceX, y);
-      doc.text(`€${itemTotal.toFixed(2)}`, totalX, y);
+      // 构建产品名称 - 更紧凑
+      let productName = item.productName || 'N/A';
+      if (item.model) productName += ` ${item.model}`;
+      if (item.color) productName += ` ${item.color}`;
+      
+      const condition = item.condition || '-';
+      const taxClass = item.taxClassification || 'N/A';
+      
+      // 产品名称 - 缩短列宽
+      doc.text(productName, itemX, y, { width: 145, lineBreak: false, ellipsis: true });
+      // 数量 - 居中
+      doc.text(quantity.toString(), qtyX, y, { width: 35, align: 'center' });
+      // 成色 - 居中
+      doc.text(condition, condX, y, { width: 55, align: 'center' });
+      // 单价 - 右对齐（税前）
+      doc.text(`€${unitPrice.toFixed(2)}`, priceX, y, { width: 65, align: 'right' });
+      // 总价 - 右对齐（税前）
+      doc.text(`€${itemTotal.toFixed(2)}`, totalX, y, { width: 65, align: 'right' });
+      // 税分类 - 居中
+      doc.text(taxClass, taxClassX, y, { width: 65, align: 'center' });
+      // 税额 - 右对齐
+      doc.text(`€${itemTax.toFixed(2)}`, taxAmtX, y, { width: 65, align: 'right' });
       
       y += 20;
       
@@ -8692,21 +9065,26 @@ app.get('/api/admin/purchase-orders/:invoiceId/pdf', async (req, res) => {
     });
     
     // 总计
-    doc.moveTo(50, y).lineTo(550, y).stroke();
+    doc.moveTo(50, y).lineTo(580, y).stroke();
     y += 10;
     
     doc.font('Helvetica-Bold').fontSize(10);
-    doc.text('Subtotal:', 400, y);
-    doc.text(`€${totalAmount.toFixed(2)}`, totalX, y);
+    
+    // Subtotal (税前总价)
+    doc.text('Subtotal:', 305, y);
+    doc.text(`€${totalAmount.toFixed(2)}`, totalX, y, { width: 65, align: 'right' });
     y += 15;
     
-    doc.text('Tax:', 400, y);
-    doc.text(`€${taxAmount.toFixed(2)}`, totalX, y);
+    // Tax (税额)
+    doc.text('Tax:', 305, y);
+    doc.text(`€${taxAmount.toFixed(2)}`, taxAmtX, y, { width: 65, align: 'right' });
     y += 15;
     
+    // Total (含税总价 = Subtotal + Tax)
+    const grandTotal = totalAmount + taxAmount;
     doc.fontSize(12);
-    doc.text('Total:', 400, y);
-    doc.text(`€${totalAmount.toFixed(2)}`, totalX, y);
+    doc.text('Total:', 305, y);
+    doc.text(`€${grandTotal.toFixed(2)}`, totalX, y, { width: 65, align: 'right' });
     
     doc.end();
     
@@ -9370,6 +9748,59 @@ app.post('/api/merchant/sales/complete', async (req, res) => {
             taxAmount: taxAmount,
             serialNumber: repairOrder.deviceIMEI || repairOrder.deviceSN || null
           });
+        } else if (item.isQuickSale) {
+          // 处理快速销售产品（无需库存）
+          console.log(`⚡ 快速销售: ${item.productName}`);
+          
+          // 标准化税分类
+          let taxClassification = item.taxClassification || 'VAT_23';
+          
+          if (taxClassification === 'VAT 23%' || taxClassification === 'VAT_23') {
+            taxClassification = 'VAT_23';
+          } else if (taxClassification === 'VAT 13.5%' || taxClassification === 'Service VAT 13.5%' || taxClassification === 'SERVICE_VAT_13_5') {
+            taxClassification = 'SERVICE_VAT_13_5';
+          } else if (taxClassification === 'VAT 0%' || taxClassification === 'VAT_0') {
+            taxClassification = 'VAT_0';
+          } else if (taxClassification === 'Margin VAT' || taxClassification === 'MARGIN_VAT_0') {
+            taxClassification = 'MARGIN_VAT_0';
+          }
+          
+          // 计算税额
+          let taxAmount = 0;
+          const itemTotal = item.price * item.quantity;
+          
+          switch (taxClassification) {
+            case 'VAT_23':
+              taxAmount = itemTotal * 23 / 123;
+              break;
+            case 'SERVICE_VAT_13_5':
+              taxAmount = itemTotal * 13.5 / 113.5;
+              break;
+            case 'MARGIN_VAT_0':
+              // 快速销售的Margin VAT，假设成本为0（全额征税）
+              taxAmount = itemTotal * 23 / 123;
+              break;
+            case 'VAT_0':
+              taxAmount = 0;
+              break;
+            default:
+              taxAmount = itemTotal * 23 / 123;
+          }
+          
+          saleItems.push({
+            inventoryId: null, // 快速销售没有库存ID
+            repairOrderId: null,
+            productName: item.productName,
+            quantity: item.quantity,
+            price: item.price,
+            costPrice: 0, // 快速销售没有成本价
+            taxClassification: taxClassification,
+            taxAmount: taxAmount,
+            serialNumber: null,
+            isQuickSale: true, // 标记为快速销售
+            quickSaleCategory: item.quickSaleCategory,
+            quickSaleDescription: item.quickSaleDescription
+          });
         } else {
           // 处理库存产品
           const inventory = await MerchantInventory.findById(item.inventoryId).session(session);
@@ -9513,6 +9944,95 @@ app.get('/api/merchant/sales/:saleId', checkDbConnection, async (req, res) => {
   }
 });
 
+// 删除销售记录（管理员功能）
+app.delete('/api/merchant/sales/:saleId', async (req, res) => {
+  try {
+    const { saleId } = req.params;
+    const MerchantSale = require('./models/MerchantSale');
+    const MerchantInventory = require('./models/MerchantInventory');
+    const RepairOrder = require('./models/RepairOrder');
+    
+    console.log(`\n🗑️ 删除销售记录: ${saleId}`);
+    
+    // 查找销售记录
+    const sale = await MerchantSale.findById(saleId);
+    
+    if (!sale) {
+      return res.status(404).json({
+        success: false,
+        error: '销售记录不存在'
+      });
+    }
+    
+    // 检查是否已退款
+    if (sale.status && sale.status.toUpperCase() === 'REFUNDED') {
+      return res.status(400).json({
+        success: false,
+        error: '该销售记录已退款，无法删除'
+      });
+    }
+    
+    // 开始事务
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    
+    try {
+      // 恢复库存
+      for (const item of sale.items) {
+        if (item.isQuickSale) {
+          // 快速销售产品，无需恢复库存
+          console.log(`   ⚡ 快速销售产品，跳过: ${item.productName}`);
+          continue;
+        }
+        
+        if (item.repairOrderId) {
+          // 删除维修订单记录
+          const repairOrder = await RepairOrder.findById(item.repairOrderId).session(session);
+          if (repairOrder) {
+            await RepairOrder.findByIdAndDelete(item.repairOrderId).session(session);
+            console.log(`   ✅ 删除维修订单: ${item.productName} (ID: ${item.repairOrderId})`);
+          } else {
+            console.log(`   ⚠️ 维修订单不存在: ${item.repairOrderId}`);
+          }
+        } else if (item.inventoryId) {
+          // 恢复库存数量
+          const inventory = await MerchantInventory.findById(item.inventoryId).session(session);
+          if (inventory) {
+            inventory.quantity += item.quantity;
+            await inventory.save({ session });
+            console.log(`   ✅ 恢复库存: ${item.productName} +${item.quantity}`);
+          }
+        }
+      }
+      
+      // 删除销售记录
+      await MerchantSale.findByIdAndDelete(saleId).session(session);
+      console.log(`   ✅ 销售记录已删除`);
+      
+      // 提交事务
+      await session.commitTransaction();
+      
+      res.json({
+        success: true,
+        message: '销售记录已删除，库存已恢复'
+      });
+      
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+    
+  } catch (error) {
+    console.error('删除销售记录失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // 旧的单个产品销售API（保留兼容性）
 app.post('/api/merchant/sell', async (req, res) => {
   try {
@@ -9535,6 +10055,288 @@ app.post('/api/merchant/sell', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==================== 产品分类 API ====================
+
+// 获取所有产品分类
+app.get('/api/categories', async (req, res) => {
+  try {
+    const ProductCategory = require('./models/ProductCategory');
+    
+    console.log('\n📋 获取产品分类列表');
+    
+    // 查询所有激活的分类
+    const categories = await ProductCategory.find({ isActive: true }).sort({ name: 1 });
+    
+    console.log(`   找到 ${categories.length} 个分类`);
+    
+    res.json({
+      success: true,
+      data: categories
+    });
+    
+  } catch (error) {
+    console.error('获取分类列表失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 获取所有税率
+app.get('/api/vat-rates', async (req, res) => {
+  try {
+    const VatRate = require('./models/VatRate');
+    
+    console.log('\n💰 获取税率列表');
+    
+    // 查询所有激活的税率，按排序顺序
+    const vatRates = await VatRate.find({ isActive: true }).sort({ sortOrder: 1, rate: 1 });
+    
+    console.log(`   找到 ${vatRates.length} 个税率`);
+    
+    res.json({
+      success: true,
+      data: vatRates
+    });
+    
+  } catch (error) {
+    console.error('获取税率列表失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ==================== 商户供货商管理 API ====================
+
+// 获取商户的供货商列表
+app.get('/api/merchant/suppliers', async (req, res) => {
+  try {
+    const Supplier = require('./models/Supplier');
+    const merchantId = req.query.merchantId;
+    const searchTerm = req.query.search || '';
+    
+    if (!merchantId) {
+      return res.status(400).json({
+        success: false,
+        error: '需要提供merchantId'
+      });
+    }
+    
+    console.log(`\n📦 获取商户供货商列表: ${merchantId}`);
+    
+    // 构建查询条件
+    const query = { merchantId: merchantId };
+    
+    if (searchTerm) {
+      query.$or = [
+        { name: { $regex: searchTerm, $options: 'i' } },
+        { code: { $regex: searchTerm, $options: 'i' } },
+        { 'contact.person': { $regex: searchTerm, $options: 'i' } },
+        { 'contact.phone': { $regex: searchTerm, $options: 'i' } }
+      ];
+    }
+    
+    const suppliers = await Supplier.find(query).sort({ createdAt: -1 });
+    
+    console.log(`   找到 ${suppliers.length} 个供货商`);
+    
+    res.json({
+      success: true,
+      data: suppliers
+    });
+    
+  } catch (error) {
+    console.error('获取供货商列表失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 添加商户供货商
+app.post('/api/merchant/suppliers', async (req, res) => {
+  try {
+    const Supplier = require('./models/Supplier');
+    const {
+      merchantId,
+      name,
+      code,
+      vatNumber,
+      contactPerson,
+      contactPhone,
+      contactEmail,
+      contactAddress,
+      paymentTerms,
+      notes
+    } = req.body;
+    
+    if (!merchantId || !name || !code) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少必要参数'
+      });
+    }
+    
+    console.log(`\n📦 添加供货商: ${name} (${merchantId})`);
+    
+    // 检查code是否已存在（同一商户下）
+    const existing = await Supplier.findOne({ code: code.toUpperCase(), merchantId });
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        error: '供货商代码已存在'
+      });
+    }
+    
+    const supplier = new Supplier({
+      merchantId,
+      name,
+      code: code.toUpperCase(),
+      vatNumber: vatNumber || '',
+      contact: {
+        person: contactPerson,
+        phone: contactPhone,
+        email: contactEmail,
+        address: contactAddress
+      },
+      paymentTerms: paymentTerms || 'net30',
+      notes: notes || '',
+      isActive: true
+    });
+    
+    await supplier.save();
+    
+    console.log(`   ✅ 供货商已添加: ${supplier._id}`);
+    
+    res.json({
+      success: true,
+      data: supplier
+    });
+    
+  } catch (error) {
+    console.error('添加供货商失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 更新商户供货商
+app.put('/api/merchant/suppliers/:id', async (req, res) => {
+  try {
+    const Supplier = require('./models/Supplier');
+    const supplierId = req.params.id;
+    const merchantId = req.body.merchantId;
+    
+    if (!merchantId) {
+      return res.status(400).json({
+        success: false,
+        error: '需要提供merchantId'
+      });
+    }
+    
+    console.log(`\n📦 更新供货商: ${supplierId}`);
+    
+    // 查找供货商并验证所有权
+    const supplier = await Supplier.findOne({ _id: supplierId, merchantId });
+    
+    if (!supplier) {
+      return res.status(404).json({
+        success: false,
+        error: '供货商不存在或无权访问'
+      });
+    }
+    
+    // 更新字段
+    const {
+      name,
+      vatNumber,
+      contactPerson,
+      contactPhone,
+      contactEmail,
+      contactAddress,
+      paymentTerms,
+      notes,
+      isActive
+    } = req.body;
+    
+    if (name) supplier.name = name;
+    if (vatNumber !== undefined) supplier.vatNumber = vatNumber;
+    if (contactPerson !== undefined) supplier.contact.person = contactPerson;
+    if (contactPhone !== undefined) supplier.contact.phone = contactPhone;
+    if (contactEmail !== undefined) supplier.contact.email = contactEmail;
+    if (contactAddress !== undefined) supplier.contact.address = contactAddress;
+    if (paymentTerms) supplier.paymentTerms = paymentTerms;
+    if (notes !== undefined) supplier.notes = notes;
+    if (isActive !== undefined) supplier.isActive = isActive;
+    
+    await supplier.save();
+    
+    console.log(`   ✅ 供货商已更新`);
+    
+    res.json({
+      success: true,
+      data: supplier
+    });
+    
+  } catch (error) {
+    console.error('更新供货商失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 删除商户供货商
+app.delete('/api/merchant/suppliers/:id', async (req, res) => {
+  try {
+    const Supplier = require('./models/Supplier');
+    const supplierId = req.params.id;
+    const merchantId = req.query.merchantId;
+    
+    if (!merchantId) {
+      return res.status(400).json({
+        success: false,
+        error: '需要提供merchantId'
+      });
+    }
+    
+    console.log(`\n📦 删除供货商: ${supplierId}`);
+    
+    // 查找供货商并验证所有权
+    const supplier = await Supplier.findOne({ _id: supplierId, merchantId });
+    
+    if (!supplier) {
+      return res.status(404).json({
+        success: false,
+        error: '供货商不存在或无权访问'
+      });
+    }
+    
+    await Supplier.findByIdAndDelete(supplierId);
+    
+    console.log(`   ✅ 供货商已删除`);
+    
+    res.json({
+      success: true,
+      message: '供货商已删除'
+    });
+    
+  } catch (error) {
+    console.error('删除供货商失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 });
 
