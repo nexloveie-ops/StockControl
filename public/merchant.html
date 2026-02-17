@@ -6,8 +6,8 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title data-i18n="merchant.title">批发商户中心 - 3C产品管理系统 v2.6.7</title>
-  <script>console.log('✅ 页面版本: v2.6.7 - 移除logo图标');</script>
+  <title data-i18n="merchant.title">批发商户中心 - 3C产品管理系统 v2.6.9</title>
+  <script>console.log('✅ 页面版本: v2.6.9 - 隐藏发票上传和手动录入按钮');</script>
   <script src="/i18n.js"></script>
   <script src="/auto-translate.js"></script>
   <script src="/auth-guard.js"></script>
@@ -2387,7 +2387,8 @@
       <div id="invProductsTab" style="display: none;">
         <!-- 此功能已迁移到独立页面，点击上方"产品入库"按钮将在新标签页打开 -->
       </div>
-          <div style="display: flex; gap: 15px; margin-bottom: 25px;">
+          <!-- 模式切换按钮 - 隐藏 -->
+          <div style="display: none; gap: 15px; margin-bottom: 25px;">
             <button onclick="switchMerchantReceivingMode('upload')" id="merchantUploadModeBtn" class="btn btn-primary">
               📤 发票上传入库
             </button>
@@ -2396,8 +2397,8 @@
             </button>
           </div>
           
-          <!-- 发票上传模式 -->
-          <div id="merchantUploadMode" style="display: block;">
+          <!-- 发票上传模式 - 隐藏 -->
+          <div id="merchantUploadMode" style="display: none;">
             <div style="border: 2px dashed #cbd5e0; border-radius: 12px; padding: 60px 40px; text-align: center; background: #f7fafc; cursor: pointer; transition: all 0.3s;" 
                  onclick="document.getElementById('merchantFileInput').click()">
               <div style="font-size: 64px; margin-bottom: 20px;">📄</div>
@@ -2416,7 +2417,7 @@
             <div id="merchantRecognitionResult" style="display: none; margin-top: 20px;"></div>
           </div>
           
-          <!-- 手动录入模式 -->
+          <!-- 手动录入模式 - 隐藏 -->
           <div id="merchantManualMode" style="display: none;">
             <div style="background: #f7fafc; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
               <h3>📝 手动录入产品信息</h3>
