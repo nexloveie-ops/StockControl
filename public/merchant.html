@@ -6,8 +6,8 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title data-i18n="merchant.title">批发商户中心 - 3C产品管理系统 v2.6.4</title>
-  <script>console.log('✅ 页面版本: v2.6.4 - 修复销量统计（提取基础产品名）');</script>
+  <title data-i18n="merchant.title">批发商户中心 - 3C产品管理系统 v2.6.7</title>
+  <script>console.log('✅ 页面版本: v2.6.7 - 移除logo图标');</script>
   <script src="/i18n.js"></script>
   <script src="/auto-translate.js"></script>
   <script src="/auth-guard.js"></script>
@@ -38,6 +38,11 @@
       align-items: center;
       max-width: 1400px;
       margin: 0 auto;
+      gap: 20px;
+    }
+    
+    .header-content > div:first-of-type {
+      flex: 1;
     }
     
     .header h1 {
@@ -85,27 +90,28 @@
       transform: translateX(-100%);
     }
     
-    /* 菜单切换按钮 - 在header中 */
+    /* 菜单切换按钮 - 在header内，最左侧 */
     .menu-toggle-btn {
-      width: 45px;
-      height: 45px;
-      background: rgba(255, 255, 255, 0.2);
+      width: 50px;
+      height: 50px;
+      background: rgba(255, 255, 255, 0.15);
       color: white;
       border: 2px solid rgba(255, 255, 255, 0.3);
-      border-radius: 8px;
+      border-radius: 10px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 24px;
+      font-size: 26px;
       transition: all 0.3s ease;
       flex-shrink: 0;
+      margin-right: 30px;
     }
     
     .menu-toggle-btn:hover {
-      background: rgba(255, 255, 255, 0.3);
+      background: rgba(255, 255, 255, 0.25);
       border-color: rgba(255, 255, 255, 0.5);
-      transform: scale(1.05);
+      transform: scale(1.1);
     }
     
     .menu-toggle-btn:active {
@@ -413,13 +419,15 @@
     /* 响应式设计 */
     @media (max-width: 768px) {
       .menu-toggle-btn {
-        width: 40px;
-        height: 40px;
-        font-size: 20px;
+        width: 45px;
+        height: 45px;
+        font-size: 22px;
+        margin-right: 15px;
       }
       
       .header-content {
         padding: 10px 15px;
+        gap: 10px;
       }
       
       .stats-grid {
@@ -455,15 +463,14 @@
 <body>
   <div class="header">
     <div class="header-content">
-      <div style="display: flex; align-items: center; gap: 15px;">
-        <!-- 菜单切换按钮 -->
-        <button class="menu-toggle-btn" onclick="toggleMenu()" title="显示/隐藏菜单">
-          ☰
-        </button>
-        <div>
-          <h1 id="merchantWelcome">🏢 Welcome</h1>
-          <p>库存管理 · 销售业务 · 税务报表</p>
-        </div>
+      <!-- 菜单切换按钮 - 在header最左侧 -->
+      <button class="menu-toggle-btn" onclick="toggleMenu()" title="显示/隐藏菜单">
+        ☰
+      </button>
+      
+      <div>
+        <h1 id="merchantWelcome">Welcome</h1>
+        <p>库存管理 · 销售业务 · 税务报表</p>
       </div>
       <div style="display: flex; gap: 10px;">
         <button class="logout-btn" onclick="toggleStats()" id="toggleStatsBtn">📊 显示统计</button>
@@ -2537,11 +2544,11 @@
       try {
         // 从 localStorage 获取用户名
         const userName = localStorage.getItem('username') || 'Guest';
-        document.getElementById('merchantWelcome').textContent = `🏢 Welcome ${userName}`;
+        document.getElementById('merchantWelcome').textContent = `Welcome ${userName}`;
         document.title = `Welcome ${userName} - 3C产品管理系统`;
       } catch (error) {
         console.error('加载商户信息失败:', error);
-        document.getElementById('merchantWelcome').textContent = `🏢 Welcome`;
+        document.getElementById('merchantWelcome').textContent = `Welcome`;
       }
     }
 
