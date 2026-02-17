@@ -72,16 +72,8 @@
     .company-name {
       font-size: 28px;
       font-weight: 700;
-      margin-bottom: 10px;
-      line-height: 1.3;
-      position: relative;
-      z-index: 1;
-    }
-    
-    .company-tagline {
-      font-size: 16px;
-      opacity: 0.9;
       margin-bottom: 40px;
+      line-height: 1.3;
       position: relative;
       z-index: 1;
     }
@@ -167,7 +159,7 @@
     
     .form-options {
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-start;
       align-items: center;
       margin-bottom: 30px;
     }
@@ -184,18 +176,6 @@
       width: 16px;
       height: 16px;
       cursor: pointer;
-    }
-    
-    .forgot-password {
-      font-size: 14px;
-      color: #667eea;
-      text-decoration: none;
-      font-weight: 600;
-      transition: color 0.3s;
-    }
-    
-    .forgot-password:hover {
-      color: #764ba2;
     }
     
     .login-button {
@@ -254,81 +234,6 @@
       }
     }
     
-    .divider {
-      text-align: center;
-      margin: 30px 0;
-      position: relative;
-    }
-    
-    .divider::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 50%;
-      width: 100%;
-      height: 1px;
-      background: #e0e0e0;
-    }
-    
-    .divider-text {
-      background: white;
-      padding: 0 15px;
-      color: #999;
-      font-size: 13px;
-      position: relative;
-      z-index: 1;
-    }
-    
-    .test-accounts {
-      background: #f8f9fa;
-      padding: 20px;
-      border-radius: 10px;
-      margin-top: 20px;
-    }
-    
-    .test-accounts-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: #666;
-      margin-bottom: 12px;
-    }
-    
-    .test-account {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 12px;
-      background: white;
-      border-radius: 6px;
-      margin-bottom: 8px;
-      font-size: 12px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    
-    .test-account:hover {
-      background: #667eea;
-      color: white;
-      transform: translateX(5px);
-    }
-    
-    .test-account:last-child {
-      margin-bottom: 0;
-    }
-    
-    .test-account-role {
-      font-weight: 600;
-    }
-    
-    .test-account-creds {
-      color: #999;
-      font-size: 11px;
-    }
-    
-    .test-account:hover .test-account-creds {
-      color: rgba(255, 255, 255, 0.8);
-    }
-    
     @media (max-width: 768px) {
       .login-container {
         flex-direction: column;
@@ -359,7 +264,6 @@
     <div class="login-left">
       <div class="company-logo">🏢</div>
       <h1 class="company-name" data-i18n="company.name">CELESTIA TRADE PARTNERS LIMITED</h1>
-      <p class="company-tagline" data-i18n="company.tagline">专业的3C产品批发零售管理平台</p>
       
       <div class="features">
         <div class="feature-item">
@@ -422,37 +326,12 @@
             <input type="checkbox" id="rememberMe">
             <span data-i18n="login.rememberMe">记住我</span>
           </label>
-          <a href="#" class="forgot-password" data-i18n="login.forgotPassword">忘记密码？</a>
         </div>
         
         <button type="submit" class="login-button" id="loginButton" data-i18n="login.button">
           登录
         </button>
       </form>
-      
-      <div class="divider">
-        <span class="divider-text" data-i18n="login.testAccounts">测试账号</span>
-      </div>
-      
-      <div class="test-accounts">
-        <div class="test-accounts-title" data-i18n="login.clickToLogin">点击快速登录</div>
-        <div class="test-account" data-username="admin" data-password="admin123">
-          <span class="test-account-role"><span data-i18n="role.admin">👑 管理员</span></span>
-          <span class="test-account-creds">admin / admin123</span>
-        </div>
-        <div class="test-account" data-username="warehouse1" data-password="warehouse123">
-          <span class="test-account-role"><span data-i18n="role.warehouse">📦 仓管员</span></span>
-          <span class="test-account-creds">warehouse1 / warehouse123</span>
-        </div>
-        <div class="test-account" data-username="merchant_vip" data-password="merchant123">
-          <span class="test-account-role"><span data-i18n="role.merchant.vip">💎 VIP商户</span></span>
-          <span class="test-account-creds">merchant_vip / merchant123</span>
-        </div>
-        <div class="test-account" data-username="customer1" data-password="customer123">
-          <span class="test-account-role"><span data-i18n="role.customer">🛒 零售客户</span></span>
-          <span class="test-account-creds">customer1 / customer123</span>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -530,19 +409,6 @@
       }
       
       await handleLogin(username, password);
-    });
-    
-    // 测试账号快速登录
-    document.querySelectorAll('.test-account').forEach(account => {
-      account.addEventListener('click', async () => {
-        const username = account.dataset.username;
-        const password = account.dataset.password;
-        
-        document.getElementById('username').value = username;
-        document.getElementById('password').value = password;
-        
-        await handleLogin(username, password);
-      });
     });
     
     // 检查是否已登录 - 已禁用自动跳转

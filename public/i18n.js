@@ -8,7 +8,6 @@ const i18n = {
     zh: {
       // 通用
       'company.name': 'CELESTIA TRADE PARTNERS LIMITED',
-      'company.tagline': '专业的3C产品批发零售管理平台',
       'language': '语言',
       'logout': '退出登录',
       'save': '保存',
@@ -32,10 +31,7 @@ const i18n = {
       'login.username': '用户名或邮箱',
       'login.password': '密码',
       'login.rememberMe': '记住我',
-      'login.forgotPassword': '忘记密码？',
       'login.button': '登录',
-      'login.testAccounts': '测试账号',
-      'login.clickToLogin': '点击快速登录',
       'login.error.empty': '请输入用户名和密码',
       'login.error.invalid': '用户名或密码错误',
       'login.error.failed': '登录失败，请稍后重试',
@@ -146,13 +142,85 @@ const i18n = {
       // 月份
       'month.current': '当月',
       'month.last30days': '过去30天',
-      'months': '个月'
+      'months': '个月',
+      
+      // 商户页面
+      'merchant.title': '批发商户中心',
+      'merchant.welcome': '欢迎',
+      'merchant.company': '公司',
+      
+      // 统计卡片
+      'merchant.stats.todaySales': '本日销售',
+      'merchant.stats.todayRevenue': '本日收入',
+      'merchant.stats.todayRepairs': '本日维修',
+      'merchant.stats.todayTax': '本日应缴税额',
+      'merchant.stats.clickDetails': '点击查看明细',
+      'merchant.stats.clickCalculation': '点击查看计算过程',
+      
+      // 标签页
+      'merchant.tab.sales': '销售业务',
+      'merchant.tab.repairs': '维修业务',
+      'merchant.tab.myInventory': '我的库存',
+      'merchant.tab.groupInventory': '群组库存',
+      'merchant.tab.transfer': '调货管理',
+      'merchant.tab.warehouseOrder': '仓库订货',
+      'merchant.tab.receiving': '入库管理',
+      'merchant.tab.reports': '报表中心',
+      'merchant.tab.taxReport': '税务报表',
+      
+      // 销售业务
+      'merchant.sales.title': '销售业务',
+      'merchant.sales.cart': '购物车',
+      'merchant.sales.items': '件商品',
+      'merchant.sales.total': '总计',
+      'merchant.sales.checkout': '结账',
+      'merchant.sales.clear': '清空',
+      'merchant.sales.cartEmpty': '购物车为空',
+      'merchant.sales.searchPlaceholder': '搜索产品名称、IMEI、序列号、条形码或备注...',
+      'merchant.sales.quickSale': '快速销售',
+      'merchant.sales.selectCategory': '选择分类',
+      'merchant.sales.allCategories': '所有分类',
+      
+      // 维修业务
+      'merchant.repairs.title': '维修业务',
+      'merchant.repairs.new': '新增维修订单',
+      'merchant.repairs.all': '全部',
+      'merchant.repairs.pending': '待维修',
+      'merchant.repairs.sentOut': '已送出',
+      'merchant.repairs.retrieved': '已取回',
+      'merchant.repairs.completed': '已完成',
+      'merchant.repairs.readyForSale': '等待销售',
+      'merchant.repairs.searchPlaceholder': '搜索：客户、设备、IMEI、问题描述、维修地点...',
+      
+      // 我的库存
+      'merchant.inventory.title': '我的库存',
+      'merchant.inventory.searchPlaceholder': '搜索产品名称、品牌、型号、颜色...',
+      'merchant.inventory.productName': '产品名称',
+      'merchant.inventory.brandModel': '品牌/型号',
+      'merchant.inventory.stock': '库存数量',
+      'merchant.inventory.costRange': '成本价范围',
+      'merchant.inventory.retailPrice': '零售价',
+      'merchant.inventory.taxClass': '税务分类',
+      'merchant.inventory.location': '位置',
+      'merchant.inventory.actions': '操作',
+      
+      // 按钮和操作
+      'merchant.button.save': '保存',
+      'merchant.button.cancel': '取消',
+      'merchant.button.confirm': '确认',
+      'merchant.button.delete': '删除',
+      'merchant.button.edit': '编辑',
+      'merchant.button.close': '关闭',
+      'merchant.button.back': '返回',
+      'merchant.button.search': '搜索',
+      'merchant.button.export': '导出',
+      'merchant.button.print': '打印',
+      'merchant.button.download': '下载'
     },
     
     en: {
       // Common
       'company.name': 'CELESTIA TRADE PARTNERS LIMITED',
-      'company.tagline': 'Professional 3C Product Wholesale & Retail Management Platform',
       'language': 'Language',
       'logout': 'Logout',
       'save': 'Save',
@@ -176,10 +244,7 @@ const i18n = {
       'login.username': 'Username or Email',
       'login.password': 'Password',
       'login.rememberMe': 'Remember Me',
-      'login.forgotPassword': 'Forgot Password?',
       'login.button': 'Login',
-      'login.testAccounts': 'Test Accounts',
-      'login.clickToLogin': 'Click to Quick Login',
       'login.error.empty': 'Please enter username and password',
       'login.error.invalid': 'Invalid username or password',
       'login.error.failed': 'Login failed, please try again later',
@@ -290,7 +355,80 @@ const i18n = {
       // Month
       'month.current': 'Current Month',
       'month.last30days': 'Last 30 Days',
-      'months': 'months'
+      'months': 'months',
+      
+      // Merchant Page
+      'merchant.title': 'Wholesale Merchant Center',
+      'merchant.welcome': 'Welcome',
+      'merchant.company': 'Company',
+      
+      // Stats Cards
+      'merchant.stats.todaySales': 'Today Sales',
+      'merchant.stats.todayRevenue': 'Today Revenue',
+      'merchant.stats.todayRepairs': 'Today Repairs',
+      'merchant.stats.todayTax': 'Today Tax Due',
+      'merchant.stats.clickDetails': 'Click for details',
+      'merchant.stats.clickCalculation': 'Click for calculation',
+      
+      // Tabs
+      'merchant.tab.sales': 'Sales',
+      'merchant.tab.repairs': 'Repairs',
+      'merchant.tab.myInventory': 'My Inventory',
+      'merchant.tab.groupInventory': 'Group Inventory',
+      'merchant.tab.transfer': 'Transfer',
+      'merchant.tab.warehouseOrder': 'Warehouse Order',
+      'merchant.tab.receiving': 'Receiving',
+      'merchant.tab.reports': 'Reports',
+      'merchant.tab.taxReport': 'Tax Report',
+      
+      // Sales
+      'merchant.sales.title': 'Sales',
+      'merchant.sales.cart': 'Cart',
+      'merchant.sales.items': 'items',
+      'merchant.sales.total': 'Total',
+      'merchant.sales.checkout': 'Checkout',
+      'merchant.sales.clear': 'Clear',
+      'merchant.sales.cartEmpty': 'Cart is empty',
+      'merchant.sales.searchPlaceholder': 'Search product name, IMEI, serial number, barcode or notes...',
+      'merchant.sales.quickSale': 'Quick Sale',
+      'merchant.sales.selectCategory': 'Select Category',
+      'merchant.sales.allCategories': 'All Categories',
+      
+      // Repairs
+      'merchant.repairs.title': 'Repairs',
+      'merchant.repairs.new': 'New Repair Order',
+      'merchant.repairs.all': 'All',
+      'merchant.repairs.pending': 'Pending',
+      'merchant.repairs.sentOut': 'Sent Out',
+      'merchant.repairs.retrieved': 'Retrieved',
+      'merchant.repairs.completed': 'Completed',
+      'merchant.repairs.readyForSale': 'Ready for Sale',
+      'merchant.repairs.searchPlaceholder': 'Search: customer, device, IMEI, problem, location...',
+      
+      // Inventory
+      'merchant.inventory.title': 'My Inventory',
+      'merchant.inventory.searchPlaceholder': 'Search product name, brand, model, color...',
+      'merchant.inventory.productName': 'Product Name',
+      'merchant.inventory.brandModel': 'Brand/Model',
+      'merchant.inventory.stock': 'Stock',
+      'merchant.inventory.costRange': 'Cost Range',
+      'merchant.inventory.retailPrice': 'Retail Price',
+      'merchant.inventory.taxClass': 'Tax Class',
+      'merchant.inventory.location': 'Location',
+      'merchant.inventory.actions': 'Actions',
+      
+      // Buttons and Actions
+      'merchant.button.save': 'Save',
+      'merchant.button.cancel': 'Cancel',
+      'merchant.button.confirm': 'Confirm',
+      'merchant.button.delete': 'Delete',
+      'merchant.button.edit': 'Edit',
+      'merchant.button.close': 'Close',
+      'merchant.button.back': 'Back',
+      'merchant.button.search': 'Search',
+      'merchant.button.export': 'Export',
+      'merchant.button.print': 'Print',
+      'merchant.button.download': 'Download'
     }
   },
   
@@ -592,10 +730,11 @@ const i18n = {
   init() {
     this.updatePageLanguage();
     
-    // 创建语言切换按钮（如果不存在）
-    if (!document.getElementById('languageSwitcher')) {
-      this.createLanguageSwitcher();
-    }
+    // 不再自动创建语言切换按钮
+    // 使用 auto-translate.js 的自动翻译功能代替
+    // if (!document.getElementById('languageSwitcher')) {
+    //   this.createLanguageSwitcher();
+    // }
   },
   
   // 创建语言切换按钮
