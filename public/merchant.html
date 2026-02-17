@@ -6,8 +6,8 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title data-i18n="merchant.title">批发商户中心 - 3C产品管理系统 v2.6.9</title>
-  <script>console.log('✅ 页面版本: v2.6.9 - 隐藏发票上传和手动录入按钮');</script>
+  <title data-i18n="merchant.title">批发商户中心 - 3C产品管理系统 v2.7.3</title>
+  <script>console.log('✅ 页面版本: v2.7.3 - 快速销售产品大类移除中文');</script>
   <script src="/i18n.js"></script>
   <script src="/auto-translate.js"></script>
   <script src="/auth-guard.js"></script>
@@ -819,10 +819,10 @@
               </label>
               <select id="quickSaleCategory" required style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 15px; background: white;">
                 <option value="">-- 请选择 --</option>
-                <option value="newDevices">📱 新设备 (New Devices)</option>
-                <option value="usedDevices">♻️ 二手设备 (Used Devices)</option>
-                <option value="accessories">🎧 配件 (Accessories)</option>
-                <option value="services">🔧 服务 (Services)</option>
+                <option value="newDevices">📱 New Devices</option>
+                <option value="usedDevices">♻️ Used Devices</option>
+                <option value="accessories">🎧 Accessories</option>
+                <option value="services">🔧 Services</option>
               </select>
             </div>
             
@@ -2310,7 +2310,6 @@
       </div>
       
       <div class="card">
-        <h2>库存报表</h2>
         <div id="inventoryReport">
           <div class="loading">加载中...</div>
         </div>
@@ -9538,12 +9537,12 @@
               <h4 style="margin: 0 0 10px 0; color: #92400e;">📝 说明</h4>
               <ul style="margin: 0; padding-left: 20px; color: #78350f; line-height: 1.8;">
                 <li><strong>产品名称:</strong> 产品名称（括号内为颜色）</li>
-                <li><strong>销售量:</strong> 本月实际销售数量（不含维修业务）</li>
+                <li><strong>销售量:</strong> 本月实际销售数量（不含维修业务，已排除退款记录）</li>
                 <li><strong>平均售价:</strong> 本月该产品的平均销售价格</li>
                 <li><strong>当前库存:</strong> 当前可用库存数量（<span style="color: #dc2626;">红色</span>表示库存紧张，<span style="color: #f59e0b;">橙色</span>表示库存偏低，<span style="color: #059669;">绿色</span>表示库存充足）</li>
                 <li><strong>预计销售时间:</strong> 按当前销售速度，库存预计可销售的天数</li>
                 <li><strong>建议订货量:</strong> 建议补货数量（按1个月销售量计算）</li>
-                <li><strong>本月营收:</strong> 该产品本月的总销售额</li>
+                <li><strong>本月营收:</strong> 该产品本月的总销售额（已排除退款金额）</li>
               </ul>
             </div>
           `;
@@ -13127,8 +13126,8 @@
       document.getElementById('taxStartDate').valueAsDate = firstDay;
       document.getElementById('taxEndDate').valueAsDate = now;
       
-      // 销售记录查询日期
-      document.getElementById('salesStartDate').valueAsDate = firstDay;
+      // 销售记录查询日期（默认当天）
+      document.getElementById('salesStartDate').valueAsDate = now;
       document.getElementById('salesEndDate').valueAsDate = now;
       
       // 绑定订单提交按钮事件（使用事件监听器而不是onclick，防止重复提交）

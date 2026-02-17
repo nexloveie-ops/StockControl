@@ -8018,14 +8018,14 @@ app.get('/api/merchant/inventory-report', async (req, res) => {
       console.log(`   使用默认本月范围: ${startOfMonth.toLocaleDateString()} - ${endOfMonth.toLocaleDateString()}`);
     }
     
-    // 查询本月的销售记录（排除维修业务）
+    // 查询本月的销售记录（排除维修业务和已退款订单）
     const sales = await MerchantSale.find({
       merchantId: merchantId,
       saleDate: {
         $gte: startOfMonth,
         $lte: endOfMonth
       },
-      status: { $ne: 'REFUNDED' }, // 排除退款订单
+      status: { $ne: 'refunded' }, // 排除退款订单（注意：小写）
       saleType: { $ne: 'REPAIR' } // 排除维修业务
     }).lean();
     
