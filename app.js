@@ -248,12 +248,53 @@ app.get('/api/products', async (req, res) => {
     // 注意：只显示在ProductNew中不存在的产品（避免重复）
     const productNewNames = new Set(productNewItems.map(p => p.name.toLowerCase()));
     
-    const adminProducts = adminInventoryItems
-      .filter(item => {
-        // 只包含在ProductNew中不存在的产品
-        const productName = item.productName.toLowerCase();
-        return !productNewNames.has(productName);
-      })
+    // 创建一个已售序列号的Set（用于快速查找）
+    // 注意：查询所有产品（包括isActive=false和stockQuantity=0的），以获取完整的已售序列号列表
+    const allProductsForSerialCheck = await ProductNew.find({
+      'serialNumbers.status': 'sold'
+    }).select('name serialNumbers');
+    
+    const soldSerialNumbers = new Set();
+    allProductsForSerialCheck.forEach(product => {
+      if (product.serialNumbers && product.serialNumbers.length > 0) {
+        product.serialNumbers.forEach(sn => {
+          if (sn.status === 'sold') {
+            soldSerialNumbers.add(sn.serialNumber);
+            console.log(`  🔴 添加已售序列号: ${sn.serialNumber} (来自: ${product.name})`);
+          }
+        });
+      }
+    });
+    
+    console.log(`  📋 已售序列号集合: ${soldSerialNumbers.size} 个`, Array.from(soldSerialNumbers));
+    
+    // 对于AdminInventory中的设备产品，检查序列号是否已售出
+    const adminProductsFiltered = [];
+    for (const item of adminInventoryItems) {
+      const productName = item.productName.toLowerCase();
+      
+      // 如果有序列号，检查是否已售出
+      if (item.serialNumber) {
+        const isSold = soldSerialNumbers.has(item.serialNumber);
+        console.log(`  🔍 检查 ${item.productName} (${item.serialNumber}): ${isSold ? '已售出-跳过' : '未售出-保留'}`);
+        
+        if (isSold) {
+          console.log(`  ⏭️  跳过已售产品: ${item.productName} (序列号: ${item.serialNumber})`);
+          continue;
+        }
+      }
+      
+      // 只包含在ProductNew中不存在的产品
+      if (!productNewNames.has(productName)) {
+        adminProductsFiltered.push(item);
+      } else {
+        console.log(`  ⏭️  跳过重复产品: ${item.productName} (已在ProductNew中)`);
+      }
+    }
+    
+    console.log(`  ✅ AdminInventory过滤后: ${adminProductsFiltered.length} 个 (原始: ${adminInventoryItems.length} 个)`);
+    
+    const adminProducts = adminProductsFiltered
       .map(item => {
         const itemObj = item.toObject();
         
@@ -482,26 +523,32 @@ app.get('/api/purchase-orders/:id', checkDbConnection, async (req, res) => {
     // 格式化AdminInventory产品为发票items格式
     const adminItems = adminProducts.map(product => {
       // 智能转换税率格式
-      let vatRate = 'VAT 23%'; // 默认值
+      let vatRate = 'Margin VAT'; // 默认值改为 Margin VAT
       
       if (product.taxClassification) {
         const taxClass = product.taxClassification;
         
-        // 处理下划线格式（VAT_23, VAT_13_5, VAT_0）
+        console.log(`   🔍 转换税率: ${taxClass}`);
+        
+        // 处理下划线格式
         if (taxClass === 'VAT_23') {
           vatRate = 'VAT 23%';
-        } else if (taxClass === 'VAT_13_5') {
+        } else if (taxClass === 'VAT_13_5' || taxClass === 'SERVICE_VAT_13_5') {
           vatRate = 'VAT 13.5%';
-        } else if (taxClass === 'VAT_0') {
-          vatRate = 'VAT 0%';
         } else if (taxClass === 'MARGIN_VAT_0' || taxClass === 'MARGIN_VAT') {
           vatRate = 'Margin VAT';
         } else if (taxClass.includes('VAT') && taxClass.includes('%')) {
-          // 已经是正确格式（VAT 23%, VAT 13.5%, VAT 0%）
+          // 已经是正确格式（VAT 23%, VAT 13.5%）
           vatRate = taxClass;
         } else if (taxClass.toLowerCase().includes('margin')) {
           vatRate = 'Margin VAT';
+        } else {
+          // 未知格式，记录日志
+          console.log(`   ⚠️  未知税率格式: ${taxClass}，使用默认值 Margin VAT`);
+          vatRate = 'Margin VAT';
         }
+        
+        console.log(`   ✅ 转换结果: ${vatRate}`);
       }
       
       return {
@@ -565,24 +612,60 @@ app.get('/api/purchase-orders/:id', checkDbConnection, async (req, res) => {
       };
     }));
     
-    // 合并PurchaseInvoice items和AdminInventory items
+    // 去重合并：如果 AdminInventory 中有相同序列号的产品，则使用 AdminInventory 的数据
+    // 因为 AdminInventory 有完整的 condition 和 taxClassification
+    const adminSerialNumbers = new Set(
+      adminItems.flatMap(item => item.serialNumbers || [])
+    );
+    
+    console.log(`   🔍 AdminInventory 序列号集合:`, Array.from(adminSerialNumbers));
+    console.log(`   🔍 PurchaseInvoice items 待过滤:`, enrichedInvoiceItems.length);
+    
+    // 过滤掉 PurchaseInvoice 中已经在 AdminInventory 中的产品
+    const uniqueInvoiceItems = enrichedInvoiceItems.filter(item => {
+      console.log(`   🔍 检查 item:`, {
+        productName: item.productName,
+        description: item.description,
+        serialNumbers: item.serialNumbers,
+        hasSerialNumbers: !!(item.serialNumbers && item.serialNumbers.length > 0)
+      });
+      
+      if (!item.serialNumbers || item.serialNumbers.length === 0) {
+        console.log(`   ✅ 保留 (无序列号): ${item.productName || item.description}`);
+        return true; // 没有序列号的产品保留
+      }
+      // 检查是否有序列号在 AdminInventory 中
+      const hasOverlap = item.serialNumbers.some(sn => {
+        const inAdmin = adminSerialNumbers.has(sn);
+        console.log(`     检查序列号 ${sn}: ${inAdmin ? '在AdminInventory中' : '不在AdminInventory中'}`);
+        return inAdmin;
+      });
+      if (hasOverlap) {
+        console.log(`   🔄 跳过重复产品: ${item.productName || item.description} (序列号已在 AdminInventory)`);
+      } else {
+        console.log(`   ✅ 保留 (序列号不重复): ${item.productName || item.description}`);
+      }
+      return !hasOverlap;
+    });
+    
+    // 合并去重后的数据
     const allItems = [
-      ...enrichedInvoiceItems,
+      ...uniqueInvoiceItems,
       ...adminItems
     ];
     
-    console.log(`   合并后总items: ${allItems.length}`);
+    console.log(`   合并后总items: ${allItems.length} (PurchaseInvoice: ${uniqueInvoiceItems.length}, AdminInventory: ${adminItems.length})`);
     
     // 重新计算总金额
     const totalFromAdmin = adminItems.reduce((sum, item) => sum + item.totalCost, 0);
-    const totalFromInvoice = (invoice.items || []).reduce((sum, item) => sum + (item.totalCost || 0), 0);
+    const totalFromInvoice = uniqueInvoiceItems.reduce((sum, item) => sum + (item.totalCost || 0), 0);
     
     const responseData = {
       ...invoice,
       items: allItems,
       totalAmount: totalFromInvoice + totalFromAdmin,
       adminInventoryCount: adminItems.length,
-      purchaseInvoiceCount: (invoice.items || []).length
+      purchaseInvoiceCount: uniqueInvoiceItems.length
     };
     
     console.log(`   返回数据: items=${responseData.items.length}, total=€${responseData.totalAmount}`);
@@ -1422,6 +1505,9 @@ app.post('/api/admin/receiving/confirm', async (req, res) => {
     // 3. 创建采购发票记录
     if (invoiceInfo) {
       try {
+        console.log('📋 开始创建PurchaseInvoice...');
+        console.log('   invoiceInfo:', JSON.stringify(invoiceInfo, null, 2));
+        
         // 获取系统用户ID（admin用户）
         const UserNew = require('./models/UserNew');
         let systemUser = await UserNew.findOne({ username: 'admin' });
@@ -1460,6 +1546,8 @@ app.post('/api/admin/receiving/confirm', async (req, res) => {
         const subtotalAmount = invoiceInfo.subtotal || products.reduce((sum, p) => sum + ((p.quantity || 1) * (p.unitPrice || 0)), 0);
         const taxAmount = calculateTaxAmount(products);
         const totalAmount = subtotalAmount + taxAmount;
+        
+        console.log(`   计算金额: subtotal=${subtotalAmount}, tax=${taxAmount}, total=${totalAmount}`);
 
         const invoice = new PurchaseInvoice({
           supplier: supplierDoc._id,
@@ -1495,6 +1583,8 @@ app.post('/api/admin/receiving/confirm', async (req, res) => {
               normalizedVatRate = 'Margin VAT';
             }
             
+            console.log(`   产品item: ${p.name}, productDoc=${productDoc ? productDoc._id : 'null'}, vatRate=${normalizedVatRate}`);
+            
             return {
               product: productDoc ? productDoc._id : null,
               description: p.name,
@@ -1514,8 +1604,11 @@ app.post('/api/admin/receiving/confirm', async (req, res) => {
           notes: '通过图片识别自动创建',
           createdBy: systemUser._id
         });
+        
+        console.log(`   准备保存PurchaseInvoice, items数量: ${invoice.items.length}`);
+        
         await invoice.save();
-        console.log('创建采购发票:', invoiceInfo.number, '包含', invoice.items.length, '个产品');
+        console.log('✅ 创建采购发票成功:', invoiceInfo.number, '包含', invoice.items.length, '个产品');
         
         // 打印序列号信息用于调试
         invoice.items.forEach((item, idx) => {
@@ -1524,9 +1617,12 @@ app.post('/api/admin/receiving/confirm', async (req, res) => {
           }
         });
       } catch (invoiceError) {
-        console.error('创建采购发票失败:', invoiceError);
+        console.error('❌ 创建采购发票失败:', invoiceError);
+        console.error('   错误堆栈:', invoiceError.stack);
         // 不要因为发票创建失败而中断整个流程
       }
+    } else {
+      console.log('⚠️  未提供invoiceInfo，跳过创建PurchaseInvoice');
     }
 
     res.json({
@@ -1930,19 +2026,31 @@ app.get('/api/admin/purchase-orders/:invoiceId', async (req, res) => {
     // 格式化AdminInventory产品为发票items格式
     const adminItems = adminProducts.map(product => {
       // 正确映射税率
-      let vatRate = 'VAT 0%';
+      let vatRate = 'Margin VAT'; // 默认值改为 Margin VAT
       let taxMultiplier = 1.0;
       
-      if (product.taxClassification === 'VAT_23' || product.taxClassification === 'VAT 23%') {
+      const taxClass = product.taxClassification;
+      console.log(`   🔍 [Admin API] AdminInventory 税率转换: ${taxClass}`);
+      
+      if (taxClass === 'VAT_23' || taxClass === 'VAT 23%') {
         vatRate = 'VAT 23%';
         taxMultiplier = 1.23;
-      } else if (product.taxClassification === 'VAT_13_5' || product.taxClassification === 'VAT 13.5%') {
+      } else if (taxClass === 'VAT_13_5' || taxClass === 'SERVICE_VAT_13_5' || taxClass === 'VAT 13.5%') {
         vatRate = 'VAT 13.5%';
         taxMultiplier = 1.135;
-      } else if (product.taxClassification === 'VAT_0' || product.taxClassification === 'VAT 0%') {
-        vatRate = 'VAT 0%';
+      } else if (taxClass === 'MARGIN_VAT_0' || taxClass === 'MARGIN_VAT' || taxClass === 'Margin VAT') {
+        vatRate = 'Margin VAT';
+        taxMultiplier = 1.0;
+      } else if (taxClass && taxClass.toLowerCase().includes('margin')) {
+        vatRate = 'Margin VAT';
+        taxMultiplier = 1.0;
+      } else {
+        console.log(`   ⚠️  未知税率格式: ${taxClass}，使用默认值 Margin VAT`);
+        vatRate = 'Margin VAT';
         taxMultiplier = 1.0;
       }
+      
+      console.log(`   ✅ [Admin API] 转换结果: ${vatRate}`);
       
       // AdminInventory的costPrice是税前价格（不含税）
       const unitCostExcludingTax = product.costPrice;  // 不含税单价
@@ -2016,10 +2124,41 @@ app.get('/api/admin/purchase-orders/:invoiceId', async (req, res) => {
       };
     });
     
-    // 合并所有items
-    const allItems = [...purchaseInvoiceItems, ...adminItems, ...merchantItems];
+    // 去重逻辑：如果 AdminInventory 中有相同序列号的产品，则过滤掉 PurchaseInvoice 中的重复项
+    const adminSerialNumbers = new Set(
+      adminItems.flatMap(item => item.serialNumbers || [])
+    );
     
-    console.log(`   合并后总items: ${allItems.length}`);
+    console.log(`   🔍 [Admin API] AdminInventory 序列号集合:`, Array.from(adminSerialNumbers));
+    console.log(`   🔍 [Admin API] PurchaseInvoice items 待过滤:`, purchaseInvoiceItems.length);
+    
+    const uniquePurchaseInvoiceItems = purchaseInvoiceItems.filter(item => {
+      if (!item.serialNumbers || item.serialNumbers.length === 0) {
+        console.log(`   ✅ [Admin API] 保留 (无序列号): ${item.productName || item.description}`);
+        return true;
+      }
+      
+      const hasOverlap = item.serialNumbers.some(sn => {
+        const inAdmin = adminSerialNumbers.has(sn);
+        console.log(`     [Admin API] 检查序列号 ${sn}: ${inAdmin ? '在AdminInventory中' : '不在AdminInventory中'}`);
+        return inAdmin;
+      });
+      
+      if (hasOverlap) {
+        console.log(`   🔄 [Admin API] 跳过重复产品: ${item.productName || item.description} (序列号已在 AdminInventory)`);
+      } else {
+        console.log(`   ✅ [Admin API] 保留 (序列号不重复): ${item.productName || item.description}`);
+      }
+      
+      return !hasOverlap;
+    });
+    
+    console.log(`   [Admin API] 去重后 PurchaseInvoice items: ${uniquePurchaseInvoiceItems.length}`);
+    
+    // 合并所有items（使用去重后的 PurchaseInvoice items）
+    const allItems = [...uniquePurchaseInvoiceItems, ...adminItems, ...merchantItems];
+    
+    console.log(`   合并后总items: ${allItems.length} (PurchaseInvoice: ${uniquePurchaseInvoiceItems.length}, AdminInventory: ${adminItems.length}, MerchantInventory: ${merchantItems.length})`);
     
     // 重新计算总金额、小计和税额
     const totalAmount = allItems.reduce((sum, item) => sum + item.totalCost, 0);
@@ -2048,7 +2187,8 @@ app.get('/api/admin/purchase-orders/:invoiceId', async (req, res) => {
       notes: invoice.notes,
       items: allItems,
       adminInventoryCount: adminItems.length,
-      purchaseInvoiceCount: purchaseInvoiceItems.length,
+      purchaseInvoiceCount: uniquePurchaseInvoiceItems.length,
+      merchantInventoryCount: merchantItems.length,
       payments: invoice.payments || [],
       attachments: invoice.attachments || [],
       createdAt: invoice.createdAt,
@@ -2549,11 +2689,14 @@ app.post('/api/warehouse/orders', applyDataIsolation, async (req, res) => {
           taxClassification = 'VAT_23'; // 默认
         }
       } else {
+        // ProductNew 的 vatRate 可能有多种格式，需要不区分大小写匹配
+        const vatRateLower = (product.vatRate || '').toLowerCase();
         if (product.vatRate === 'VAT 23%') {
           taxClassification = 'VAT_23';
         } else if (product.vatRate === 'VAT 13.5%' || product.vatRate === 'Service VAT 13.5%') {
           taxClassification = 'SERVICE_VAT_13_5';
-        } else if (product.vatRate === 'VAT 0%' || product.vatRate === 'Margin VAT') {
+        } else if (vatRateLower.includes('margin') || product.vatRate === 'VAT 0%') {
+          // 匹配所有包含 "margin" 的值: "Margin VAT", "Margin Vat", "Margin Vat 0%"
           taxClassification = 'MARGIN_VAT_0';
         }
       }
@@ -3331,8 +3474,6 @@ app.get('/api/warehouse/orders', async (req, res) => {
 app.put('/api/warehouse/orders/:id/confirm', async (req, res) => {
   try {
     const WarehouseOrder = require('./models/WarehouseOrder');
-    const ProductNew = require('./models/ProductNew');
-    const AdminInventory = require('./models/AdminInventory');
     
     const order = await WarehouseOrder.findById(req.params.id);
     
@@ -3344,36 +3485,8 @@ app.put('/api/warehouse/orders/:id/confirm', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Order status is not pending' });
     }
     
-    // 检查库存（支持 ProductNew 和 AdminInventory）
-    for (const item of order.items) {
-      // 先尝试从 ProductNew 查找
-      let product = await ProductNew.findById(item.productId);
-      let availableQty = 0;
-      
-      if (product) {
-        availableQty = product.stockQuantity || 0;
-      } else {
-        // 从 AdminInventory 查找
-        product = await AdminInventory.findById(item.productId);
-        if (product) {
-          availableQty = product.quantity || 0;
-        }
-      }
-      
-      if (!product) {
-        return res.status(400).json({ 
-          success: false, 
-          error: `Product not found: ${item.productName}` 
-        });
-      }
-      
-      if (availableQty < item.quantity) {
-        return res.status(400).json({ 
-          success: false, 
-          error: `Insufficient stock for ${item.productName}. Available: ${availableQty}, Required: ${item.quantity}` 
-        });
-      }
-    }
+    // 注意：不需要再次检查库存，因为库存已经在创建订单时预留（扣减）了
+    // 确认订单只是改变订单状态，表示仓库已经准备好发货
     
     // 更新订单状态
     order.status = 'confirmed';
@@ -3626,13 +3739,15 @@ app.put('/api/warehouse/orders/:id/complete', applyDataIsolation, async (req, re
         // 获取分类名称
         const categoryName = product.category?.type || product.category?.name || '未分类';
         
-        // 转换 vatRate 为 taxClassification
+        // 转换 vatRate 为 taxClassification - 使用不区分大小写的匹配
         let taxClassification = 'VAT_23';
+        const vatRateLower = (product.vatRate || '').toLowerCase();
         if (product.vatRate === 'VAT 23%') {
           taxClassification = 'VAT_23';
         } else if (product.vatRate === 'VAT 13.5%') {
           taxClassification = 'SERVICE_VAT_13_5';
-        } else if (product.vatRate === 'VAT 0%') {
+        } else if (vatRateLower.includes('margin') || product.vatRate === 'VAT 0%') {
+          // 匹配所有包含 "margin" 的值: "Margin VAT", "Margin Vat", "Margin Vat 0%"
           taxClassification = 'MARGIN_VAT_0';
         }
         
@@ -3722,14 +3837,16 @@ app.put('/api/warehouse/orders/:id/complete', applyDataIsolation, async (req, re
           // AdminInventory 产品
           categoryName = product.category || '未分类';
           
-          // AdminInventory 的 taxClassification 格式：'VAT 23%', 'Margin VAT' 等
-          // 需要转换为标准格式
-          if (product.taxClassification === 'VAT 23%') {
-            taxClassification = 'VAT_23';
-          } else if (product.taxClassification === 'VAT 13.5%') {
-            taxClassification = 'SERVICE_VAT_13_5';
-          } else if (product.taxClassification === 'Margin VAT') {
+          // AdminInventory 的 taxClassification 可能是新格式（MARGIN_VAT_0）或旧格式（VAT 23%）
+          // 需要统一转换为标准格式
+          const adminTax = product.taxClassification || 'VAT_23';
+          
+          if (adminTax === 'MARGIN_VAT_0' || adminTax === 'Margin VAT' || adminTax === 'VAT 0%') {
             taxClassification = 'MARGIN_VAT_0';
+          } else if (adminTax === 'VAT_23' || adminTax === 'VAT 23%') {
+            taxClassification = 'VAT_23';
+          } else if (adminTax === 'SERVICE_VAT_13_5' || adminTax === 'VAT 13.5%') {
+            taxClassification = 'SERVICE_VAT_13_5';
           } else {
             taxClassification = 'VAT_23'; // 默认
           }
@@ -3737,12 +3854,14 @@ app.put('/api/warehouse/orders/:id/complete', applyDataIsolation, async (req, re
           // ProductNew 产品
           categoryName = product.category?.type || product.category?.name || '未分类';
           
-          // 转换 vatRate 为 taxClassification
+          // 转换 vatRate 为 taxClassification - 使用不区分大小写的匹配
+          const vatRateLower = (product.vatRate || '').toLowerCase();
           if (product.vatRate === 'VAT 23%') {
             taxClassification = 'VAT_23';
           } else if (product.vatRate === 'VAT 13.5%') {
             taxClassification = 'SERVICE_VAT_13_5';
-          } else if (product.vatRate === 'VAT 0%') {
+          } else if (vatRateLower.includes('margin') || product.vatRate === 'VAT 0%') {
+            // 匹配所有包含 "margin" 的值: "Margin VAT", "Margin Vat", "Margin Vat 0%"
             taxClassification = 'MARGIN_VAT_0';
           } else {
             taxClassification = 'VAT_23'; // 默认
@@ -4442,13 +4561,17 @@ app.get('/api/admin/products/:productId/purchase-invoices', async (req, res) => 
   try {
     const { productId } = req.params;
     
-    // 查找包含该产品的所有采购发票
+    console.log(`\n📋 查询产品采购发票: ${productId}`);
+    
+    // 1. 查找包含该产品的所有采购发票（PurchaseInvoice）
     const invoices = await PurchaseInvoice.find({
       'items.product': productId
     })
     .populate('supplier', 'name contact.email contact.phone contact.address')
     .populate('items.product', 'name barcode serialNumbers')
     .sort({ createdAt: -1 });
+    
+    console.log(`   找到 ${invoices.length} 张 PurchaseInvoice`);
     
     const formattedInvoices = invoices.map(invoice => {
       // 找到该产品在发票中的条目
@@ -4504,9 +4627,116 @@ app.get('/api/admin/products/:productId/purchase-invoices', async (req, res) => 
           };
         }),
         createdAt: invoice.createdAt,
-        updatedAt: invoice.updatedAt
+        updatedAt: invoice.updatedAt,
+        source: 'PurchaseInvoice'
       };
     });
+    
+    // 2. 查找 AdminInventory 中的产品（通过产品ID）
+    const AdminInventory = require('./models/AdminInventory');
+    const ProductNew = require('./models/ProductNew');
+    
+    // 先获取产品信息
+    const product = await ProductNew.findById(productId).lean();
+    
+    if (product) {
+      console.log(`   产品名称: ${product.name}`);
+      
+      // 查找 AdminInventory 中匹配的产品
+      const adminProducts = await AdminInventory.find({
+        productName: product.name,
+        isActive: true
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+      
+      console.log(`   找到 ${adminProducts.length} 个 AdminInventory 记录`);
+      
+      // 收集已存在的发票号（来自PurchaseInvoice）
+      const existingInvoiceNumbers = new Set(
+        formattedInvoices.map(inv => inv.invoiceNumber)
+      );
+      
+      console.log(`   已存在的发票号:`, Array.from(existingInvoiceNumbers));
+      
+      // 按发票号分组
+      const adminInvoiceGroups = {};
+      adminProducts.forEach(item => {
+        const invNum = item.invoiceNumber || 'NO-INVOICE';
+        
+        // 只处理不在PurchaseInvoice中的发票号
+        if (!existingInvoiceNumbers.has(invNum)) {
+          if (!adminInvoiceGroups[invNum]) {
+            adminInvoiceGroups[invNum] = [];
+          }
+          adminInvoiceGroups[invNum].push(item);
+        } else {
+          console.log(`   🔄 跳过重复发票号: ${invNum} (已在PurchaseInvoice中)`);
+        }
+      });
+      
+      console.log(`   AdminInventory 独有的发票号:`, Object.keys(adminInvoiceGroups));
+      
+      // 为每个发票号创建一个发票记录
+      Object.keys(adminInvoiceGroups).forEach(invoiceNumber => {
+        const items = adminInvoiceGroups[invoiceNumber];
+        const firstItem = items[0];
+        
+        // 计算总数量和总价
+        const totalQuantity = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+        const totalPrice = items.reduce((sum, item) => sum + (item.costPrice * (item.quantity || 1)), 0);
+        const avgUnitPrice = totalQuantity > 0 ? totalPrice / totalQuantity : 0;
+        
+        // 收集所有序列号
+        const allSerialNumbers = items
+          .map(item => item.serialNumber)
+          .filter(sn => sn);
+        
+        formattedInvoices.push({
+          _id: `admin-${invoiceNumber}`,
+          invoiceNumber: invoiceNumber,
+          supplier: {
+            name: typeof firstItem.supplier === 'string' ? firstItem.supplier : 
+                  (firstItem.supplier?.name || '未知供应商'),
+            email: typeof firstItem.supplier === 'object' ? (firstItem.supplier.email || '') : '',
+            phone: typeof firstItem.supplier === 'object' ? (firstItem.supplier.phone || '') : '',
+            address: typeof firstItem.supplier === 'object' ? (firstItem.supplier.address || '') : ''
+          },
+          invoiceDate: firstItem.createdAt,
+          dueDate: null,
+          currency: 'EUR',
+          status: 'received',
+          totalAmount: totalPrice,
+          subtotal: totalPrice,
+          taxAmount: 0,
+          notes: '',
+          productItems: [{
+            name: `${firstItem.productName} - ${firstItem.model} - ${firstItem.color}`,
+            quantity: totalQuantity,
+            unitPrice: avgUnitPrice,
+            totalPrice: totalPrice,
+            unitCostExcludingTax: avgUnitPrice,
+            totalCostExcludingTax: totalPrice,
+            vatRate: firstItem.taxClassification === 'MARGIN_VAT_0' ? 'Margin VAT' : 
+                     firstItem.taxClassification === 'VAT_23' ? 'VAT 23%' :
+                     firstItem.taxClassification === 'VAT_13_5' || firstItem.taxClassification === 'SERVICE_VAT_13_5' ? 'VAT 13.5%' : 
+                     firstItem.taxClassification === 'MARGIN_VAT' ? 'Margin VAT' : 'Margin VAT',
+            taxAmount: 0,
+            serialNumbers: allSerialNumbers,
+            barcode: firstItem.barcode || '',
+            condition: firstItem.condition || 'Brand New'
+          }],
+          createdAt: firstItem.createdAt,
+          updatedAt: firstItem.updatedAt,
+          source: 'AdminInventory'
+        });
+      });
+    }
+    
+    // 按日期排序
+    formattedInvoices.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    
+    console.log(`   返回总计: ${formattedInvoices.length} 张发票`);
     
     res.json({
       success: true,
@@ -9673,6 +9903,8 @@ app.get('/api/merchant/warehouse-products', async (req, res) => {
   try {
     const AdminInventory = require('./models/AdminInventory');
     
+    console.log('\n🔍 [仓库产品查询] 开始查询...');
+    
     // 并行查询 ProductNew 和 AdminInventory
     const [productNewItems, adminInventoryItems] = await Promise.all([
       // 获取仓库中可销售的产品（ProductNew）
@@ -9692,6 +9924,8 @@ app.get('/api/merchant/warehouse-products', async (req, res) => {
       .sort({ createdAt: -1 })
     ]);
     
+    console.log(`📦 查询结果: ProductNew=${productNewItems.length}, AdminInventory=${adminInventoryItems.length}`);
+    
     // 按产品类型、品牌、型号、颜色分组
     const groupedProducts = {};
     
@@ -9700,12 +9934,26 @@ app.get('/api/merchant/warehouse-products', async (req, res) => {
       // 判断是否是设备类型
       const isDevice = product.category?.type?.toLowerCase().includes('device');
       
+      // 计算实际可用库存
+      let actualAvailable = 0;
+      if (isDevice && product.serialNumbers && product.serialNumbers.length > 0) {
+        // 设备：只计算status为'available'的序列号
+        actualAvailable = product.serialNumbers.filter(sn => sn.status === 'available').length;
+      } else {
+        // 配件：使用stockQuantity
+        actualAvailable = product.stockQuantity || 0;
+      }
+      
+      // 如果没有可用库存，跳过
+      if (actualAvailable === 0) {
+        return;
+      }
+      
       let key;
       if (isDevice) {
-        // 设备产品：提取纯产品名称（去掉容量信息）
-        // 例如：IPHONE15128GB -> IPHONE15, IPHONE15PROMAX256GB -> IPHONE15PROMAX
+        // 设备产品：按产品名称+颜色+成色分组（不同颜色的设备应该分开显示）
         const productName = (product.name || '').replace(/\d+(GB|TB)/gi, '').trim().replace(/\s+/g, '');
-        key = `${product.category?.type || 'Unknown'}_${productName}_${product.condition}`;
+        key = `${product.category?.type || 'Unknown'}_${productName}_${product.color || 'NoColor'}_${product.condition}`;
       } else {
         // 配件产品：按品牌+型号+颜色分组
         key = `${product.category?.type || 'Unknown'}_${product.brand || ''}_${product.model || ''}_${product.color || ''}_${product.condition}`;
@@ -9728,20 +9976,41 @@ app.get('/api/merchant/warehouse-products', async (req, res) => {
         };
       }
       
-      groupedProducts[key].products.push(product);
-      groupedProducts[key].totalAvailable += product.stockQuantity;
+      groupedProducts[key].products.push({
+        ...product.toObject(),
+        actualAvailable: actualAvailable
+      });
+      groupedProducts[key].totalAvailable += actualAvailable;
     });
     
     // 处理 AdminInventory 产品（配件变体）
+    // 注意：避免与ProductNew重复计算
+    const productNewSerialNumbers = new Set();
+    productNewItems.forEach(product => {
+      if (product.serialNumbers && product.serialNumbers.length > 0) {
+        product.serialNumbers.forEach(sn => {
+          productNewSerialNumbers.add(sn.serialNumber);
+        });
+      }
+    });
+    
+    console.log(`📝 ProductNew中的序列号数量: ${productNewSerialNumbers.size}`);
+    
     adminInventoryItems.forEach(item => {
+      // 如果AdminInventory中的序列号已经在ProductNew中存在，跳过（避免重复计算）
+      if (item.serialNumber && productNewSerialNumbers.has(item.serialNumber)) {
+        console.log(`⚠️  跳过重复序列号: ${item.serialNumber} (${item.productName})`);
+        return;
+      }
+      
       // 判断是否是设备类型
       const isDevice = item.category?.toLowerCase().includes('device');
       
       let key;
       if (isDevice) {
-        // 设备产品：提取纯产品名称（去掉容量信息）
+        // 设备产品：按产品名称+颜色+成色分组（不同颜色的设备应该分开显示）
         const productName = (item.productName || '').replace(/\d+(GB|TB)/gi, '').trim().replace(/\s+/g, '');
-        key = `${item.category}_${productName}_${item.condition}`;
+        key = `${item.category}_${productName}_${item.color || 'NoColor'}_${item.condition}`;
       } else {
         // 配件产品：按品牌+型号+颜色分组
         key = `${item.category}_${item.brand || ''}_${item.model || ''}_${item.color || ''}_${item.condition}`;
@@ -9771,6 +10040,7 @@ app.get('/api/merchant/warehouse-products', async (req, res) => {
         model: item.model,
         color: item.color,
         stockQuantity: item.quantity,
+        actualAvailable: item.quantity,
         wholesalePrice: item.wholesalePrice,
         retailPrice: item.retailPrice,
         costPrice: item.costPrice,
@@ -9780,9 +10050,15 @@ app.get('/api/merchant/warehouse-products', async (req, res) => {
       groupedProducts[key].totalAvailable += item.quantity;
     });
     
+    const result = Object.values(groupedProducts);
+    console.log(`✅ 分组完成: ${result.length} 个产品组`);
+    result.forEach(group => {
+      console.log(`  - ${group.category}: ${group.totalAvailable} 件可用`);
+    });
+    
     res.json({
       success: true,
-      data: Object.values(groupedProducts),
+      data: result,
       summary: {
         productNew: productNewItems.length,
         adminInventory: adminInventoryItems.length,

@@ -1090,9 +1090,6 @@
               <select id="batchTaxClassification" required
                       style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
                 <option value="">请选择税率</option>
-                <option value="VAT 23%">VAT 23%</option>
-                <option value="VAT 13.5%">VAT 13.5%</option>
-                <option value="VAT 0%">VAT 0%</option>
               </select>
             </div>
             <div>
@@ -1399,7 +1396,9 @@
         const productGroups = {};
         products.forEach(product => {
           const productName = product.name;
-          const hasVariants = product.source === 'AdminInventory' && (product.model || product.color);
+          // 判断是否为配件变体：来自AdminInventory、有model或color、且没有序列号（设备产品有serialNumbers）
+          const hasSerialNumbers = product.serialNumbers && product.serialNumbers.length > 0;
+          const hasVariants = product.source === 'AdminInventory' && (product.model || product.color) && !hasSerialNumbers;
           
           if (hasVariants) {
             // 配件产品：按名称分组
@@ -2342,14 +2341,19 @@
                     <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0;">采购数量</th>
                     <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0;">单价（含税）</th>
                     <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0;">总价（含税）</th>
-                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0;">成色</th>
                     <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0;">序列号/条码</th>
                     <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0;">状态</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${invoices.map(invoice => {
-                    return invoice.productItems.map(item => `
+                    // 合并相同产品的数量和序列号
+                    const totalQuantity = invoice.productItems.reduce((sum, item) => sum + item.quantity, 0);
+                    const allSerialNumbers = invoice.productItems.flatMap(item => item.serialNumbers || []);
+                    const totalPrice = invoice.productItems.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
+                    const avgUnitPrice = totalQuantity > 0 ? totalPrice / totalQuantity : 0;
+                    
+                    return `
                       <tr style="border-bottom: 1px solid #f1f5f9;">
                         <td style="padding: 10px; font-weight: 600; color: #1e40af;">
                           <span style="cursor: pointer; text-decoration: underline;" 
@@ -2370,25 +2374,18 @@
                           ${invoice.dueDate ? `<small style="color: #6b7280;">到期: ${new Date(invoice.dueDate).toLocaleDateString('zh-CN')}</small>` : ''}
                         </td>
                         <td style="padding: 10px; text-align: center; font-weight: 600; color: #059669;">
-                          ${item.quantity}
+                          ${totalQuantity}
                         </td>
                         <td style="padding: 10px; color: #059669;">
-                          ${invoice.currency} ${item.unitPrice?.toFixed(2) || '0.00'}
+                          ${invoice.currency} ${avgUnitPrice.toFixed(2)}
                         </td>
                         <td style="padding: 10px; font-weight: 600; color: #7c3aed;">
-                          ${invoice.currency} ${item.totalPrice?.toFixed(2) || '0.00'}
+                          ${invoice.currency} ${totalPrice.toFixed(2)}
                         </td>
                         <td style="padding: 10px;">
-                          <span style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; 
-                                       background: #dcfce7; color: #166534;">
-                            全新
-                          </span>
-                        </td>
-                        <td style="padding: 10px;">
-                          ${item.serialNumbers && item.serialNumbers.length > 0 ? 
-                            item.serialNumbers.map(sn => `<div style="font-family: monospace; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-bottom: 2px;">${sn}</div>`).join('') : ''}
-                          ${item.barcode ? `<div style="font-family: monospace; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${item.barcode}</div>` : ''}
-                          ${!item.serialNumbers?.length && !item.barcode ? '<span style="color: #9ca3af;">-</span>' : ''}
+                          ${allSerialNumbers.length > 0 ? 
+                            allSerialNumbers.map(sn => `<div style="font-family: monospace; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-bottom: 2px;">${sn}</div>`).join('') : 
+                            '<span style="color: #9ca3af;">-</span>'}
                         </td>
                         <td style="padding: 10px;">
                           <span style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; 
@@ -2398,7 +2395,7 @@
                           </span>
                         </td>
                       </tr>
-                    `).join('');
+                    `;
                   }).join('')}
                 </tbody>
               </table>
@@ -2459,7 +2456,7 @@
       createModal(content);
       
       try {
-        const response = await fetch(`${API_BASE}/purchase-orders/${invoiceId}`);
+        const response = await fetch(`${API_BASE}/admin/purchase-orders/${invoiceId}`);
         debugLog(`发票详情API响应状态: ${response.status}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
@@ -2926,7 +2923,72 @@
     }
 
     // 显示产品编辑模态窗口
-    function showProductEditModal(product, serialNumber = null) {
+    async function showProductEditModal(product, serialNumber = null) {
+      console.log('🔍 开始加载产品编辑对话框数据...');
+      console.log('📦 产品信息:', product);
+      
+      // 并行获取税率、分类和成色数据
+      let vatRatesHtml = '<option value="">加载中...</option>';
+      let categoriesHtml = '<option value="">加载中...</option>';
+      let conditionsHtml = '<option value="">加载中...</option>';
+      
+      try {
+        console.log('🌐 开始并行请求API...');
+        const [vatResponse, categoriesResponse, conditionsResponse] = await Promise.all([
+          fetch('/api/vat-rates'),
+          fetch('/api/categories'),
+          fetch('/api/merchant/conditions')
+        ]);
+        
+        console.log('✅ API响应状态:', {
+          vatRates: vatResponse.status,
+          categories: categoriesResponse.status,
+          conditions: conditionsResponse.status
+        });
+        
+        const [vatResult, categoriesResult, conditionsResult] = await Promise.all([
+          vatResponse.json(),
+          categoriesResponse.json(),
+          conditionsResponse.json()
+        ]);
+        
+        console.log('📊 API数据:', {
+          vatRates: vatResult,
+          categories: categoriesResult,
+          conditions: conditionsResult
+        });
+        
+        // 处理税率数据
+        if (vatResult.success && vatResult.data) {
+          vatRatesHtml = vatResult.data.map(vat => 
+            `<option value="${vat.code}" ${product.vatRate === vat.code ? 'selected' : ''}>${vat.name}</option>`
+          ).join('');
+          console.log('✅ 税率选项已生成:', vatRatesHtml.substring(0, 100) + '...');
+        }
+        
+        // 处理分类数据
+        if (categoriesResult.success && categoriesResult.data) {
+          categoriesHtml = categoriesResult.data.map(cat => 
+            `<option value="${cat.type}" ${product.productType === cat.type ? 'selected' : ''}>${cat.type}</option>`
+          ).join('');
+          console.log('✅ 分类选项已生成:', categoriesHtml.substring(0, 100) + '...');
+        }
+        
+        // 处理成色数据
+        if (conditionsResult.success && conditionsResult.data) {
+          conditionsHtml = conditionsResult.data.map(cond => 
+            `<option value="${cond.code}" ${product.condition === cond.code ? 'selected' : ''}>${cond.name}</option>`
+          ).join('');
+          console.log('✅ 成色选项已生成:', conditionsHtml.substring(0, 100) + '...');
+        }
+      } catch (error) {
+        console.error('❌ 加载数据失败:', error);
+        // 如果加载失败，显示错误提示，不使用硬编码
+        vatRatesHtml = '<option value="">加载税率失败，请刷新页面</option>';
+        categoriesHtml = '<option value="">加载分类失败，请刷新页面</option>';
+        conditionsHtml = '<option value="">加载成色失败，请刷新页面</option>';
+      }
+      
       const content = `
         <div style="background: white; border-radius: 12px; padding: 25px; max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -2982,23 +3044,13 @@
             <div>
               <label style="display: block; margin-bottom: 5px; font-weight: 500;">产品分类</label>
               <select id="editProductType" style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
-                <option value="手机配件" ${product.productType === '手机配件' ? 'selected' : ''}>手机配件</option>
-                <option value="电脑配件" ${product.productType === '电脑配件' ? 'selected' : ''}>电脑配件</option>
-                <option value="车载配件" ${product.productType === '车载配件' ? 'selected' : ''}>车载配件</option>
-                <option value="audio" ${product.productType === 'audio' ? 'selected' : ''}>Audio</option>
-                <option value="数据线" ${product.productType === '数据线' ? 'selected' : ''}>数据线</option>
-                <option value="power supply" ${product.productType === 'power supply' ? 'selected' : ''}>Power Supply</option>
-                <option value="全新设备" ${product.productType === '全新设备' ? 'selected' : ''}>全新设备</option>
-                <option value="二手设备" ${product.productType === '二手设备' ? 'selected' : ''}>二手设备</option>
-                <option value="维修" ${product.productType === '维修' ? 'selected' : ''}>维修</option>
+                ${categoriesHtml}
               </select>
             </div>
             <div>
               <label style="display: block; margin-bottom: 5px; font-weight: 500;">税务类目</label>
               <select id="editVatRate" style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
-                <option value="VAT 23%" ${product.vatRate === 'VAT 23%' ? 'selected' : ''}>VAT 23%</option>
-                <option value="VAT 13.5%" ${product.vatRate === 'VAT 13.5%' ? 'selected' : ''}>VAT 13.5%</option>
-                <option value="VAT 0%" ${product.vatRate === 'VAT 0%' ? 'selected' : ''}>VAT 0%</option>
+                ${vatRatesHtml}
               </select>
             </div>
           </div>
@@ -3007,9 +3059,7 @@
             <div>
               <label style="display: block; margin-bottom: 5px; font-weight: 500;">成色</label>
               <select id="editCondition" style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
-                <option value="Brand New" ${product.condition === 'Brand New' ? 'selected' : ''}>全新</option>
-                <option value="Pre-Owned" ${product.condition === 'Pre-Owned' ? 'selected' : ''}>二手</option>
-                <option value="Refurbished" ${product.condition === 'Refurbished' ? 'selected' : ''}>翻新</option>
+                ${conditionsHtml}
               </select>
             </div>
           </div>
@@ -4243,13 +4293,9 @@
       selectElement.innerHTML = '';
       
       if (vatRates.length === 0) {
-        // 如果没有加载到税率数据，使用默认选项
-        console.warn('⚠️  没有税率数据，使用默认选项');
-        selectElement.innerHTML = `
-          <option value="VAT 23%" ${selectedValue === 'VAT 23%' ? 'selected' : ''}>VAT 23%</option>
-          <option value="VAT 13.5%" ${selectedValue === 'VAT 13.5%' ? 'selected' : ''}>VAT 13.5%</option>
-          <option value="VAT 0%" ${selectedValue === 'VAT 0%' ? 'selected' : ''}>VAT 0%</option>
-        `;
+        // 如果没有加载到税率数据，显示错误提示
+        console.error('❌ 没有税率数据');
+        selectElement.innerHTML = '<option value="">加载税率失败，请刷新页面</option>';
       } else {
         // 使用从数据库加载的税率数据
         vatRates.forEach(vat => {
@@ -4662,18 +4708,8 @@
     // 生成分类选项
     function generateCategoryOptions(categories, selectedType) {
       if (!categories || categories.length === 0) {
-        // 如果没有加载到分类，使用默认选项
-        return `
-          <option value="手机配件" ${selectedType === '手机配件' ? 'selected' : ''}>手机配件</option>
-          <option value="电脑配件" ${selectedType === '电脑配件' ? 'selected' : ''}>电脑配件</option>
-          <option value="车载配件" ${selectedType === '车载配件' ? 'selected' : ''}>车载配件</option>
-          <option value="audio" ${selectedType === 'audio' ? 'selected' : ''}>Audio</option>
-          <option value="数据线" ${selectedType === '数据线' ? 'selected' : ''}>数据线</option>
-          <option value="power supply" ${selectedType === 'power supply' ? 'selected' : ''}>Power Supply</option>
-          <option value="全新设备" ${selectedType === '全新设备' ? 'selected' : ''}>全新设备</option>
-          <option value="二手设备" ${selectedType === '二手设备' ? 'selected' : ''}>二手设备</option>
-          <option value="维修" ${selectedType === '维修' ? 'selected' : ''}>维修</option>
-        `;
+        // 如果没有加载到分类，显示错误提示
+        return '<option value="">加载分类失败，请刷新页面</option>';
       }
       
       return categories
@@ -4686,18 +4722,28 @@
     // 生成成色选项
     function generateConditionOptions(conditions, selectedCondition) {
       if (!conditions || conditions.length === 0) {
-        // 如果没有加载到成色，使用默认选项
-        return `
-          <option value="Brand New" ${selectedCondition === 'Brand New' ? 'selected' : ''}>全新</option>
-          <option value="Pre-Owned" ${selectedCondition === 'Pre-Owned' ? 'selected' : ''}>二手</option>
-          <option value="Refurbished" ${selectedCondition === 'Refurbished' ? 'selected' : ''}>翻新</option>
-        `;
+        // 如果没有加载到成色，显示错误提示
+        return '<option value="">加载成色失败，请刷新页面</option>';
       }
       
       return conditions
         .filter(cond => cond.isActive)
         .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
         .map(cond => `<option value="${cond.code}" ${cond.code === selectedCondition ? 'selected' : ''}>${cond.name}</option>`)
+        .join('');
+    }
+
+    // 生成税率选项
+    function generateVatRateOptions(vatRates, selectedRate) {
+      if (!vatRates || vatRates.length === 0) {
+        // 如果没有加载到税率，显示错误提示
+        return '<option value="">加载税率失败，请刷新页面</option>';
+      }
+      
+      return vatRates
+        .filter(rate => rate.isActive)
+        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+        .map(rate => `<option value="${rate.code}" ${rate.code === selectedRate ? 'selected' : ''}>${rate.name}</option>`)
         .join('');
     }
 
@@ -4851,9 +4897,21 @@
           conditions = [];
         }
         
+        debugLog('开始加载税率...');
+        // 加载税率列表
+        let vatRates = [];
+        try {
+          vatRates = await loadVatRates() || [];
+          debugLog(`加载了 ${vatRates.length} 个税率`);
+        } catch (error) {
+          debugLog(`加载税率失败: ${error.message}，将使用空列表`);
+          vatRates = [];
+        }
+        
         // 保存到全局变量供后续使用
         window.categoriesData = categories;
         window.conditionsData = conditions;
+        window.vatRatesData = vatRates;
         
         const supplierOptions = suppliers.map(s => 
           `<option value="${s._id}" data-name="${s.name}" ${s.name === data.supplier?.name ? 'selected' : ''}>${s.name}</option>`
@@ -4974,9 +5032,7 @@
                       <td>
                         <select onchange="updateProductField(${index}, 'vatRate', this.value)"
                                 style="width: 100%; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px;">
-                          <option value="VAT 23%" ${(product.vatRate || getDefaultVatRate(product.productType)) === 'VAT 23%' ? 'selected' : ''}>VAT 23%</option>
-                          <option value="VAT 13.5%" ${(product.vatRate || getDefaultVatRate(product.productType)) === 'VAT 13.5%' ? 'selected' : ''}>VAT 13.5%</option>
-                          <option value="VAT 0%" ${(product.vatRate || getDefaultVatRate(product.productType)) === 'VAT 0%' ? 'selected' : ''}>VAT 0%</option>
+                          ${generateVatRateOptions(window.vatRatesData, product.vatRate || getDefaultVatRate(product.productType))}
                         </select>
                       </td>
                       <td>
@@ -5153,12 +5209,12 @@
       const validationErrors = [];
       
       products.forEach((product, index) => {
-        // 🔄 标准化产品名称和型号：转大写并去除空格
+        // 标准化产品名称和型号：只去除首尾空格
         if (product.name) {
-          product.name = product.name.trim().toUpperCase().replace(/\s+/g, '');
+          product.name = product.name.trim();
         }
         if (product.model) {
-          product.model = product.model.trim().toUpperCase().replace(/\s+/g, '');
+          product.model = product.model.trim();
         }
         
         // 验证必填字段
@@ -5828,6 +5884,11 @@
         
         const result = await response.json();
         
+        // 调试：打印API响应
+        console.log('🔍 viewInvoiceDetails API响应:');
+        console.log('  items 数量:', result.data.items.length);
+        console.log('  完整响应:', result);
+        
         if (result.success && result.data) {
           showInvoiceDetailsModal(result.data);
         } else {
@@ -5842,6 +5903,18 @@
     // 显示发票详情模态框
     function showInvoiceDetailsModal(invoice) {
       const title = `📄 发票详情 - ${invoice.invoiceNumber}`;
+      
+      // 调试：检查 items 数量
+      console.log('🔍 showInvoiceDetailsModal 调试:');
+      console.log('  发票号:', invoice.invoiceNumber);
+      console.log('  items 数量:', invoice.items.length);
+      console.log('  items 详情:', invoice.items.map((item, idx) => ({
+        index: idx,
+        productName: item.productName,
+        description: item.description,
+        serialNumbers: item.serialNumbers,
+        source: item.source
+      })));
       
       // 计算各税率的小计
       const taxBreakdown = {};
@@ -5922,6 +5995,7 @@
                   <th>单价（含税）</th>
                   <th>总价（含税）</th>
                   <th>税率</th>
+                  <th>成色</th>
                   <th>序列号</th>
                   <th>来源</th>
                 </tr>
@@ -5934,20 +6008,10 @@
                     displayName = item.description;
                   }
                   
-                  // 添加位置和状态信息
+                  // 添加位置信息
                   let extraInfo = [];
                   if (item.location) {
                     extraInfo.push(`📍 ${item.location}`);
-                  }
-                  if (item.condition) {
-                    const conditionLabels = {
-                      'BRAND_NEW': '全新',
-                      'LIKE_NEW': '99新',
-                      'EXCELLENT': '优秀',
-                      'GOOD': '良好',
-                      'FAIR': '一般'
-                    };
-                    extraInfo.push(conditionLabels[item.condition] || item.condition);
                   }
                   
                   return `
@@ -5960,6 +6024,14 @@
                       <td>€${item.unitCost.toFixed(2)}</td>
                       <td><strong>€${item.totalCost.toFixed(2)}</strong></td>
                       <td>${item.vatRate}</td>
+                      <td>
+                        ${item.condition ? 
+                          `<span style="padding: 2px 8px; border-radius: 12px; font-size: 12px; background: ${item.condition === 'Brand New' ? '#dcfce7' : '#fef3c7'}; color: ${item.condition === 'Brand New' ? '#166534' : '#92400e'};">
+                            ${item.condition === 'Brand New' ? '全新' : item.condition === 'PRE-OWNED' ? '二手' : item.condition}
+                          </span>` : 
+                          '-'
+                        }
+                      </td>
                       <td>
                         ${item.serialNumbers && item.serialNumbers.length > 0 ? 
                           `<div style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.serialNumbers.join(', ')}">
@@ -7486,7 +7558,7 @@
         
         let endpoint = '';
         if (type === 'purchase') {
-          endpoint = `/api/admin/purchase-invoices/${invoiceId}`;
+          endpoint = `/api/admin/purchase-orders/${invoiceId}`;
         } else if (type === 'sales') {
           endpoint = `/api/admin/sales-invoices/${invoiceId}`;
         } else if (type === 'transfer') {
@@ -7678,7 +7750,7 @@
         
         let endpoint = '';
         if (type === 'purchase') {
-          endpoint = `/api/admin/purchase-invoices/${invoiceId}`;
+          endpoint = `/api/admin/purchase-orders/${invoiceId}`;
         } else if (type === 'sales') {
           endpoint = `/api/admin/sales-invoices/${invoiceId}`;
         } else if (type === 'transfer') {
@@ -9681,6 +9753,25 @@
         });
       } catch (error) {
         debugLog(`加载供货商失败: ${error.message}`);
+      }
+      
+      // 填充税务分类下拉框
+      const taxClassificationSelect = document.getElementById('batchTaxClassification');
+      taxClassificationSelect.innerHTML = '<option value="">请选择税率</option>';
+      
+      try {
+        const vatRates = await loadVatRates();
+        vatRates.forEach(rate => {
+          const option = document.createElement('option');
+          option.value = rate.code;
+          option.textContent = rate.name;
+          taxClassificationSelect.appendChild(option);
+        });
+      } catch (error) {
+        debugLog(`❌ 加载税率失败: ${error.message}`);
+        console.error('加载税率失败:', error);
+        // 显示错误提示，但不使用硬编码
+        taxClassificationSelect.innerHTML = '<option value="">加载税率失败，请刷新页面重试</option>';
       }
       
       // 填充成色下拉框

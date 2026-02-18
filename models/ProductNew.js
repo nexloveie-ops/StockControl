@@ -72,7 +72,7 @@ const productSchema = new mongoose.Schema({
   // 税务分类（可以覆盖大类的默认设置）
   vatRate: {
     type: String,
-    enum: ['VAT 23%', 'VAT 13.5%', 'VAT 0%'],
+    // 移除枚举限制，允许动态税率（从VatRate表加载）
     required: true
   },
   // 库存数量
