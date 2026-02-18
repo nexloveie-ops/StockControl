@@ -8445,7 +8445,7 @@
       document.getElementById('warehouseProductList').style.display = 'none';
     }
     
-    // 显示仓库产品列表（归类显示变体产品）
+    // 显示仓库产品列表（直接使用API返回的分组数据）
     function displayWarehouseProducts(products) {
       const container = document.getElementById('warehouseProducts');
       
@@ -8454,82 +8454,83 @@
         return;
       }
       
-      // 按产品名称归类
-      const groupedByProduct = {};
+      console.log('📊 显示产品，数量:', products.length);
+      console.log('📋 第一个产品的结构:', products[0]);
       
-      console.log('📊 开始分组，输入产品数量:', products.length);
-      console.log('📋 第一个产品组的结构:', products[0]);
-      
-      products.forEach((group, index) => {
-        console.log(`\n--- 处理第 ${index + 1} 个产品组 ---`);
-        console.log('group.products 数量:', group.products?.length);
-        console.log('group.products 内容:', group.products);
+      // 在前端合并相同颜色和型号的产品
+      const mergedProducts = products.map(product => {
+        // 创建一个新的产品对象，避免修改原始数据
+        const mergedProduct = { ...product, products: [] };
         
-        // 检查是否是设备类型
-        const isDevice = group.productType?.toLowerCase().includes('device');
+        // 用于跟踪已合并的产品
+        const mergedMap = new Map();
         
-        // 从 products 数组中获取产品名称
-        const firstProduct = group.products[0];
-        let rawName = firstProduct.name || `${group.brand || ''} ${group.model || ''}`.trim() || group.productType;
+        product.products.forEach(item => {
+          // 创建合并键：产品名称 + 型号 + 颜色
+          const mergeKey = `${item.name}_${item.model}_${item.color}`;
+          
+          if (mergedMap.has(mergeKey)) {
+            // 如果已存在，累加数量并保存所有ID
+            const existing = mergedMap.get(mergeKey);
+            existing.stockQuantity += item.stockQuantity || 0;
+            existing.actualAvailable += item.actualAvailable || 0;
+            existing.allIds.push(item._id);
+          } else {
+            // 创建新的合并项
+            mergedMap.set(mergeKey, {
+              ...item,
+              allIds: [item._id], // 保存所有底层记录的ID
+              stockQuantity: item.stockQuantity || 0,
+              actualAvailable: item.actualAvailable || 0
+            });
+          }
+        });
         
-        console.log('🔍 原始产品名称:', rawName, '| 是否设备:', isDevice);
-        console.log('   firstProduct:', firstProduct);
+        // 将合并后的产品添加到数组
+        mergedProduct.products = Array.from(mergedMap.values());
         
-        // 设备产品：提取纯产品名称（去掉型号、容量等信息）
-        // 配件产品：按产品名称+品牌分组
-        let productKey;
-        if (isDevice) {
-          // 提取设备的基础名称（去掉容量、颜色等）
-          // 例如：IPHONE15128GB -> IPHONE15, IPHONE15PROMAX256GB -> IPHONE15PROMAX
-          // 移除常见的容量标识：16GB, 32GB, 64GB, 128GB, 256GB, 512GB, 1TB, 2TB
-          productKey = rawName.replace(/\d+(GB|TB)/gi, '').trim();
-          // 如果还有空格，去掉
-          productKey = productKey.replace(/\s+/g, '');
-          console.log('   ✅ 设备产品 - 提取后的Key:', productKey);
-        } else {
-          // 配件产品按名称+品牌分组
-          productKey = `${rawName}_${group.brand || ''}`;
-          console.log('   ✅ 配件产品 - Key:', productKey);
-        }
+        // 重新计算总库存
+        mergedProduct.totalAvailable = mergedProduct.products.reduce(
+          (sum, p) => sum + (p.actualAvailable || p.stockQuantity || 0), 
+          0
+        );
         
-        if (!groupedByProduct[productKey]) {
-          groupedByProduct[productKey] = {
-            displayName: productKey, // 使用提取后的纯产品名称
-            productType: group.productType,
-            brand: group.brand,
-            model: group.model,
-            variants: []
-          };
-          console.log('   🆕 创建新分组:', productKey);
-        } else {
-          console.log('   ➕ 添加到现有分组:', productKey);
-        }
-        groupedByProduct[productKey].variants.push(group);
+        return mergedProduct;
       });
       
-      console.log('\n📦 最终分组结果:', Object.keys(groupedByProduct).length, '个产品组');
-      console.log('📋 分组详情:', groupedByProduct);
+      console.log('✅ 合并后的产品:', mergedProducts);
       
+      // 直接使用合并后的分组数据
       const html = `
         <table style="width: 100%; table-layout: auto;">
           <thead>
             <tr>
               <th style="min-width: 200px;">产品名称</th>
-              <th style="min-width: 100px; text-align: center;">变体数量</th>
-              <th style="min-width: 100px; text-align: center;">总库存</th>
-              <th style="min-width: 120px; text-align: right;">价格范围</th>
+              <th style="min-width: 100px; text-align: center;">可用库存</th>
+              <th style="min-width: 120px; text-align: right;">批发价</th>
               <th style="min-width: 100px; text-align: center;">操作</th>
             </tr>
           </thead>
           <tbody>
-            ${Object.values(groupedByProduct).map((product, index) => {
-              const totalQty = product.variants.reduce((sum, v) => sum + v.totalAvailable, 0);
-              const prices = product.variants.map(v => v.wholesalePrice);
-              const minPrice = Math.min(...prices);
-              const maxPrice = Math.max(...prices);
-              const priceRange = minPrice === maxPrice ? 
-                `€${minPrice.toFixed(2)}` : 
-                `€${minPrice.toFixed(2)} - €${maxPrice.toFixed(2)}`;
+            ${mergedProducts.map((product, index) => {
+              // 获取产品显示名称
+              const firstProduct = product.products[0];
+              let displayName = firstProduct.name || `${product.brand || ''} ${product.model || ''}`.trim() || product.productType;
+              
+              // 对于配件变体，显示变体数量
+              let variantInfo = '';
+              if (product.products.length > 1) {
+                // 收集所有不同的型号和颜色
+                const models = [...new Set(product.products.map(p => p.model).filter(Boolean))];
+                const colors = [...new Set(product.products.map(p => p.color).filter(Boolean))];
+                
+                if (models.length > 0 || colors.length > 0) {
+                  variantInfo = `<div style="font-size: 12px; color: #6366f1; margin-top: 4px;">📦 ${product.products.length} 个变体`;
+                  if (models.length > 0) variantInfo += ` · ${models.length} 种型号`;
+                  if (colors.length > 0) variantInfo += ` · ${colors.length} 种颜色`;
+                  variantInfo += `</div>`;
+                }
+              }
               
               return `
               <tr style="cursor: pointer; transition: background 0.2s;" 
@@ -8540,21 +8541,17 @@
                   <div style="display: flex; align-items: center; gap: 10px;">
                     <div style="font-size: 24px;">${getCategoryIcon(product.productType)}</div>
                     <div>
-                      <strong style="font-size: 15px;">${product.displayName}</strong>
+                      <strong style="font-size: 15px;">${displayName}</strong>
                       <div style="font-size: 12px; color: #6b7280;">${product.productType}</div>
+                      ${variantInfo}
                     </div>
                   </div>
                 </td>
                 <td style="text-align: center;">
-                  <span style="background: #dbeafe; color: #1e40af; padding: 4px 12px; border-radius: 12px; font-size: 13px; font-weight: 600;">
-                    ${product.variants.length} 个变体
-                  </span>
-                </td>
-                <td style="text-align: center;">
-                  <strong style="color: #10b981; font-size: 16px;">${totalQty}</strong>
+                  <strong style="color: #10b981; font-size: 16px;">${product.totalAvailable}</strong>
                 </td>
                 <td style="text-align: right; font-weight: 600; color: #059669;">
-                  ${priceRange}
+                  €${product.wholesalePrice.toFixed(2)}
                 </td>
                 <td style="text-align: center;">
                   <button class="btn btn-primary" style="padding: 8px 16px; font-size: 14px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;" 
@@ -8569,14 +8566,32 @@
       `;
       container.innerHTML = html;
       
-      // 保存分组数据供详情页使用
-      window.currentGroupedProducts = Object.values(groupedByProduct);
+      // 保存合并后的产品数据供详情页使用
+      window.currentGroupedProducts = mergedProducts;
     }
     
     // 显示产品变体详情
     function showProductVariants(productIndex) {
       const product = window.currentGroupedProducts[productIndex];
       if (!product) return;
+      
+      // 获取产品显示名称
+      const firstProduct = product.products[0];
+      const displayName = firstProduct.name || `${product.brand || ''} ${product.model || ''}`.trim() || product.productType;
+      
+      // 对变体进行排序：先按型号(model)升序，再按颜色(color)升序
+      const sortedProducts = [...product.products].sort((a, b) => {
+        const modelA = (a.model || '').toLowerCase();
+        const modelB = (b.model || '').toLowerCase();
+        
+        if (modelA !== modelB) {
+          return modelA.localeCompare(modelB);
+        }
+        
+        const colorA = (a.color || '').toLowerCase();
+        const colorB = (b.color || '').toLowerCase();
+        return colorA.localeCompare(colorB);
+      });
       
       const modal = document.createElement('div');
       modal.style.cssText = `
@@ -8610,8 +8625,8 @@
             <div style="display: flex; align-items: center; gap: 12px;">
               <div style="font-size: 32px;">${getCategoryIcon(product.productType)}</div>
               <div>
-                <h2 style="margin: 0; font-size: 24px; color: #111827;">${product.displayName}</h2>
-                <p style="margin: 4px 0 0 0; color: #6b7280; font-size: 14px;">${product.productType} · ${product.variants.length} 个变体</p>
+                <h2 style="margin: 0; font-size: 24px; color: #111827;">${displayName}</h2>
+                <p style="margin: 4px 0 0 0; color: #6b7280; font-size: 14px;">${product.productType} · ${product.products.length} 个子产品</p>
               </div>
             </div>
             <button onclick="this.closest('[style*=fixed]').remove()" 
@@ -8625,7 +8640,7 @@
           <table style="width: 100%; border-collapse: collapse;">
             <thead>
               <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
-                <th style="padding: 12px; text-align: left; font-size: 13px; color: #6b7280; font-weight: 600;">型号/尺寸</th>
+                <th style="padding: 12px; text-align: left; font-size: 13px; color: #6b7280; font-weight: 600;">产品名称</th>
                 <th style="padding: 12px; text-align: left; font-size: 13px; color: #6b7280; font-weight: 600;">颜色</th>
                 <th style="padding: 12px; text-align: center; font-size: 13px; color: #6b7280; font-weight: 600;">成色</th>
                 <th style="padding: 12px; text-align: center; font-size: 13px; color: #6b7280; font-weight: 600;">库存</th>
@@ -8636,37 +8651,45 @@
               </tr>
             </thead>
             <tbody>
-              ${product.variants.map(variant => {
-                const displayName = `${product.displayName}${variant.model ? ' - ' + variant.model : ''}${variant.color ? ' - ' + variant.color : ''}`;
+              ${sortedProducts.map(item => {
+                const itemName = item.name || `${item.brand || ''} ${item.model || ''}`.trim();
+                // 显示型号信息（如果有）
+                const modelInfo = item.model ? `<div style="font-size: 12px; color: #6b7280; margin-top: 2px;">型号: ${item.model}</div>` : '';
+                
+                // 获取产品ID：如果有allIds数组，使用第一个ID；否则使用_id
+                const productIds = item.allIds || [item._id];
+                const productIdStr = productIds.join(','); // 用逗号连接所有ID
+                
                 return `
                 <tr style="border-bottom: 1px solid #f3f4f6; transition: background 0.2s;" 
                     onmouseover="this.style.background='#f9fafb'" 
                     onmouseout="this.style.background='white'">
                   <td style="padding: 12px;">
-                    <strong style="color: #111827;">${variant.model || '-'}</strong>
+                    <strong style="color: #111827;">${itemName}</strong>
+                    ${modelInfo}
                   </td>
                   <td style="padding: 12px;">
-                    ${variant.color ? `<span style="background: #dbeafe; color: #1e40af; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;">${variant.color}</span>` : '-'}
+                    ${item.color ? `<span style="background: #dbeafe; color: #1e40af; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;">${item.color}</span>` : '-'}
                   </td>
                   <td style="padding: 12px; text-align: center;">
-                    ${getConditionBadge(variant.products[0]?.condition || 'New')}
+                    ${getConditionBadge(item.condition || 'New')}
                   </td>
                   <td style="padding: 12px; text-align: center;">
-                    <strong style="color: #10b981; font-size: 15px;">${variant.totalAvailable}</strong>
+                    <strong style="color: #10b981; font-size: 15px;">${item.actualAvailable || item.stockQuantity || 0}</strong>
                   </td>
                   <td style="padding: 12px; text-align: right; font-weight: 600; color: #059669;">
-                    €${variant.wholesalePrice.toFixed(2)}
+                    €${(item.wholesalePrice || 0).toFixed(2)}
                   </td>
                   <td style="padding: 12px; text-align: right; color: #6b7280;">
-                    €${variant.suggestedRetailPrice.toFixed(2)}
+                    €${(item.retailPrice || 0).toFixed(2)}
                   </td>
                   <td style="padding: 12px; text-align: center; font-size: 12px;">
-                    ${getTaxBadge(variant.taxClassification)}
+                    ${getTaxBadge(product.taxClassification)}
                   </td>
                   <td style="padding: 12px; text-align: center;">
                     <button class="btn btn-primary" 
                       style="padding: 6px 14px; font-size: 13px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; white-space: nowrap;" 
-                      onclick="addToWarehouseCartFromModal('${variant.products[0]._id}', '${displayName.replace(/'/g, "\\'")}', ${variant.wholesalePrice}, ${variant.totalAvailable}); event.stopPropagation();">
+                      onclick="addToWarehouseCartFromModal('${productIdStr}', '${itemName.replace(/'/g, "\\'")}', ${item.wholesalePrice || 0}, ${item.actualAvailable || item.stockQuantity || 0}); event.stopPropagation();">
                       🛒 加入购物车
                     </button>
                   </td>
@@ -8678,8 +8701,8 @@
         
         <div style="padding: 20px 24px; background: #f9fafb; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
           <div style="color: #6b7280; font-size: 14px;">
-            总计: <strong style="color: #111827;">${product.variants.length}</strong> 个变体 · 
-            <strong style="color: #10b981;">${product.variants.reduce((sum, v) => sum + v.totalAvailable, 0)}</strong> 件库存
+            总计: <strong style="color: #111827;">${sortedProducts.length}</strong> 个子产品 · 
+            <strong style="color: #10b981;">${product.totalAvailable}</strong> 件库存
           </div>
           <button onclick="this.closest('[style*=fixed]').remove()" 
             style="padding: 10px 24px; background: #6b7280; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">
@@ -8717,6 +8740,7 @@
       }
       
       // 检查购物车中是否已有该产品
+      // 注意：productId 可能是单个ID或者是包含多个ID的字符串（用逗号分隔）
       const existingItem = warehouseCart.find(item => item.productId === productId);
       
       if (existingItem) {
@@ -8931,6 +8955,24 @@
       
       loadInventoryReport(startDate, endDate);
       loadPurchaseReport(startDate, endDate);
+    }
+    
+    // 格式化税分类显示
+    function formatTaxClassification(taxClass) {
+      if (!taxClass) return 'N/A';
+      
+      const taxMap = {
+        'VAT_23': 'VAT 23%',
+        'VAT 23%': 'VAT 23%',
+        'VAT_13_5': 'VAT 13.5%',
+        'VAT 13.5%': 'VAT 13.5%',
+        'VAT_0': 'VAT 0%',
+        'VAT 0%': 'VAT 0%',
+        'MARGIN_VAT_0': 'Margin VAT',
+        'Margin VAT': 'Margin VAT'
+      };
+      
+      return taxMap[taxClass] || taxClass;
     }
     
     // 加载采购报表
@@ -9239,7 +9281,7 @@
                       <td style="text-align: center;">
                         <span style="background: ${(item.taxClassification || item.vatRate || '').includes('23') ? '#fef3c7' : (item.taxClassification || item.vatRate || '').includes('13') ? '#dbeafe' : '#f3f4f6'}; 
                                      padding: 2px 8px; border-radius: 4px; font-size: 12px;">
-                          ${item.taxClassification || item.vatRate || 'N/A'}
+                          ${formatTaxClassification(item.taxClassification || item.vatRate)}
                         </span>
                       </td>
                       <td style="text-align: right;"><strong style="color: #059669;">€${itemTax.toFixed(2)}</strong></td>
@@ -11365,24 +11407,29 @@
         
         let vatRate = 0;
         let vatAmount = 0;
+        let vatRateDisplay = '';
         
         switch(taxClass) {
           case 'VAT_23':
             vatRate = 0.23;
             vatAmount = itemTotal * vatRate;
+            vatRateDisplay = '23.0%';
             break;
           case 'SERVICE_VAT_13_5':
             vatRate = 0.135;
             vatAmount = itemTotal * vatRate;
+            vatRateDisplay = '13.5%';
             break;
           case 'VAT_0':
           case 'MARGIN_VAT_0':
             vatRate = 0;
             vatAmount = 0;
+            vatRateDisplay = 'Margin VAT';
             break;
           default:
             vatRate = 0.23;
             vatAmount = itemTotal * vatRate;
+            vatRateDisplay = '23.0%';
         }
         
         subtotalByTax[taxClass] = (subtotalByTax[taxClass] || 0) + itemTotal;
@@ -11394,6 +11441,7 @@
           itemTotal: itemTotal,
           vatRate: vatRate,
           vatAmount: vatAmount,
+          vatRateDisplay: vatRateDisplay,
           taxClass: taxClass
         };
       });
@@ -11485,7 +11533,7 @@
                   <td class="text-center">${item.condition || '-'}</td>
                   <td class="text-center">${item.quantity}</td>
                   <td class="text-right">€${item.transferPrice.toFixed(2)}</td>
-                  <td class="text-center">${(item.vatRate * 100).toFixed(1)}%</td>
+                  <td class="text-center">${item.vatRateDisplay}</td>
                   <td class="text-right">€${item.vatAmount.toFixed(2)}</td>
                   <td class="text-right">€${(item.itemTotal + item.vatAmount).toFixed(2)}</td>
                 </tr>

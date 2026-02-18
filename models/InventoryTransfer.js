@@ -186,6 +186,7 @@ const inventoryTransferSchema = new mongoose.Schema({
   },
   
   // 时间戳
+  transferDate: Date, // 调货日期（确认收货时设置）
   requestedAt: {
     type: Date,
     default: Date.now
