@@ -2353,7 +2353,7 @@
                       <tr style="border-bottom: 1px solid #f1f5f9;">
                         <td style="padding: 10px; font-weight: 600; color: #1e40af;">
                           <span style="cursor: pointer; text-decoration: underline;" 
-                                onclick="showInvoiceDetails('${invoice._id}', '${invoice.invoiceNumber}')">
+                                onclick="showInvoiceDetails('${invoice._id}', 'purchase')">
                             ${invoice.invoiceNumber}
                           </span>
                           <br><small style="color: #6b7280; font-weight: normal;">
@@ -2538,11 +2538,12 @@
                 <table style="width: 100%; border-collapse: collapse;">
                   <thead>
                     <tr style="background: #f8fafc;">
-                      <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0;">产品描述</th>
+                      <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0;">产品</th>
                       <th style="padding: 12px; text-align: center; border-bottom: 2px solid #e2e8f0;">数量</th>
-                      <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e2e8f0;">单价（含税）</th>
-                      <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e2e8f0;">总价（含税）</th>
-                      <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e2e8f0;">税额</th>
+                      <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e2e8f0;">单价</th>
+                      <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e2e8f0;">总价</th>
+                      <th style="padding: 12px; text-align: center; border-bottom: 2px solid #e2e8f0;">成色</th>
+                      <th style="padding: 12px; text-align: center; border-bottom: 2px solid #e2e8f0;">税务分类</th>
                       <th style="padding: 12px; text-align: center; border-bottom: 2px solid #e2e8f0;">序列号</th>
                     </tr>
                   </thead>
@@ -2551,10 +2552,7 @@
                       <tr style="border-bottom: 1px solid #f1f5f9;">
                         <td style="padding: 12px;">
                           <div style="font-weight: 600;">${item.description || item.productName || '未知产品'}</div>
-                          ${item.source === 'AdminInventory' && item.location ? `<small style="color: #059669;">📍 位置: ${item.location}</small><br>` : ''}
-                          ${item.source === 'AdminInventory' && item.condition ? `<small style="color: #6b7280;">状态: ${item.condition}</small><br>` : ''}
-                          ${item.vatRate ? `<small style="color: #7c3aed;">税率: ${item.vatRate}</small>` : ''}
-                          ${item.source ? `<br><small style="background: ${item.source === 'AdminInventory' ? '#dcfce7' : '#dbeafe'}; color: ${item.source === 'AdminInventory' ? '#166534' : '#1e40af'}; padding: 2px 6px; border-radius: 4px; font-size: 10px;">${item.source === 'AdminInventory' ? '📦 库存系统' : '📋 采购订单'}</small>` : ''}
+                          ${item.source === 'AdminInventory' && item.location ? `<small style="color: #059669;">📍 ${item.location}</small><br>` : ''}
                         </td>
                         <td style="padding: 12px; text-align: center; font-weight: 600; color: #059669;">
                           ${item.quantity}
@@ -2565,8 +2563,28 @@
                         <td style="padding: 12px; text-align: right; font-weight: 600; color: #7c3aed;">
                           €${(item.totalCost || 0).toFixed(2)}
                         </td>
-                        <td style="padding: 12px; text-align: right; color: #dc2626;">
-                          €${(item.taxAmount || 0).toFixed(2)}
+                        <td style="padding: 12px; text-align: center;">
+                          ${item.condition ? `
+                            <span style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; 
+                                         background: ${item.condition.includes('NEW') || item.condition.includes('Brand New') ? '#dcfce7' : '#fef3c7'}; 
+                                         color: ${item.condition.includes('NEW') || item.condition.includes('Brand New') ? '#166534' : '#92400e'};">
+                              ${item.condition === 'BRAND_NEW' ? '全新' : 
+                                item.condition === 'Brand New' ? '全新' :
+                                item.condition === 'PRE-OWNED' ? '二手' :
+                                item.condition === 'Pre-Owned' ? '二手' :
+                                item.condition === 'REFURBISHED' ? '翻新' :
+                                item.condition === 'Refurbished' ? '翻新' :
+                                item.condition}
+                            </span>
+                          ` : '<span style="color: #9ca3af;">-</span>'}
+                        </td>
+                        <td style="padding: 12px; text-align: center;">
+                          ${item.vatRate ? `
+                            <span style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; 
+                                         background: #ede9fe; color: #7c3aed;">
+                              ${item.vatRate}
+                            </span>
+                          ` : '<span style="color: #9ca3af;">-</span>'}
                         </td>
                         <td style="padding: 12px; text-align: center;">
                           ${item.serialNumbers && item.serialNumbers.length > 0 ? 
@@ -3550,9 +3568,36 @@
                     </thead>
                     <tbody>
                       ${order.items.map(item => {
-                        const taxClassDisplay = item.taxClassification === 'VAT_23' ? 'VAT 23%' : 
-                                               item.taxClassification === 'SERVICE_VAT_135' ? 'Service VAT 13.5%' : 
-                                               item.taxClassification || 'N/A';
+                        // 税分类显示逻辑
+                        let taxClassDisplay = 'N/A';
+                        
+                        // 检查是否为二手设备（根据成色判断）
+                        const isUsedDevice = item.condition && (
+                          item.condition.toLowerCase().includes('used') ||
+                          item.condition.toLowerCase().includes('pre-owned') ||
+                          item.condition.toLowerCase().includes('refurbished') ||
+                          item.condition.toLowerCase().includes('二手') ||
+                          item.condition === 'USED' ||
+                          item.condition === 'PRE-OWNED'
+                        );
+                        
+                        if (item.taxClassification === 'VAT_23') {
+                          taxClassDisplay = 'VAT 23%';
+                        } else if (item.taxClassification === 'SERVICE_VAT_135' || item.taxClassification === 'SERVICE_VAT_13_5') {
+                          taxClassDisplay = 'Service VAT 13.5%';
+                        } else if (item.taxClassification === 'MARGIN_VAT_0' || item.taxClassification === 'Margin VAT') {
+                          taxClassDisplay = 'Margin VAT';
+                        } else if (item.taxClassification === 'VAT_0') {
+                          // 如果是二手设备且标记为VAT_0，显示为Margin VAT
+                          if (isUsedDevice) {
+                            taxClassDisplay = 'Margin VAT';
+                          } else {
+                            taxClassDisplay = 'VAT 0%';
+                          }
+                        } else if (item.taxClassification) {
+                          taxClassDisplay = item.taxClassification;
+                        }
+                        
                         return `
                         <tr>
                           <td style="padding: 12px; border: 1px solid #e5e7eb;">
@@ -3702,11 +3747,13 @@
                   <table style="width: 100%; border-collapse: collapse;">
                     <thead>
                       <tr style="background: #f8fafc;">
-                        <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Description</th>
+                        <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Product</th>
                         <th style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">Quantity</th>
                         <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">Unit Price</th>
-                        <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">Total Price</th>
+                        <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">Total</th>
+                        <th style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">Condition</th>
                         <th style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">VAT Rate</th>
+                        <th style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">Serial No.</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3716,7 +3763,34 @@
                           <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">${item.quantity}</td>
                           <td style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">€${(item.unitCost || 0).toFixed(2)}</td>
                           <td style="padding: 12px; text-align: right; border: 1px solid #e5e7eb; font-weight: bold;">€${(item.totalCost || 0).toFixed(2)}</td>
-                          <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">${formatVatRate(item.vatRate)}</td>
+                          <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">
+                            ${item.condition ? `
+                              <span style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; 
+                                           background: ${item.condition.includes('NEW') || item.condition.includes('Brand New') ? '#dcfce7' : '#fef3c7'}; 
+                                           color: ${item.condition.includes('NEW') || item.condition.includes('Brand New') ? '#166534' : '#92400e'};">
+                                ${item.condition === 'BRAND_NEW' ? 'Brand New' : 
+                                  item.condition === 'Brand New' ? 'Brand New' :
+                                  item.condition === 'PRE-OWNED' ? 'Pre-Owned' :
+                                  item.condition === 'Pre-Owned' ? 'Pre-Owned' :
+                                  item.condition === 'REFURBISHED' ? 'Refurbished' :
+                                  item.condition === 'Refurbished' ? 'Refurbished' :
+                                  item.condition}
+                              </span>
+                            ` : '-'}
+                          </td>
+                          <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">
+                            ${item.vatRate ? `
+                              <span style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; 
+                                           background: #ede9fe; color: #7c3aed;">
+                                ${formatVatRate(item.vatRate)}
+                              </span>
+                            ` : '-'}
+                          </td>
+                          <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">
+                            ${item.serialNumbers && item.serialNumbers.length > 0 ? 
+                              item.serialNumbers.map(sn => `<div style="font-family: monospace; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-bottom: 2px;">${sn}</div>`).join('') : 
+                              '-'}
+                          </td>
                         </tr>
                       `).join('')}
                     </tbody>
@@ -3837,6 +3911,31 @@
       }
     }
 
+    // 加载税率数据
+    async function loadVatRates() {
+      console.log('🔄 开始加载税率数据');
+      debugLog('开始加载税率数据');
+      
+      try {
+        const response = await fetch('/api/vat-rates');
+        console.log('📥 税率API响应:', response.status, response.statusText);
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const result = await response.json();
+        console.log('📦 税率数据:', result);
+        console.log(`✅ 税率数量: ${result.data?.length || 0}`);
+        
+        debugLog(`税率API响应: ${result.data?.length || 0} 个税率`);
+        
+        return result.data || [];
+      } catch (error) {
+        console.error('❌ 税率数据加载失败:', error);
+        debugLog(`❌ 税率数据加载失败: ${error.message}`);
+        return [];
+      }
+    }
+
     // 加载所有数据
     async function loadAllData() {
       debugLog('=== 开始加载所有数据 ===');
@@ -3952,6 +4051,19 @@
           }
         }
         
+        // 加载税率数据（如果还没有加载）
+        if (!window.vatRatesData || window.vatRatesData.length === 0) {
+          console.log('🔄 加载税率数据...');
+          try {
+            const vatRates = await loadVatRates();
+            window.vatRatesData = vatRates;
+            console.log(`✅ 税率数据已加载: ${vatRates.length} 个税率`);
+          } catch (err) {
+            console.error('❌ 加载税率数据失败:', err);
+            window.vatRatesData = [];
+          }
+        }
+        
         // 如果没有产品行，添加一个（等待数据加载完成后）
         if (document.getElementById('manualProductsTable').children.length === 0) {
           console.log('➕ 添加第一个产品行');
@@ -4060,11 +4172,9 @@
                  onchange="updateManualProduct(${index}, 'retailPrice', this.value)">
         </td>
         <td style="padding: 8px;">
-          <select onchange="updateManualProduct(${index}, 'vatRate', this.value)"
+          <select id="manualVatRate_${index}" onchange="updateManualProduct(${index}, 'vatRate', this.value)"
                   style="width: 100%; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px;">
-            <option value="VAT 23%">VAT 23%</option>
-            <option value="VAT 13.5%">VAT 13.5%</option>
-            <option value="VAT 0%">VAT 0%</option>
+            <!-- 选项将通过loadVatRatesForManual动态加载 -->
           </select>
         </td>
         <td style="padding: 8px;">
@@ -4110,7 +4220,54 @@
         serialNumbers: []
       };
       
+      // 填充税率选择框
+      populateVatRateSelect(index, 'VAT 23%');
+      
       debugLog(`添加手动录入产品行 ${index}`);
+    }
+
+    // 填充税率选择框
+    function populateVatRateSelect(index, selectedValue = '') {
+      const selectElement = document.getElementById(`manualVatRate_${index}`);
+      if (!selectElement) {
+        console.error(`❌ 找不到税率选择框: manualVatRate_${index}`);
+        return;
+      }
+      
+      // 使用全局变量中的税率数据
+      const vatRates = window.vatRatesData || [];
+      
+      console.log(`📝 填充税率选择框 ${index}, 税率数量: ${vatRates.length}, 选中值: ${selectedValue}`);
+      
+      // 清空现有选项
+      selectElement.innerHTML = '';
+      
+      if (vatRates.length === 0) {
+        // 如果没有加载到税率数据，使用默认选项
+        console.warn('⚠️  没有税率数据，使用默认选项');
+        selectElement.innerHTML = `
+          <option value="VAT 23%" ${selectedValue === 'VAT 23%' ? 'selected' : ''}>VAT 23%</option>
+          <option value="VAT 13.5%" ${selectedValue === 'VAT 13.5%' ? 'selected' : ''}>VAT 13.5%</option>
+          <option value="VAT 0%" ${selectedValue === 'VAT 0%' ? 'selected' : ''}>VAT 0%</option>
+        `;
+      } else {
+        // 使用从数据库加载的税率数据
+        vatRates.forEach(vat => {
+          const option = document.createElement('option');
+          // 使用name字段作为显示文本和值
+          option.value = vat.name;
+          option.textContent = vat.name;
+          
+          // 设置选中状态
+          if (selectedValue && option.value === selectedValue) {
+            option.selected = true;
+          }
+          
+          selectElement.appendChild(option);
+        });
+      }
+      
+      console.log(`✅ 税率选择框填充完成，当前值: ${selectElement.value}`);
     }
 
     // 更新手动录入产品数据
@@ -4127,10 +4284,8 @@
       const productType = window.manualProducts[index]?.productType;
       const defaultVatRate = getDefaultVatRate(productType);
       
-      // 更新税率选择框
-      const row = document.getElementById('manualProductsTable').children[index];
-      const vatRateSelect = row.cells[6].querySelector('select');
-      vatRateSelect.value = defaultVatRate;
+      // 重新填充税率选择框并设置默认值
+      populateVatRateSelect(index, defaultVatRate);
       
       updateManualProduct(index, 'vatRate', defaultVatRate);
     }
@@ -7437,6 +7592,8 @@
               <thead>
                 <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
                   <th style="padding: 12px; text-align: left;">产品</th>
+                  <th style="padding: 12px; text-align: center;">成色</th>
+                  <th style="padding: 12px; text-align: center;">税务分类</th>
                   <th style="padding: 12px; text-align: center;">数量</th>
                   <th style="padding: 12px; text-align: right;">单价</th>
                   <th style="padding: 12px; text-align: right;">总价</th>
@@ -7444,9 +7601,33 @@
                 </tr>
               </thead>
               <tbody>
-                ${(invoice.items || []).map(item => `
+                ${(invoice.items || []).map(item => {
+                  // 成色显示逻辑
+                  let conditionBadge = '-';
+                  if (item.condition) {
+                    const conditionColors = {
+                      '全新': '#10b981',
+                      '二手': '#f59e0b',
+                      '翻新': '#f59e0b',
+                      'Brand New': '#10b981',
+                      'Used': '#f59e0b',
+                      'Refurbished': '#f59e0b'
+                    };
+                    const color = conditionColors[item.condition] || '#6b7280';
+                    conditionBadge = `<span style="background: ${color}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">${item.condition}</span>`;
+                  }
+                  
+                  // 税务分类显示逻辑
+                  let vatBadge = '-';
+                  if (item.vatRate) {
+                    vatBadge = `<span style="background: #8b5cf6; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">${item.vatRate}</span>`;
+                  }
+                  
+                  return `
                   <tr style="border-bottom: 1px solid #e5e7eb;">
                     <td style="padding: 12px;">${item.productName || item.description || item.product?.name || '未知产品'}</td>
+                    <td style="padding: 12px; text-align: center;">${conditionBadge}</td>
+                    <td style="padding: 12px; text-align: center;">${vatBadge}</td>
                     <td style="padding: 12px; text-align: center;">${item.quantity}</td>
                     <td style="padding: 12px; text-align: right;">€${((item.unitPrice || item.unitCost || item.price || item.transferPrice || 0)).toFixed(2)}</td>
                     <td style="padding: 12px; text-align: right; font-weight: bold;">€${((item.totalPrice || item.totalCost || (item.price * item.quantity) || ((item.transferPrice || 0) * item.quantity))).toFixed(2)}</td>
@@ -7457,11 +7638,12 @@
                           '-'}
                     </td>
                   </tr>
-                `).join('')}
+                  `;
+                }).join('')}
               </tbody>
               <tfoot>
                 <tr style="background: #f9fafb; font-weight: bold; border-top: 2px solid #e5e7eb;">
-                  <td colspan="3" style="padding: 12px; text-align: right;">总计：</td>
+                  <td colspan="5" style="padding: 12px; text-align: right;">总计：</td>
                   <td style="padding: 12px; text-align: right; color: ${typeColor}; font-size: 18px;">€${(invoice.totalAmount || 0).toFixed(2)}</td>
                   <td></td>
                 </tr>

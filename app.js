@@ -245,54 +245,63 @@ app.get('/api/products', async (req, res) => {
     });
     
     // 处理 AdminInventory 产品，转换为与 ProductNew 兼容的格式
-    const adminProducts = adminInventoryItems.map(item => {
-      const itemObj = item.toObject();
-      
-      // 计算含税进货价
-      const taxClassification = itemObj.taxClassification || 'VAT_23';
-      let taxMultiplier = 1.0;
-      
-      if (taxClassification === 'VAT_23') {
-        taxMultiplier = 1.23;
-      } else if (taxClassification === 'SERVICE_VAT_13_5') {
-        taxMultiplier = 1.135;
-      } else if (taxClassification === 'MARGIN_VAT_0') {
-        taxMultiplier = 1.0;
-      }
-      
-      const costPriceIncludingTax = (itemObj.costPrice || 0) * taxMultiplier;
-      
-      return {
-        _id: itemObj._id,
-        name: itemObj.productName,
-        sku: `${itemObj.productName}-${itemObj.model}-${itemObj.color}`.replace(/\s+/g, '-'),
-        brand: itemObj.brand || '',
-        model: itemObj.model || '',
-        color: itemObj.color || '',
-        productType: itemObj.category,
-        category: { type: itemObj.category, name: itemObj.category },
-        condition: itemObj.condition,
-        stockQuantity: itemObj.quantity,
-        quantity: itemObj.quantity,
-        costPrice: costPriceIncludingTax,
-        costPriceIncludingTax: costPriceIncludingTax,
-        costPriceExcludingTax: itemObj.costPrice,
-        purchasePrice: costPriceIncludingTax,
-        wholesalePrice: itemObj.wholesalePrice,
-        retailPrice: itemObj.retailPrice,
-        vatRate: taxClassification === 'VAT_23' ? 'VAT 23%' : 
-                 taxClassification === 'SERVICE_VAT_13_5' ? 'VAT 13.5%' : 'VAT 0%',
-        taxClassification: itemObj.taxClassification,
-        barcode: itemObj.barcode || '',
-        serialNumbers: itemObj.serialNumber ? [{ serialNumber: itemObj.serialNumber }] : [],
-        notes: itemObj.notes || '',
-        isActive: itemObj.isActive,
-        status: itemObj.status,
-        source: 'AdminInventory',
-        createdAt: itemObj.createdAt,
-        updatedAt: itemObj.updatedAt
-      };
-    });
+    // 注意：只显示在ProductNew中不存在的产品（避免重复）
+    const productNewNames = new Set(productNewItems.map(p => p.name.toLowerCase()));
+    
+    const adminProducts = adminInventoryItems
+      .filter(item => {
+        // 只包含在ProductNew中不存在的产品
+        const productName = item.productName.toLowerCase();
+        return !productNewNames.has(productName);
+      })
+      .map(item => {
+        const itemObj = item.toObject();
+        
+        // 计算含税进货价
+        const taxClassification = itemObj.taxClassification || 'VAT_23';
+        let taxMultiplier = 1.0;
+        
+        if (taxClassification === 'VAT_23') {
+          taxMultiplier = 1.23;
+        } else if (taxClassification === 'SERVICE_VAT_13_5') {
+          taxMultiplier = 1.135;
+        } else if (taxClassification === 'MARGIN_VAT_0') {
+          taxMultiplier = 1.0;
+        }
+        
+        const costPriceIncludingTax = (itemObj.costPrice || 0) * taxMultiplier;
+        
+        return {
+          _id: itemObj._id,
+          name: itemObj.productName,
+          sku: `${itemObj.productName}-${itemObj.model}-${itemObj.color}`.replace(/\s+/g, '-'),
+          brand: itemObj.brand || '',
+          model: itemObj.model || '',
+          color: itemObj.color || '',
+          productType: itemObj.category,
+          category: { type: itemObj.category, name: itemObj.category },
+          condition: itemObj.condition,
+          stockQuantity: itemObj.quantity,
+          quantity: itemObj.quantity,
+          costPrice: costPriceIncludingTax,
+          costPriceIncludingTax: costPriceIncludingTax,
+          costPriceExcludingTax: itemObj.costPrice,
+          purchasePrice: costPriceIncludingTax,
+          wholesalePrice: itemObj.wholesalePrice,
+          retailPrice: itemObj.retailPrice,
+          vatRate: taxClassification === 'VAT_23' ? 'VAT 23%' : 
+                   taxClassification === 'SERVICE_VAT_13_5' ? 'VAT 13.5%' : 'VAT 0%',
+          taxClassification: itemObj.taxClassification,
+          barcode: itemObj.barcode || '',
+          serialNumbers: itemObj.serialNumber ? [{ serialNumber: itemObj.serialNumber }] : [],
+          notes: itemObj.notes || '',
+          isActive: itemObj.isActive,
+          status: itemObj.status,
+          source: 'AdminInventory',
+          createdAt: itemObj.createdAt,
+          updatedAt: itemObj.updatedAt
+        };
+      });
     
     // 合并两个数组
     const allProducts = [...productsWithTaxInclusivePrices, ...adminProducts];
@@ -471,31 +480,85 @@ app.get('/api/purchase-orders/:id', checkDbConnection, async (req, res) => {
     console.log(`   AdminInventory products: ${adminProducts.length}`);
     
     // 格式化AdminInventory产品为发票items格式
-    const adminItems = adminProducts.map(product => ({
-      _id: product._id,
-      description: `${product.productName} - ${product.model} - ${product.color}`,
-      product: product._id,
-      productName: product.productName,
-      model: product.model,
-      color: product.color,
-      quantity: product.quantity,
-      unitCost: product.costPrice,
-      totalCost: product.costPrice * product.quantity,
-      vatRate: product.taxClassification === 'VAT_23' ? 'VAT 23%' : 
-               product.taxClassification === 'VAT_13_5' ? 'VAT 13.5%' : 'VAT 0%',
-      taxAmount: 0, // AdminInventory价格已含税
-      serialNumbers: product.serialNumber ? [product.serialNumber] : [],
-      location: product.location,
-      condition: product.condition,
-      source: 'AdminInventory'
+    const adminItems = adminProducts.map(product => {
+      // 智能转换税率格式
+      let vatRate = 'VAT 23%'; // 默认值
+      
+      if (product.taxClassification) {
+        const taxClass = product.taxClassification;
+        
+        // 处理下划线格式（VAT_23, VAT_13_5, VAT_0）
+        if (taxClass === 'VAT_23') {
+          vatRate = 'VAT 23%';
+        } else if (taxClass === 'VAT_13_5') {
+          vatRate = 'VAT 13.5%';
+        } else if (taxClass === 'VAT_0') {
+          vatRate = 'VAT 0%';
+        } else if (taxClass === 'MARGIN_VAT_0' || taxClass === 'MARGIN_VAT') {
+          vatRate = 'Margin VAT';
+        } else if (taxClass.includes('VAT') && taxClass.includes('%')) {
+          // 已经是正确格式（VAT 23%, VAT 13.5%, VAT 0%）
+          vatRate = taxClass;
+        } else if (taxClass.toLowerCase().includes('margin')) {
+          vatRate = 'Margin VAT';
+        }
+      }
+      
+      return {
+        _id: product._id,
+        description: `${product.productName} - ${product.model} - ${product.color}`,
+        product: product._id,
+        productName: product.productName,
+        model: product.model,
+        color: product.color,
+        quantity: product.quantity,
+        unitCost: product.costPrice,
+        totalCost: product.costPrice * product.quantity,
+        vatRate: vatRate,
+        taxAmount: 0, // AdminInventory价格已含税
+        serialNumbers: product.serialNumber ? [product.serialNumber] : [],
+        location: product.location,
+        condition: product.condition,
+        source: 'AdminInventory'
+      };
+    });
+    
+    // 为PurchaseInvoice items添加condition字段（从AdminInventory查询）
+    const enrichedInvoiceItems = await Promise.all((invoice.items || []).map(async (item) => {
+      // 尝试从AdminInventory中查找对应的产品以获取condition
+      let condition = null;
+      
+      // 如果有序列号，用序列号查找
+      if (item.serialNumbers && item.serialNumbers.length > 0) {
+        const adminProduct = await AdminInventory.findOne({
+          serialNumber: { $in: item.serialNumbers }
+        }).lean();
+        if (adminProduct) {
+          condition = adminProduct.condition;
+        }
+      }
+      
+      // 如果没找到，尝试用产品名称和发票号查找
+      if (!condition && item.productName) {
+        const adminProduct = await AdminInventory.findOne({
+          invoiceNumber: invoiceNumber,
+          productName: item.productName
+        }).lean();
+        if (adminProduct) {
+          condition = adminProduct.condition;
+        }
+      }
+      
+      return {
+        ...item,
+        condition: condition,
+        source: 'PurchaseInvoice'
+      };
     }));
     
     // 合并PurchaseInvoice items和AdminInventory items
     const allItems = [
-      ...(invoice.items || []).map(item => ({
-        ...item,
-        source: 'PurchaseInvoice'
-      })),
+      ...enrichedInvoiceItems,
       ...adminItems
     ];
     
@@ -1133,6 +1196,8 @@ app.post('/api/admin/receiving/confirm', async (req, res) => {
     // 2. 创建或更新产品
     const createdProducts = [];
     const updatedProducts = [];
+    const adminInventoryRecords = []; // 新增：用于存储AdminInventory记录
+    
     for (const product of products) {
       try {
         // 查找产品分类
@@ -1161,6 +1226,16 @@ app.post('/api/admin/receiving/confirm', async (req, res) => {
           const modelPart = (model || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 3);
           const timestamp = Date.now().toString().slice(-4);
           return `${namePart}${brandPart}${modelPart}${timestamp}`.substring(0, 20);
+        };
+
+        // 转换VAT税率格式为AdminInventory的taxClassification格式
+        const convertVatRateToTaxClassification = (vatRate) => {
+          if (!vatRate) return 'VAT_23';
+          if (vatRate === 'VAT 23%') return 'VAT_23';
+          if (vatRate === 'VAT 13.5%') return 'VAT_13_5';
+          if (vatRate === 'VAT 0%') return 'VAT_0';
+          if (vatRate === 'Margin VAT' || vatRate === 'Margin Vat') return 'MARGIN_VAT_0';
+          return 'VAT_23';
         };
 
         // 检查产品是否已存在（更严格的匹配）
@@ -1217,6 +1292,35 @@ app.post('/api/admin/receiving/confirm', async (req, res) => {
           console.log('更新现有产品库存:', product.name, '+', product.quantity,
                      `进货价: €${product.unitPrice}`, `批发价: €${product.wholesalePrice || 'N/A'}`,
                      product.serialNumber ? `新增序列号: ${product.serialNumber}` : '');
+          
+          // 新增：为更新的产品也创建AdminInventory记录
+          const AdminInventory = require('./models/AdminInventory');
+          const adminInventoryRecord = new AdminInventory({
+            productName: product.name,
+            brand: product.brand || '',
+            model: product.model || '',
+            color: product.color || '',
+            category: product.category,
+            taxClassification: convertVatRateToTaxClassification(product.vatRate),
+            quantity: product.quantity || 1,
+            costPrice: product.unitPrice || 0,
+            wholesalePrice: product.wholesalePrice || 0,
+            retailPrice: product.retailPrice || 0,
+            barcode: product.barcode || '',
+            serialNumber: product.serialNumber || '',
+            condition: product.condition || 'BRAND_NEW',
+            supplier: supplierDoc.name,
+            location: '',
+            invoiceNumber: invoiceInfo?.number || '',
+            source: 'manual',
+            status: 'AVAILABLE',
+            salesStatus: 'UNSOLD',
+            notes: '手动录入入库',
+            isActive: true
+          });
+          await adminInventoryRecord.save();
+          adminInventoryRecords.push(adminInventoryRecord);
+          console.log(`  ✅ 创建AdminInventory记录: ${product.name}${product.serialNumber ? ` (${product.serialNumber})` : ''}`);
         } else {
           // 获取系统用户ID（admin用户）
           const UserNew = require('./models/UserNew');
@@ -1268,6 +1372,35 @@ app.post('/api/admin/receiving/confirm', async (req, res) => {
                      `进货价: €${product.unitPrice}`, `批发价: €${product.wholesalePrice || productDoc.wholesalePrice}`, `零售价: €${product.retailPrice || productDoc.retailPrice}`,
                      product.serialNumber ? `序列号: ${product.serialNumber}` : '', 
                      product.barcode ? `条码: ${product.barcode}` : '');
+          
+          // 新增：为新创建的产品也创建AdminInventory记录
+          const AdminInventory = require('./models/AdminInventory');
+          const adminInventoryRecord = new AdminInventory({
+            productName: product.name,
+            brand: product.brand || '',
+            model: product.model || '',
+            color: product.color || '',
+            category: product.category,
+            taxClassification: convertVatRateToTaxClassification(product.vatRate),
+            quantity: product.quantity || 1,
+            costPrice: product.unitPrice || 0,
+            wholesalePrice: product.wholesalePrice || productDoc.wholesalePrice,
+            retailPrice: product.retailPrice || productDoc.retailPrice,
+            barcode: product.barcode || '',
+            serialNumber: product.serialNumber || '',
+            condition: product.condition || 'BRAND_NEW',
+            supplier: supplierDoc.name,
+            location: '',
+            invoiceNumber: invoiceInfo?.number || '',
+            source: 'manual',
+            status: 'AVAILABLE',
+            salesStatus: 'UNSOLD',
+            notes: '手动录入入库',
+            isActive: true
+          });
+          await adminInventoryRecord.save();
+          adminInventoryRecords.push(adminInventoryRecord);
+          console.log(`  ✅ 创建AdminInventory记录: ${product.name}${product.serialNumber ? ` (${product.serialNumber})` : ''}`);
         }
       } catch (productError) {
         console.error('❌ 处理产品失败:', product.name, productError.message);
@@ -1307,7 +1440,7 @@ app.post('/api/admin/receiving/confirm', async (req, res) => {
               itemTax = itemSubtotal * 0.23;
             } else if (p.vatRate === 'VAT 13.5%') {
               itemTax = itemSubtotal * 0.135;
-            } else if (p.vatRate === 'VAT 0%') {
+            } else if (p.vatRate === 'VAT 0%' || p.vatRate === 'Margin VAT' || p.vatRate === 'Margin Vat') {
               itemTax = 0;
             }
             
@@ -1343,6 +1476,14 @@ app.post('/api/admin/receiving/confirm', async (req, res) => {
               itemTax = itemSubtotal * 0.23;
             } else if (p.vatRate === 'VAT 13.5%') {
               itemTax = itemSubtotal * 0.135;
+            } else if (p.vatRate === 'VAT 0%' || p.vatRate === 'Margin VAT' || p.vatRate === 'Margin Vat') {
+              itemTax = 0;
+            }
+            
+            // 标准化vatRate格式（确保与模型enum匹配）
+            let normalizedVatRate = p.vatRate || 'VAT 23%';
+            if (normalizedVatRate === 'Margin Vat') {
+              normalizedVatRate = 'Margin VAT';
             }
             
             return {
@@ -1351,7 +1492,7 @@ app.post('/api/admin/receiving/confirm', async (req, res) => {
               quantity: p.quantity,
               unitCost: p.unitPrice,
               totalCost: p.totalPrice || itemSubtotal,
-              vatRate: p.vatRate || 'VAT 23%',
+              vatRate: normalizedVatRate,
               taxAmount: itemTax,
               serialNumbers: p.serialNumber ? [p.serialNumber] : (p.barcode ? [] : [])
             };
@@ -1385,7 +1526,8 @@ app.post('/api/admin/receiving/confirm', async (req, res) => {
       data: {
         supplier: supplierDoc,
         productsCreated: createdProducts.length,
-        productsUpdated: updatedProducts.length
+        productsUpdated: updatedProducts.length,
+        adminInventoryRecordsCreated: adminInventoryRecords.length
       }
     });
 

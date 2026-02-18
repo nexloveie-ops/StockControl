@@ -6197,17 +6197,71 @@
         return;
       }
       
-      // 按来源分组
+      // 按来源和订单号分组
       const sourceGroups = {
         warehouse: [],
         transfer: [],
         manual: []
       };
       
+      // 先按订单号分组（同一订单的产品合并）
+      const orderGroups = {};
+      
       records.forEach(record => {
         const source = record.source || 'manual';
-        if (sourceGroups[source]) {
-          sourceGroups[source].push(record);
+        
+        if (source === 'warehouse' && record.sourceOrderId) {
+          // 仓库订单：按订单号分组
+          const orderId = record.sourceOrderId;
+          if (!orderGroups[orderId]) {
+            orderGroups[orderId] = {
+              source: 'warehouse',
+              sourceOrderId: orderId,
+              items: [],
+              totalQuantity: 0,
+              totalValue: 0,
+              createdAt: record.createdAt,
+              costPrice: record.costPrice,
+              wholesalePrice: record.wholesalePrice,
+              retailPrice: record.retailPrice
+            };
+          }
+          orderGroups[orderId].items.push(record);
+          orderGroups[orderId].totalQuantity += record.quantity;
+          orderGroups[orderId].totalValue += record.quantity * record.costPrice;
+        } else if (source === 'transfer' && record.sourceTransferId) {
+          // 调货订单：按调货单号分组
+          const transferId = record.sourceTransferId;
+          if (!orderGroups[transferId]) {
+            orderGroups[transferId] = {
+              source: 'transfer',
+              sourceTransferId: transferId,
+              items: [],
+              totalQuantity: 0,
+              totalValue: 0,
+              createdAt: record.createdAt,
+              costPrice: record.costPrice,
+              wholesalePrice: record.wholesalePrice,
+              retailPrice: record.retailPrice
+            };
+          }
+          orderGroups[transferId].items.push(record);
+          orderGroups[transferId].totalQuantity += record.quantity;
+          orderGroups[transferId].totalValue += record.quantity * record.costPrice;
+        } else {
+          // 手动入库：每条记录单独显示
+          if (sourceGroups[source]) {
+            sourceGroups[source].push(record);
+          }
+        }
+      });
+      
+      // 将分组后的订单添加到sourceGroups
+      Object.values(orderGroups).forEach(group => {
+        if (group.source === 'warehouse') {
+          sourceGroups.warehouse.push(group);
+        } else if (group.source === 'transfer') {
+          sourceGroups.transfer.push(group);
         }
       });
       
@@ -6217,6 +6271,9 @@
       
       const totalQty = records.reduce((sum, r) => sum + r.quantity, 0);
       const totalValue = records.reduce((sum, r) => sum + (r.quantity * r.costPrice), 0);
+      
+      // 计算实际批次数（合并后的订单数 + 手动入库数）
+      const totalBatches = sourceGroups.warehouse.length + sourceGroups.transfer.length + sourceGroups.manual.length;
       
       modal.innerHTML = `
         <div style="background: white; border-radius: 12px; max-width: 1200px; width: 90%; max-height: 85vh; overflow: auto; padding: 30px;">
@@ -6236,7 +6293,7 @@
             </div>
             <div style="padding: 15px; background: #fef3c7; border-radius: 8px; text-align: center;">
               <div style="font-size: 12px; color: #666; margin-bottom: 5px;">进货批次</div>
-              <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">${records.length} 批</div>
+              <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">${totalBatches} 批</div>
             </div>
           </div>
           
@@ -6247,25 +6304,26 @@
               <div style="margin-bottom: 20px;">
                 <h4 style="color: #0ea5e9; margin-bottom: 10px;">🏭 仓库订货 (${sourceGroups.warehouse.length}批)</h4>
                 <div style="display: grid; gap: 10px;">
-                  ${sourceGroups.warehouse.map(record => {
-                    const hasOrderId = record.sourceOrderId && record.sourceOrderId !== '';
+                  ${sourceGroups.warehouse.map(group => {
+                    const hasOrderId = group.sourceOrderId && group.sourceOrderId !== '';
                     return `
-                    <div ${hasOrderId ? `onclick="showPurchaseOrderDetails('${record.sourceOrderId}')"` : ''}
+                    <div ${hasOrderId ? `onclick="showPurchaseOrderDetails('${group.sourceOrderId}', 'warehouse')"` : ''}
                          style="padding: 15px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; ${hasOrderId ? 'cursor: pointer;' : ''} transition: all 0.2s;"
                          ${hasOrderId ? `onmouseover="this.style.background='#f0f9ff'; this.style.borderColor='#0ea5e9'" onmouseout="this.style.background='#f8fafc'; this.style.borderColor='#e2e8f0'"` : ''}>
                       <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="flex: 1;">
                           <div style="font-weight: 600; margin-bottom: 5px;">
-                            ${hasOrderId ? `订单号: ${record.sourceOrderId}` : '仓库订货（无订单号）'}
+                            ${hasOrderId ? `订单号: ${group.sourceOrderId}` : '仓库订货（无订单号）'}
                           </div>
                           <div style="font-size: 12px; color: #666;">
-                            数量: ${record.quantity} 件 | 
-                            成本: €${record.costPrice.toFixed(2)} | 
-                            批发价: €${record.wholesalePrice.toFixed(2)} | 
-                            零售价: €${record.retailPrice.toFixed(2)}
+                            数量: ${group.totalQuantity} 件 | 
+                            成本: €${group.costPrice.toFixed(2)} | 
+                            批发价: €${group.wholesalePrice.toFixed(2)} | 
+                            零售价: €${group.retailPrice.toFixed(2)}
                           </div>
-                          ${record.serialNumber ? `<div style="font-size: 11px; color: #666; margin-top: 3px;">序列号: ${record.serialNumber}</div>` : ''}
-                          ${record.createdAt ? `<div style="font-size: 11px; color: #666; margin-top: 3px;">入库时间: ${new Date(record.createdAt).toLocaleString('zh-CN')}</div>` : ''}
+                          ${group.items.length > 1 ? `<div style="font-size: 11px; color: #666; margin-top: 3px;">包含 ${group.items.length} 个序列号</div>` : ''}
+                          ${group.items[0].serialNumber ? `<div style="font-size: 11px; color: #666; margin-top: 3px;">序列号: ${group.items.map(i => i.serialNumber).filter(s => s).join(', ')}</div>` : ''}
+                          ${group.createdAt ? `<div style="font-size: 11px; color: #666; margin-top: 3px;">入库时间: ${new Date(group.createdAt).toLocaleString('zh-CN')}</div>` : ''}
                         </div>
                         ${hasOrderId ? '<div style="color: #0ea5e9; font-size: 20px;">→</div>' : ''}
                       </div>
@@ -6279,25 +6337,26 @@
               <div style="margin-bottom: 20px;">
                 <h4 style="color: #8b5cf6; margin-bottom: 10px;">🔄 调货入库 (${sourceGroups.transfer.length}批)</h4>
                 <div style="display: grid; gap: 10px;">
-                  ${sourceGroups.transfer.map(record => {
-                    const hasTransferId = record.sourceTransferId && record.sourceTransferId !== '';
+                  ${sourceGroups.transfer.map(group => {
+                    const hasTransferId = group.sourceTransferId && group.sourceTransferId !== '';
                     return `
-                    <div ${hasTransferId ? `onclick="showTransferDetails('${record.sourceTransferId}')"` : ''}
+                    <div ${hasTransferId ? `onclick="showTransferDetails('${group.sourceTransferId}')"` : ''}
                          style="padding: 15px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; ${hasTransferId ? 'cursor: pointer;' : ''} transition: all 0.2s;"
                          ${hasTransferId ? `onmouseover="this.style.background='#faf5ff'; this.style.borderColor='#8b5cf6'" onmouseout="this.style.background='#f8fafc'; this.style.borderColor='#e2e8f0'"` : ''}>
                       <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="flex: 1;">
                           <div style="font-weight: 600; margin-bottom: 5px;">
-                            ${hasTransferId ? `调货单号: ${record.sourceTransferId}` : '调货入库（无单号）'}
+                            ${hasTransferId ? `调货单号: ${group.sourceTransferId}` : '调货入库（无单号）'}
                           </div>
                           <div style="font-size: 12px; color: #666;">
-                            数量: ${record.quantity} 件 | 
-                            成本: €${record.costPrice.toFixed(2)} | 
-                            批发价: €${record.wholesalePrice.toFixed(2)} | 
-                            零售价: €${record.retailPrice.toFixed(2)}
+                            数量: ${group.totalQuantity} 件 | 
+                            成本: €${group.costPrice.toFixed(2)} | 
+                            批发价: €${group.wholesalePrice.toFixed(2)} | 
+                            零售价: €${group.retailPrice.toFixed(2)}
                           </div>
-                          ${record.serialNumber ? `<div style="font-size: 11px; color: #666; margin-top: 3px;">序列号: ${record.serialNumber}</div>` : ''}
-                          ${record.createdAt ? `<div style="font-size: 11px; color: #666; margin-top: 3px;">入库时间: ${new Date(record.createdAt).toLocaleString('zh-CN')}</div>` : ''}
+                          ${group.items.length > 1 ? `<div style="font-size: 11px; color: #666; margin-top: 3px;">包含 ${group.items.length} 个序列号</div>` : ''}
+                          ${group.items[0].serialNumber ? `<div style="font-size: 11px; color: #666; margin-top: 3px;">序列号: ${group.items.map(i => i.serialNumber).filter(s => s).join(', ')}</div>` : ''}
+                          ${group.createdAt ? `<div style="font-size: 11px; color: #666; margin-top: 3px;">入库时间: ${new Date(group.createdAt).toLocaleString('zh-CN')}</div>` : ''}
                         </div>
                         ${hasTransferId ? '<div style="color: #8b5cf6; font-size: 20px;">→</div>' : ''}
                       </div>
@@ -6341,141 +6400,6 @@
       document.body.appendChild(modal);
     }
     
-    // 显示采购订单详情
-    async function showPurchaseOrderDetails(orderId) {
-      if (!orderId) {
-        alert('订单ID不存在');
-        return;
-      }
-      
-      try {
-        // 获取订单详情
-        const response = await fetch(`${API_BASE}/warehouse/orders/${orderId}`);
-        const result = await response.json();
-        
-        if (!result.success) {
-          alert('获取订单详情失败: ' + result.error);
-          return;
-        }
-        
-        const order = result.data;
-        
-        // 创建订单详情模态框
-        const modal = document.createElement('div');
-        modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10001;';
-        
-        const statusBadge = {
-          'pending': '<span style="background: #fbbf24; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px;">待确认</span>',
-          'confirmed': '<span style="background: #3b82f6; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px;">已确认</span>',
-          'shipped': '<span style="background: #8b5cf6; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px;">已发货</span>',
-          'completed': '<span style="background: #10b981; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px;">已完成</span>',
-          'cancelled': '<span style="background: #ef4444; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px;">已取消</span>'
-        };
-        
-        modal.innerHTML = `
-          <div style="background: white; border-radius: 12px; max-width: 1000px; width: 90%; max-height: 85vh; overflow: auto; padding: 30px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-              <div>
-                <h2 style="margin: 0 0 10px 0;">🏭 仓库订单详情</h2>
-                <div style="font-size: 14px; color: #666;">
-                  订单号: <strong>${order.orderNumber}</strong> | 
-                  状态: ${statusBadge[order.status] || order.status}
-                </div>
-              </div>
-              <button onclick="this.closest('div[style*=fixed]').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
-            </div>
-            
-            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px; padding: 20px; background: #f8fafc; border-radius: 8px;">
-              <div>
-                <div style="font-size: 12px; color: #666; margin-bottom: 5px;">订单日期</div>
-                <div style="font-weight: 600;">${new Date(order.orderedAt || order.createdAt).toLocaleString('zh-CN')}</div>
-              </div>
-              <div>
-                <div style="font-size: 12px; color: #666; margin-bottom: 5px;">完成日期</div>
-                <div style="font-weight: 600;">${order.completedAt ? new Date(order.completedAt).toLocaleString('zh-CN') : '-'}</div>
-              </div>
-              <div>
-                <div style="font-size: 12px; color: #666; margin-bottom: 5px;">配送方式</div>
-                <div style="font-weight: 600;">${order.deliveryMethod === 'pickup' ? '🏪 自提' : '🚚 配送'}</div>
-              </div>
-              <div>
-                <div style="font-size: 12px; color: #666; margin-bottom: 5px;">订单金额</div>
-                <div style="font-weight: 600; color: #10b981; font-size: 18px;">€${order.totalAmount.toFixed(2)}</div>
-              </div>
-            </div>
-            
-            <h3 style="margin: 20px 0 15px 0; color: #374151;">📦 订单产品</h3>
-            <table style="width: 100%; border-collapse: collapse;">
-              <thead>
-                <tr style="background: #f1f5f9;">
-                  <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0;">产品名称</th>
-                  <th style="padding: 12px; text-align: center; border-bottom: 2px solid #e2e8f0;">型号/颜色</th>
-                  <th style="padding: 12px; text-align: center; border-bottom: 2px solid #e2e8f0;">成色</th>
-                  <th style="padding: 12px; text-align: center; border-bottom: 2px solid #e2e8f0;">数量</th>
-                  <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e2e8f0;">单价</th>
-                  <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e2e8f0;">小计</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${order.items.map(item => `
-                  <tr style="border-bottom: 1px solid #e2e8f0;">
-                    <td style="padding: 12px;">
-                      <strong>${item.productName}</strong>
-                      ${item.sku ? `<br><span style="font-size: 11px; color: #666;">SKU: ${item.sku}</span>` : ''}
-                    </td>
-                    <td style="padding: 12px; text-align: center;">
-                      ${item.model || '-'}<br>
-                      <span style="font-size: 11px; color: #666;">${item.color || '-'}</span>
-                    </td>
-                    <td style="padding: 12px; text-align: center;">
-                      <span style="padding: 2px 8px; background: #fef3c7; color: #92400e; border-radius: 4px; font-size: 11px;">
-                        ${item.condition || '-'}
-                      </span>
-                    </td>
-                    <td style="padding: 12px; text-align: center; font-weight: 600;">${item.quantity}</td>
-                    <td style="padding: 12px; text-align: right;">€${item.wholesalePrice.toFixed(2)}</td>
-                    <td style="padding: 12px; text-align: right; font-weight: 600;">€${item.subtotal.toFixed(2)}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-              <tfoot>
-                <tr style="background: #f8fafc; font-weight: 600;">
-                  <td colspan="5" style="padding: 12px; text-align: right;">小计:</td>
-                  <td style="padding: 12px; text-align: right;">€${order.subtotal.toFixed(2)}</td>
-                </tr>
-                <tr style="background: #f8fafc;">
-                  <td colspan="5" style="padding: 12px; text-align: right;">税额:</td>
-                  <td style="padding: 12px; text-align: right;">€${order.taxAmount.toFixed(2)}</td>
-                </tr>
-                <tr style="background: #f1f5f9; font-weight: 600; font-size: 16px;">
-                  <td colspan="5" style="padding: 12px; text-align: right;">总计:</td>
-                  <td style="padding: 12px; text-align: right; color: #10b981;">€${order.totalAmount.toFixed(2)}</td>
-                </tr>
-              </tfoot>
-            </table>
-            
-            ${order.notes ? `
-              <div style="margin-top: 20px; padding: 15px; background: #fef3c7; border-radius: 8px;">
-                <div style="font-weight: 600; margin-bottom: 5px;">📝 备注</div>
-                <div style="font-size: 14px;">${order.notes}</div>
-              </div>
-            ` : ''}
-            
-            <div style="text-align: right; padding-top: 20px; border-top: 1px solid #e5e7eb; margin-top: 20px;">
-              <button onclick="this.closest('div[style*=fixed]').remove()" class="btn" style="background: #6b7280; color: white;">
-                关闭
-              </button>
-            </div>
-          </div>
-        `;
-        
-        document.body.appendChild(modal);
-        
-      } catch (error) {
-        console.error('获取订单详情失败:', error);
-        alert('获取订单详情失败: ' + error.message);
-      }
-    }
     
     // 显示调货详情
     async function showTransferDetails(transferId) {
@@ -9140,6 +9064,19 @@
     
     // 显示采购订单详情
     async function showPurchaseOrderDetails(orderNumber, orderType) {
+      // 如果没有提供orderType，尝试从orderNumber推断
+      if (!orderType) {
+        // 如果是MongoDB ObjectId格式（24个十六进制字符），默认为仓库订单
+        if (orderNumber && orderNumber.length === 24 && /^[0-9a-fA-F]{24}$/.test(orderNumber)) {
+          console.log(`检测到ObjectId格式，默认为仓库订单: ${orderNumber}`);
+          orderType = 'warehouse';
+        } else {
+          // 其他情况也默认为仓库订单
+          console.log(`未指定订单类型，默认为仓库订单: ${orderNumber}`);
+          orderType = 'warehouse';
+        }
+      }
+      
       try {
         console.log(`[${new Date().toLocaleTimeString()}] 查看采购订单详情: ${orderNumber} (${orderType})`);
         
@@ -9151,11 +9088,19 @@
           // 调货订单
           apiUrl = `${API_BASE}/transfers/${orderNumber}`;
         } else if (orderType === 'warehouse') {
-          // 仓库订单 - 后端会根据用户公司信息判断视角
-          apiUrl = `${API_BASE}/warehouse-orders/number/${orderNumber}?userId=${merchantId}`;
+          // 仓库订单 - 检查是否为ObjectId格式
+          if (orderNumber && orderNumber.length === 24 && /^[0-9a-fA-F]{24}$/.test(orderNumber)) {
+            // 使用ID查询
+            apiUrl = `${API_BASE}/warehouse/orders/${orderNumber}`;
+          } else {
+            // 使用订单号查询
+            apiUrl = `${API_BASE}/warehouse-orders/number/${orderNumber}?userId=${merchantId}`;
+          }
         } else if (orderType === 'invoice') {
-          // 发票订单 - 使用admin-{invoiceNumber}格式
-          apiUrl = `${API_BASE}/admin/purchase-orders/admin-${orderNumber}`;
+          // 发票订单 - orderNumber已经是完整的发票号（如SI-003），需要加admin-前缀
+          // 检查是否已经包含admin-前缀
+          const invoiceId = orderNumber.startsWith('admin-') ? orderNumber : `admin-${orderNumber}`;
+          apiUrl = `${API_BASE}/admin/purchase-orders/${invoiceId}`;
         }
         
         const response = await fetch(apiUrl);
@@ -9166,6 +9111,9 @@
         }
         
         orderDetails = result.data;
+        
+        // 保存订单ID（用于PDF下载）
+        const orderId = orderDetails._id || orderNumber;
         
         // 构建详情HTML
         let detailsHTML = '';
@@ -9317,7 +9265,7 @@
           </div>
           
           <div style="text-align: right;">
-            <button class="btn btn-primary" onclick="downloadPurchaseOrderPDF('${orderNumber}', '${orderType}')">
+            <button class="btn btn-primary" onclick="downloadPurchaseOrderPDF('${orderId}', '${orderType}')">
               📥 下载PDF
             </button>
           </div>
@@ -9330,7 +9278,7 @@
         if (!modal) {
           // 如果模态框不存在，创建它
           const modalHTML = `
-            <div id="purchaseOrderModal" style="display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+            <div id="purchaseOrderModal" style="display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10001; align-items: center; justify-content: center;">
               <div style="background: white; border-radius: 10px; padding: 30px; max-width: 1000px; width: 90%; max-height: 90vh; overflow-y: auto;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                   <h3 style="margin: 0;">📦 采购订单详情</h3>
@@ -9381,10 +9329,19 @@
         if (orderType === 'transfer') {
           pdfUrl = `${API_BASE}/transfers/${orderNumber}/pdf`;
         } else if (orderType === 'warehouse') {
-          // 商户下载仓库订单PDF - 后端会根据用户公司信息判断视角
-          pdfUrl = `${API_BASE}/warehouse-orders/number/${orderNumber}/pdf?userId=${merchantId}`;
+          // 仓库订单 - 检查是否为ObjectId格式
+          if (orderNumber && orderNumber.length === 24 && /^[0-9a-fA-F]{24}$/.test(orderNumber)) {
+            // 使用ID查询
+            pdfUrl = `${API_BASE}/warehouse/orders/${orderNumber}/pdf`;
+          } else {
+            // 使用订单号查询 - 需要先获取订单ID
+            alert('请先查看订单详情，然后再下载PDF');
+            return;
+          }
         } else if (orderType === 'invoice') {
-          pdfUrl = `${API_BASE}/admin/purchase-orders/admin-${orderNumber}/pdf`;
+          // 检查是否已经包含admin-前缀
+          const invoiceId = orderNumber.startsWith('admin-') ? orderNumber : `admin-${orderNumber}`;
+          pdfUrl = `${API_BASE}/admin/purchase-orders/${invoiceId}/pdf`;
         }
         
         // 打开新窗口下载PDF
