@@ -535,18 +535,27 @@ app.get('/api/purchase-orders/:id', checkDbConnection, async (req, res) => {
         }).lean();
         if (adminProduct) {
           condition = adminProduct.condition;
+          console.log(`   ✅ 通过序列号 ${item.serialNumbers[0]} 找到成色: ${condition}`);
         }
       }
       
       // 如果没找到，尝试用产品名称和发票号查找
-      if (!condition && item.productName) {
-        const adminProduct = await AdminInventory.findOne({
-          invoiceNumber: invoiceNumber,
-          productName: item.productName
-        }).lean();
-        if (adminProduct) {
-          condition = adminProduct.condition;
+      if (!condition) {
+        const productName = item.productName || item.description;
+        if (productName) {
+          const adminProduct = await AdminInventory.findOne({
+            invoiceNumber: invoiceNumber,
+            productName: { $regex: productName.split(' - ')[0], $options: 'i' }
+          }).lean();
+          if (adminProduct) {
+            condition = adminProduct.condition;
+            console.log(`   ✅ 通过产品名称 ${productName} 找到成色: ${condition}`);
+          }
         }
+      }
+      
+      if (!condition) {
+        console.log(`   ⚠️  未找到成色信息: ${item.productName || item.description}`);
       }
       
       return {
@@ -4520,7 +4529,6 @@ app.get('/api/admin/purchase-invoices/:invoiceId', checkDbConnection, async (req
     
     const invoice = await PurchaseInvoice.findById(invoiceId)
       .populate('supplier', 'name code contact')
-      .populate('items.product', 'condition taxClassification')
       .lean();
     
     if (!invoice) {
@@ -4528,6 +4536,29 @@ app.get('/api/admin/purchase-invoices/:invoiceId', checkDbConnection, async (req
         success: false, 
         error: '采购发票不存在' 
       });
+    }
+    
+    // 为每个item添加condition信息（从AdminInventory查询）
+    if (invoice.items && invoice.items.length > 0) {
+      const AdminInventory = require('./models/AdminInventory');
+      
+      for (let item of invoice.items) {
+        let condition = null;
+        
+        // 通过序列号查找
+        if (item.serialNumbers && item.serialNumbers.length > 0) {
+          const adminProduct = await AdminInventory.findOne({
+            serialNumber: { $in: item.serialNumbers }
+          }).lean();
+          
+          if (adminProduct) {
+            condition = adminProduct.condition;
+          }
+        }
+        
+        // 添加condition到item
+        item.condition = condition;
+      }
     }
     
     res.json({ 
