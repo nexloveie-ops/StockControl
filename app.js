@@ -2106,7 +2106,9 @@ app.get('/api/admin/purchase-orders/:invoiceId', async (req, res) => {
       
       // AdminInventory的costPrice是税前价格（不含税）
       const unitCostExcludingTax = product.costPrice;  // 不含税单价
-      const totalCostExcludingTax = unitCostExcludingTax * product.quantity;  // 不含税总价
+      // 对于进货记录，数量应该固定为1（每个序列号是单独的记录）
+      const purchaseQuantity = 1;  // 进货数量固定为1
+      const totalCostExcludingTax = unitCostExcludingTax * purchaseQuantity;  // 不含税总价
       const taxAmount = totalCostExcludingTax * (taxMultiplier - 1);  // 税额
       const unitCostIncludingTax = unitCostExcludingTax * taxMultiplier;  // 含税单价
       const totalCostIncludingTax = totalCostExcludingTax + taxAmount;  // 含税总价
@@ -2116,7 +2118,8 @@ app.get('/api/admin/purchase-orders/:invoiceId', async (req, res) => {
         product: product._id,
         productName: product.productName,
         description: `${product.productName} - ${product.model} - ${product.color}`,
-        quantity: product.quantity,
+        quantity: purchaseQuantity,  // 显示进货数量（固定为1）
+        currentStock: product.quantity,  // 当前库存数量（用于参考）
         unitCost: unitCostExcludingTax, // 税前单价（采购发票显示税前价格）
         totalCost: totalCostIncludingTax, // 含税总价
         unitCostExcludingTax: unitCostExcludingTax, // 不含税单价
@@ -4681,7 +4684,88 @@ app.get('/api/admin/products/tracking', checkDbConnection, async (req, res) => {
     
     // === 处理商户系统数据 ===
     if (merchantInventories.length > 0) {
-      // 查询仓库订单（采购入库）
+      // 1. 添加仓库入库记录（从AdminInventory）
+      const AdminInventory = require('./models/AdminInventory');
+      const PurchaseInvoice = require('./models/PurchaseInvoice');
+      
+      // 使用Set来跟踪已添加的序列号，避免重复
+      const addedSerialNumbers = new Set();
+      
+      for (const inv of merchantInventories) {
+        if (inv.serialNumber && !addedSerialNumbers.has(inv.serialNumber)) {
+          // 查询AdminInventory获取仓库入库信息
+          const adminInv = await AdminInventory.findOne({ 
+            serialNumber: inv.serialNumber 
+          }).lean();
+          
+          if (adminInv && adminInv.invoiceNumber) {
+            // 查询采购发票获取供货商信息
+            const purchaseInvoice = await PurchaseInvoice.findOne({ 
+              invoiceNumber: adminInv.invoiceNumber 
+            }).populate('supplier', 'name code').lean();
+            
+            const supplier = purchaseInvoice?.supplier || { 
+              name: adminInv.supplier || '未知供货商', 
+              code: '' 
+            };
+            
+            history.push({
+              type: 'warehouse_receiving',
+              date: adminInv.createdAt,
+              invoiceNumber: adminInv.invoiceNumber,
+              invoiceId: purchaseInvoice?._id || adminInv._id,
+              partner: supplier,
+              product: {
+                name: adminInv.productName,
+                sku: adminInv.serialNumber,
+                barcode: adminInv.barcode || ''
+              },
+              quantity: 1,
+              unitPrice: adminInv.costPrice,
+              totalPrice: adminInv.costPrice,
+              vatRate: adminInv.taxClassification || 'MARGIN_VAT_0',
+              serialNumbers: [adminInv.serialNumber],
+              status: 'completed',
+              note: '仓库入库'
+            });
+            
+            addedSerialNumbers.add(inv.serialNumber);
+          }
+        }
+      }
+      
+      // 2. 添加商户订货记录（从MerchantInventory）
+      for (const inv of merchantInventories) {
+        if (inv.sourceOrderId) {
+          const WarehouseOrder = require('./models/WarehouseOrder');
+          const order = await WarehouseOrder.findById(inv.sourceOrderId).lean();
+          
+          if (order) {
+            history.push({
+              type: 'merchant_purchase',
+              date: inv.createdAt,
+              invoiceNumber: order.orderNumber,
+              invoiceId: order._id,
+              partner: { name: '仓库', code: 'WAREHOUSE' },
+              product: {
+                name: inv.productName,
+                sku: inv.serialNumber || '',
+                barcode: inv.barcode || ''
+              },
+              quantity: 1,
+              unitPrice: inv.costPrice,
+              totalPrice: inv.costPrice,
+              vatRate: inv.taxClassification || 'MARGIN_VAT_0',
+              serialNumbers: inv.serialNumber ? [inv.serialNumber] : [],
+              status: order.status,
+              merchant: inv.merchantId,
+              note: `${inv.merchantId} 从仓库订货`
+            });
+          }
+        }
+      }
+      
+      // 3. 查询仓库订单（采购入库）- 保留原有逻辑作为备用
       const warehouseOrders = await WarehouseOrder.find({
         $or: [
           { 'items.serialNumber': { $regex: search, $options: 'i' } },
@@ -4693,30 +4777,38 @@ app.get('/api/admin/products/tracking', checkDbConnection, async (req, res) => {
         order.items.forEach(item => {
           if (item.serialNumber && item.serialNumber.toLowerCase().includes(search.toLowerCase()) ||
               item.productName && item.productName.toLowerCase().includes(search.toLowerCase())) {
-            history.push({
-              type: 'purchase',
-              date: order.orderDate,
-              invoiceNumber: order.orderNumber,
-              invoiceId: order._id,
-              partner: { name: '仓库', code: 'WAREHOUSE' },
-              product: {
-                name: item.productName,
-                sku: item.serialNumber || '',
-                barcode: item.barcode || ''
-              },
-              quantity: item.quantity,
-              unitPrice: item.wholesalePrice || item.costPrice,
-              totalPrice: (item.wholesalePrice || item.costPrice) * item.quantity,
-              vatRate: item.taxClassification || 'VAT_23',
-              serialNumbers: item.serialNumber ? [item.serialNumber] : [],
-              status: order.status,
-              merchant: order.merchantId
-            });
+            // 检查是否已经添加过（避免重复）
+            const alreadyAdded = history.some(h => 
+              h.invoiceNumber === order.orderNumber && 
+              h.type === 'merchant_purchase'
+            );
+            
+            if (!alreadyAdded) {
+              history.push({
+                type: 'purchase',
+                date: order.orderDate,
+                invoiceNumber: order.orderNumber,
+                invoiceId: order._id,
+                partner: { name: '仓库', code: 'WAREHOUSE' },
+                product: {
+                  name: item.productName,
+                  sku: item.serialNumber || '',
+                  barcode: item.barcode || ''
+                },
+                quantity: item.quantity,
+                unitPrice: item.wholesalePrice || item.costPrice,
+                totalPrice: (item.wholesalePrice || item.costPrice) * item.quantity,
+                vatRate: item.taxClassification || 'VAT_23',
+                serialNumbers: item.serialNumber ? [item.serialNumber] : [],
+                status: order.status,
+                merchant: order.merchantId
+              });
+            }
           }
         });
       });
       
-      // 查询调货记录
+      // 4. 查询调货记录
       const transfers = await InventoryTransfer.find({
         $or: [
           { 'items.serialNumber': { $regex: search, $options: 'i' } },
@@ -4800,27 +4892,40 @@ app.get('/api/admin/products/tracking', checkDbConnection, async (req, res) => {
     // 按日期排序
     history.sort((a, b) => new Date(b.date) - new Date(a.date));
     
+    // 判断是否是序列号搜索（精确匹配）
+    const isExactSerialSearch = merchantInventories.some(inv => 
+      inv.serialNumber && inv.serialNumber.toLowerCase() === search.toLowerCase()
+    );
+    
     // 合并产品列表
-    const allProducts = [
-      ...products.map(p => ({
-        id: p._id,
-        name: p.name,
-        sku: p.sku,
-        barcode: p.barcode,
-        stockQuantity: p.stockQuantity || 0,
-        source: 'old_system'
-      })),
-      ...merchantInventories.map(inv => ({
-        id: inv._id,
-        name: inv.productName,
-        sku: inv.serialNumber || '',
-        barcode: inv.barcode || '',
-        stockQuantity: inv.quantity || 0,
-        source: 'merchant_system',
-        merchant: inv.merchantId,
-        status: inv.status
-      }))
-    ];
+    let allProducts = [];
+    
+    if (isExactSerialSearch) {
+      // 如果是精确的序列号搜索，不显示产品列表（返回空数组）
+      allProducts = [];
+    } else {
+      // 非序列号搜索，显示所有匹配的产品
+      allProducts = [
+        ...products.map(p => ({
+          id: p._id,
+          name: p.name,
+          sku: p.sku,
+          barcode: p.barcode,
+          stockQuantity: p.stockQuantity || 0,
+          source: 'old_system'
+        })),
+        ...merchantInventories.map(inv => ({
+          id: inv._id,
+          name: inv.productName,
+          sku: inv.serialNumber || '',
+          barcode: inv.barcode || '',
+          stockQuantity: inv.quantity || 0,
+          source: 'merchant_system',
+          merchant: inv.merchantId,
+          status: inv.status
+        }))
+      ];
+    }
     
     res.json({
       success: true,

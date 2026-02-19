@@ -1,62 +1,53 @@
-# SI-3688 采购订单详细信息
+const mongoose = require('mongoose');
+require('dotenv').config();
 
-## 基本信息
-- **发票编号**: SI-3688
-- **供货商ID**: 698145b359e17704c4381f4d
-- **发票日期**: 2026-01-27
-- **币种**: EUR (欧元)
-- **税率**: VAT 0% (所有产品免税)
+const PurchaseInvoice = require('./models/PurchaseInvoice');
+const AdminInventory = require('./models/AdminInventory');
 
-## 采购价格汇总
+async function checkInvoice() {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log('✅ Connected to MongoDB');
 
-### 💰 总采购价: €6,875.00
+    const invoiceNumber = 'SI-3688';
+    
+    console.log('\n=== PurchaseInvoice Collection ===');
+    const purchaseInvoices = await PurchaseInvoice.find({ invoiceNumber }).lean();
+    console.log(`Found ${purchaseInvoices.length} PurchaseInvoice records`);
+    purchaseInvoices.forEach((inv, idx) => {
+      console.log(`\n[${idx + 1}] PurchaseInvoice:`);
+      console.log('  _id:', inv._id);
+      console.log('  invoiceNumber:', inv.invoiceNumber);
+      console.log('  items:', inv.items?.length || 0);
+      inv.items?.forEach((item, i) => {
+        console.log(`    Item ${i + 1}:`, {
+          productName: item.productName,
+          quantity: item.quantity,
+          serialNumbers: item.serialNumbers,
+          vatRate: item.vatRate
+        });
+      });
+    });
 
-由于所有产品都是VAT 0%（免税），所以：
-- **小计（不含税）**: €6,875.00
-- **税额**: €0.00
-- **总金额（含税）**: €6,875.00
+    console.log('\n=== AdminInventory Collection ===');
+    const adminInventory = await AdminInventory.find({ invoiceNumber }).lean();
+    console.log(`Found ${adminInventory.length} AdminInventory records`);
+    adminInventory.forEach((inv, idx) => {
+      console.log(`\n[${idx + 1}] AdminInventory:`);
+      console.log('  _id:', inv._id);
+      console.log('  productName:', inv.productName);
+      console.log('  serialNumber:', inv.serialNumber);
+      console.log('  taxClassification:', inv.taxClassification);
+      console.log('  condition:', inv.condition);
+      console.log('  invoiceNumber:', inv.invoiceNumber);
+    });
 
-## 产品明细
+    await mongoose.connection.close();
+    console.log('\n✅ Done');
+  } catch (error) {
+    console.error('❌ Error:', error);
+    process.exit(1);
+  }
+}
 
-### 产品分类统计：
-
-1. **产品 698d24fe187f69fdcc60954c** (单价 €445)
-   - 数量: 3台
-   - 小计: €1,335.00
-
-2. **产品 698d24fe187f69fdcc60955d** (单价 €305)
-   - 数量: 5台
-   - 小计: €1,525.00
-
-3. **产品 698d24ff187f69fdcc60957d** (单价 €270)
-   - 数量: 5台
-   - 小计: €1,350.00
-
-4. **产品 698d24ff187f69fdcc60959d** (单价 €185)
-   - 数量: 5台
-   - 小计: €925.00
-
-5. **产品 698d2500187f69fdcc6095bd** (单价 €810)
-   - 数量: 1台
-   - 小计: €810.00
-
-6. **产品 698d2500187f69fdcc6095c3** (单价 €310)
-   - 数量: 3台
-   - 小计: €930.00
-
-### 总计：
-- **总产品数**: 22台
-- **总采购价**: €6,875.00
-
-## 注意事项
-
-1. 所有产品都是VAT 0%（免税），可能是：
-   - 二手设备（Margin VAT适用）
-   - 特殊税务分类的产品
-   - 跨境交易
-
-2. AdminInventory中没有找到这个发票的产品记录，说明：
-   - 这些产品可能还在旧系统（ProductNew）中
-   - 或者产品已经被销售/转移
-
-3. 采购价格已经记录在PurchaseInvoice表中，数据完整。
+checkInvoice();

@@ -1498,7 +1498,19 @@
                                 </tr>
                               </thead>
                               <tbody>
-                                ${group.variants.map(variant => {
+                                ${group.variants
+                                  .sort((a, b) => {
+                                    // 先按model排序，再按color排序
+                                    const modelA = (a.model || '').toLowerCase();
+                                    const modelB = (b.model || '').toLowerCase();
+                                    if (modelA !== modelB) {
+                                      return modelA.localeCompare(modelB);
+                                    }
+                                    const colorA = (a.color || '').toLowerCase();
+                                    const colorB = (b.color || '').toLowerCase();
+                                    return colorA.localeCompare(colorB);
+                                  })
+                                  .map(variant => {
                                   const stockQuantity = variant.stockQuantity || variant.quantity || 0;
                                   return `
                                     <tr>
@@ -1549,14 +1561,16 @@
                       serialInfo = `
                         <br>
                         <small style="color: #6b7280; cursor: pointer;" onclick="toggleSerialNumbers('${product._id}')">
-                          📱 可销售序列号 (${serialCount}个)${product.color ? ` - ${product.color}` : ''} 
+                          📱 可销售序列号 (${serialCount}个)
                           <span style="color: #3b82f6;">点击查看</span>
                         </small>
                         <div id="serial-${product._id}" style="display: none; margin-top: 5px; padding: 8px; background: #f8fafc; border-radius: 4px; font-size: 11px;">
-                          ${availableSerialNumbers.map((sn, index) => `
+                          ${product.serialNumbers
+                            .filter(sn => sn.status === 'available')
+                            .map((sn, index) => `
                             <div style="cursor: pointer; padding: 2px 4px; border-radius: 3px; margin-bottom: 2px; background: #e0f2fe;" 
-                                 onclick="editProductBySerial('${product._id}', '${sn}', '${product.name.replace(/'/g, "\\'")}')">
-                              ${index + 1}. ${sn}${product.color ? ` - ${product.color}` : ''} 
+                                 onclick="editProductBySerial('${product._id}', '${sn.serialNumber}', '${product.name.replace(/'/g, "\\'")}')">
+                              ${index + 1}. ${sn.serialNumber}${sn.color ? ` - ${sn.color}` : ''} 
                               <span style="color: #0369a1; font-size: 10px;">点击编辑</span>
                             </div>
                           `).join('')}
@@ -1720,18 +1734,16 @@
                   let serialInfo = '';
                   if (hasSerialNumbers) {
                     // 只显示状态为 available 的序列号
-                    const availableSerialNumbers = product.serialNumbers
-                      .filter(sn => sn.status === 'available')
-                      .map(sn => sn.serialNumber);
-                    const serialCount = availableSerialNumbers.length;
+                    const availableSerials = product.serialNumbers.filter(sn => sn.status === 'available');
+                    const serialCount = availableSerials.length;
                     serialInfo = `
                       <br>
                       <small style="color: #6b7280; cursor: pointer;" onclick="toggleSerialNumbers('${product._id}')">
-                        📱 可销售序列号 (${serialCount}个)${product.color ? ` - ${product.color}` : ''} 
+                        📱 可销售序列号 (${serialCount}个)
                         <span style="color: #3b82f6;">点击查看</span>
                       </small>
                       <div id="serial-${product._id}" style="display: none; margin-top: 5px; padding: 8px; background: #f8fafc; border-radius: 4px; font-size: 11px;">
-                        ${availableSerialNumbers.map((sn, index) => `<div>${index + 1}. ${sn}</div>`).join('')}
+                        ${availableSerials.map((sn, index) => `<div>${index + 1}. ${sn.serialNumber}${sn.color ? ` - ${sn.color}` : ''}</div>`).join('')}
                       </div>
                     `;
                   } else if (product.barcode) {
@@ -2813,6 +2825,7 @@
         doc.setFillColor(240, 240, 240);
         doc.rect(leftMargin, yPos - 4, 170, 7, 'F');
         doc.text('Product', leftMargin + 2, yPos);
+        doc.text('Condition', 75, yPos);
         doc.text('Qty', 100, yPos, { align: 'center' });
         doc.text('Unit Price', 130, yPos, { align: 'right' });
         doc.text('VAT', 155, yPos, { align: 'center' });
@@ -2833,11 +2846,20 @@
             displayName = item.description;
           }
           
-          const productLines = doc.splitTextToSize(displayName, 85);
+          // Condition处理
+          let condition = item.condition || 'Brand New';
+          if (condition === 'PRE-OWNED') {
+            condition = 'Pre-Owned';
+          } else if (condition === 'BRAND_NEW') {
+            condition = 'Brand New';
+          }
+          
+          const productLines = doc.splitTextToSize(displayName, 60);
           
           productLines.forEach((line, index) => {
             doc.text(line, leftMargin + 2, yPos);
             if (index === 0) {
+              doc.text(condition.substring(0, 12), 75, yPos);
               doc.text(String(item.quantity || 1), 100, yPos, { align: 'center' });
               doc.text(`€${(item.unitCost || 0).toFixed(2)}`, 130, yPos, { align: 'right' });
               doc.text(item.vatRate || 'N/A', 155, yPos, { align: 'center' });
@@ -7443,12 +7465,14 @@
     function renderProductTracking(data) {
       const container = document.getElementById('trackingContainer');
       
-      if (!data.products || data.products.length === 0) {
+      // 检查是否有任何数据
+      if ((!data.products || data.products.length === 0) && (!data.history || data.history.length === 0)) {
         container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔍</div><h3>未找到匹配的产品</h3><p>请尝试其他搜索条件</p></div>';
         return;
       }
       
       const html = `
+        ${data.products && data.products.length > 0 ? `
         <div style="margin-bottom: 30px;">
           <h3 style="margin-bottom: 15px;">🔍 找到 ${data.products.length} 个产品</h3>
           <div style="display: grid; gap: 15px;">
@@ -7472,6 +7496,7 @@
             `).join('')}
           </div>
         </div>
+        ` : ''}
         
         <div>
           <h3 style="margin-bottom: 15px;">📅 历史记录时间线 (${data.history.length} 条)</h3>
@@ -7479,21 +7504,53 @@
             '<div class="empty-state"><p>暂无历史记录</p></div>' :
             `<div style="position: relative; padding-left: 30px;">
               <div style="position: absolute; left: 10px; top: 0; bottom: 0; width: 2px; background: #e5e7eb;"></div>
-              ${data.history.map((record, index) => `
+              ${data.history.map((record, index) => {
+                // 根据类型确定显示样式
+                let typeLabel = '';
+                let typeColor = '';
+                let typeBgColor = '';
+                
+                if (record.type === 'warehouse_receiving') {
+                  typeLabel = '📦 仓库入库';
+                  typeColor = '#065f46';
+                  typeBgColor = '#d1fae5';
+                } else if (record.type === 'merchant_purchase') {
+                  typeLabel = '🛒 商户订货';
+                  typeColor = '#1e40af';
+                  typeBgColor = '#dbeafe';
+                } else if (record.type === 'transfer') {
+                  typeLabel = '🔄 商户调货';
+                  typeColor = '#7c3aed';
+                  typeBgColor = '#ede9fe';
+                } else if (record.type === 'purchase') {
+                  typeLabel = '📦 采购入库';
+                  typeColor = '#065f46';
+                  typeBgColor = '#d1fae5';
+                } else if (record.type === 'sales') {
+                  typeLabel = '🛒 销售出库';
+                  typeColor = '#92400e';
+                  typeBgColor = '#fef3c7';
+                } else {
+                  typeLabel = record.type;
+                  typeColor = '#6b7280';
+                  typeBgColor = '#f3f4f6';
+                }
+                
+                return `
                 <div style="position: relative; margin-bottom: 20px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                  <div style="position: absolute; left: -24px; top: 20px; width: 12px; height: 12px; border-radius: 50%; background: ${record.type === 'purchase' ? '#10b981' : '#f59e0b'}; border: 2px solid white;"></div>
+                  <div style="position: absolute; left: -24px; top: 20px; width: 12px; height: 12px; border-radius: 50%; background: ${typeColor}; border: 2px solid white;"></div>
                   
                   <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
                     <div>
-                      <span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; background: ${record.type === 'purchase' ? '#d1fae5' : '#fef3c7'}; color: ${record.type === 'purchase' ? '#065f46' : '#92400e'};">
-                        ${record.type === 'purchase' ? '📦 采购入库' : '🛒 销售出库'}
+                      <span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; background: ${typeBgColor}; color: ${typeColor};">
+                        ${typeLabel}
                       </span>
                       <span style="margin-left: 10px; color: #6b7280; font-size: 14px;">
                         ${new Date(record.date).toLocaleString('zh-CN')}
                       </span>
                     </div>
                     <div style="text-align: right;">
-                      <div style="font-size: 12px; color: #6b7280;">${record.type === 'purchase' ? '供货商' : '客户'}</div>
+                      <div style="font-size: 12px; color: #6b7280;">${record.type === 'transfer' ? '调货' : (record.type === 'sales' ? '客户' : '供货商')}</div>
                       <div style="font-weight: bold;">${record.partner.name}</div>
                     </div>
                   </div>
@@ -7513,16 +7570,16 @@
                     </div>
                     <div>
                       <div style="font-size: 12px; color: #6b7280;">数量</div>
-                      <div style="font-weight: bold; color: ${record.type === 'purchase' ? '#10b981' : '#f59e0b'};">
-                        ${record.type === 'purchase' ? '+' : '-'}${record.quantity}
+                      <div style="font-weight: bold; color: ${record.type === 'sales' ? '#f59e0b' : '#10b981'};">
+                        ${record.type === 'sales' ? '-' : '+'}${record.quantity}
                       </div>
                     </div>
                     <div>
-                      <div style="font-size: 12px; color: #6b7280;">单价（含税）</div>
+                      <div style="font-size: 12px; color: #6b7280;">单价</div>
                       <div>€${record.unitPrice.toFixed(2)}</div>
                     </div>
                     <div>
-                      <div style="font-size: 12px; color: #6b7280;">总价（含税）</div>
+                      <div style="font-size: 12px; color: #6b7280;">总价</div>
                       <div style="font-weight: bold;">€${record.totalPrice.toFixed(2)}</div>
                     </div>
                     <div>
@@ -7530,6 +7587,12 @@
                       <div>${record.vatRate || 'VAT 23%'}</div>
                     </div>
                   </div>
+                  
+                  ${record.note ? `
+                    <div style="margin-top: 10px; padding: 8px 12px; background: #fef3c7; border-radius: 6px; font-size: 13px; color: #92400e;">
+                      💡 ${record.note}
+                    </div>
+                  ` : ''}
                   
                   ${record.serialNumbers && record.serialNumbers.length > 0 ? `
                     <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e5e7eb;">
@@ -7542,7 +7605,8 @@
                     </div>
                   ` : ''}
                 </div>
-              `).join('')}
+              `;
+              }).join('')}
             </div>`
           }
         </div>

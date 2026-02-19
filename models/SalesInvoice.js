@@ -50,7 +50,6 @@ const salesInvoiceSchema = new mongoose.Schema({
     // VAT税率
     vatRate: {
       type: String,
-      enum: ['VAT 23%', 'VAT 13.5%', 'VAT 0%'],
       default: 'VAT 23%'
     },
     // 单项税额
