@@ -865,7 +865,6 @@
                 <option value="">-- 请选择 --</option>
                 <option value="VAT_23">VAT 23%</option>
                 <option value="SERVICE_VAT_13_5">VAT 13.5% (Service)</option>
-                <option value="VAT_0">VAT 0%</option>
                 <option value="MARGIN_VAT_0">Margin VAT</option>
               </select>
             </div>
@@ -2694,38 +2693,92 @@
           `;
           
           sales.forEach(sale => {
-            totalAmount += sale.totalAmount || 0;
-            totalTax += sale.totalTax || 0;
+            // 过滤掉已退款的产品
+            const activeItems = sale.items.filter(item => {
+              // 检查这个产品是否在退款列表中
+              if (!sale.refundItems || sale.refundItems.length === 0) {
+                return true; // 没有退款，显示所有产品
+              }
+              
+              // 检查是否被退款（通过多种方式匹配）
+              const isRefunded = sale.refundItems.some(refundItem => {
+                // 1. 通过序列号匹配（最准确）
+                if (item.serialNumber && refundItem.serialNumber) {
+                  return item.serialNumber === refundItem.serialNumber;
+                }
+                
+                // 2. 通过库存ID匹配
+                if (item.inventoryId && refundItem.productId) {
+                  return item.inventoryId.toString() === refundItem.productId.toString();
+                }
+                
+                // 3. 通过维修订单ID匹配
+                if (item.repairOrderId && refundItem.repairOrderId) {
+                  return item.repairOrderId.toString() === refundItem.repairOrderId.toString();
+                }
+                
+                // 4. 通过产品名称匹配（备选方案）
+                // 注意：这个方法不够精确，但在没有其他标识符时可以使用
+                if (item.productName === refundItem.productName) {
+                  // 如果产品名称相同，还需要检查数量是否匹配
+                  return true;
+                }
+                
+                return false;
+              });
+              
+              return !isRefunded; // 只显示未退款的产品
+            });
             
-            // 计算利润（利润 = 销售额 - 成本 - 应缴税额）
-            sale.items.forEach(item => {
+            // 如果所有产品都被退款了，跳过这个订单
+            if (activeItems.length === 0) {
+              return;
+            }
+            
+            // 计算这个订单的有效金额和税额（只计算未退款的产品）
+            let saleAmount = 0;
+            let saleTax = 0;
+            
+            activeItems.forEach(item => {
+              const itemTotal = item.price * item.quantity;
+              saleAmount += itemTotal;
+              saleTax += item.taxAmount || 0;
+              
+              // 计算利润
               const itemProfit = (item.price - item.costPrice) * item.quantity;
               const itemTax = item.taxAmount || 0;
               totalProfit += itemProfit - itemTax;
             });
             
-            const time = new Date(sale.date).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            totalAmount += saleAmount;
+            totalTax += saleTax;
+            
+            const time = new Date(sale.saleDate).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
             const paymentMethod = sale.paymentMethod === 'CASH' ? '💵 现金' : 
                                  sale.paymentMethod === 'CARD' ? '💳 刷卡' : '💰 混合';
+            
+            // 显示退款信息（如果有部分退款）
+            const hasPartialRefund = sale.refundAmount > 0 && sale.refundAmount < sale.totalAmount;
             
             html += `
               <tr style="border-bottom: 1px solid #e5e7eb;">
                 <td style="padding: 12px;">${time}</td>
                 <td style="padding: 12px;">
-                  ${sale.items.map(item => `
+                  ${activeItems.map(item => `
                     <div style="margin-bottom: 5px;">
                       ${item.productName} ${item.serialNumber ? `<small style="color: #666;">(${item.serialNumber})</small>` : ''}
                     </div>
                   `).join('')}
+                  ${hasPartialRefund ? `<div style="font-size: 11px; color: #dc2626; margin-top: 5px;">⚠️ 部分退款: €${sale.refundAmount.toFixed(2)}</div>` : ''}
                 </td>
                 <td style="padding: 12px; text-align: right;">
-                  ${sale.items.map(item => `<div style="margin-bottom: 5px;">${item.quantity}</div>`).join('')}
+                  ${activeItems.map(item => `<div style="margin-bottom: 5px;">${item.quantity}</div>`).join('')}
                 </td>
                 <td style="padding: 12px; text-align: right; font-weight: 600; color: #10b981;">
-                  €${sale.totalAmount.toFixed(2)}
+                  €${saleAmount.toFixed(2)}
                 </td>
                 <td style="padding: 12px; text-align: right; color: #f59e0b;">
-                  €${(sale.totalTax || 0).toFixed(2)}
+                  €${saleTax.toFixed(2)}
                 </td>
                 <td style="padding: 12px;">${paymentMethod}</td>
               </tr>
@@ -2992,7 +3045,7 @@
           const tomorrow = new Date(today);
           tomorrow.setDate(tomorrow.getDate() + 1);
           
-          // 筛选今日创建的维修订单
+          // 筛选今日创建的维修订单（包括快速销售的service）
           const todayRepairs = result.data.filter(repair => {
             const createdDate = new Date(repair.createdAt);
             return createdDate >= today && createdDate < tomorrow;
@@ -3002,11 +3055,19 @@
             let totalCost = 0;
             let totalSalePrice = 0;
             const statusCount = {};
+            let quickSaleCount = 0;
+            let repairOrderCount = 0;
             
             todayRepairs.forEach(repair => {
               totalCost += repair.repairCost || 0;
               totalSalePrice += repair.salePrice || 0;
               statusCount[repair.status] = (statusCount[repair.status] || 0) + 1;
+              
+              if (repair.isQuickSale) {
+                quickSaleCount++;
+              } else {
+                repairOrderCount++;
+              }
             });
             
             const statusNames = {
@@ -3026,6 +3087,9 @@
                   <div>
                     <div style="font-size: 12px; color: #666;">订单数量</div>
                     <div style="font-size: 20px; font-weight: bold; color: #f59e0b;">${todayRepairs.length}</div>
+                    <div style="font-size: 11px; color: #666; margin-top: 4px;">
+                      维修订单: ${repairOrderCount} | 快速销售: ${quickSaleCount}
+                    </div>
                   </div>
                   <div>
                     <div style="font-size: 12px; color: #666;">预计收入</div>
@@ -3049,9 +3113,9 @@
                   <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
                     <th style="padding: 12px; text-align: left;">时间</th>
                     <th style="padding: 12px; text-align: left;">客户</th>
-                    <th style="padding: 12px; text-align: left;">设备</th>
+                    <th style="padding: 12px; text-align: left;">设备/服务</th>
                     <th style="padding: 12px; text-align: left;">问题</th>
-                    <th style="padding: 12px; text-align: left;">维修地点</th>
+                    <th style="padding: 12px; text-align: left;">类型</th>
                     <th style="padding: 12px; text-align: right;">售价</th>
                     <th style="padding: 12px; text-align: center;">状态</th>
                   </tr>
@@ -3071,6 +3135,11 @@
                 'cancelled': '#ef4444'
               };
               
+              // 判断是否为快速销售
+              const typeLabel = repair.isQuickSale 
+                ? '<span style="background: #3b82f6; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px;">⚡ 快速销售</span>'
+                : '<span style="background: #10b981; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px;">🔧 维修订单</span>';
+              
               html += `
                 <tr style="border-bottom: 1px solid #e5e7eb;">
                   <td style="padding: 12px;">${time}</td>
@@ -3086,7 +3155,7 @@
                     ${repair.problemDescription}
                   </td>
                   <td style="padding: 12px;">
-                    ${repair.repairLocation || '<span style="color: #10b981;">自己维修</span>'}
+                    ${typeLabel}
                   </td>
                   <td style="padding: 12px; text-align: right; font-weight: 600; color: #10b981;">
                     €${(repair.salePrice || 0).toFixed(2)}

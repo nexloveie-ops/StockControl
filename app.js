@@ -7759,7 +7759,7 @@ app.get('/api/merchant/stats', applyDataIsolation, async (req, res) => {
       quantity: { $gt: 0 }
     });
     
-    // 2. 本日销售额
+    // 2. 本日销售额（扣除退款金额）
     const dailySales = await MerchantSale.aggregate([
       {
         $match: {
@@ -7769,15 +7769,25 @@ app.get('/api/merchant/stats', applyDataIsolation, async (req, res) => {
         }
       },
       {
+        $project: {
+          actualAmount: {
+            $subtract: [
+              '$totalAmount',
+              { $ifNull: ['$refundAmount', 0] }
+            ]
+          }
+        }
+      },
+      {
         $group: {
           _id: null,
-          total: { $sum: '$totalAmount' }
+          total: { $sum: '$actualAmount' }
         }
       }
     ]);
     
-    // 3. 本日维修收入（已销售的维修订单）
-    const dailyRepairs = await RepairOrder.aggregate([
+    // 3. 本日维修收入（已销售的维修订单 + 快速销售的service）
+    const dailyRepairsFromOrders = await RepairOrder.aggregate([
       {
         $match: {
           ...baseFilter,
@@ -7792,6 +7802,39 @@ app.get('/api/merchant/stats', applyDataIsolation, async (req, res) => {
         }
       }
     ]);
+    
+    // 统计快速销售中的service收入
+    const dailyRepairsFromQuickSales = await MerchantSale.aggregate([
+      {
+        $match: {
+          ...baseFilter,
+          saleDate: { $gte: today, $lt: tomorrow },
+          status: 'completed',
+          'items.isQuickSale': true,
+          'items.quickSaleCategory': 'services'
+        }
+      },
+      {
+        $unwind: '$items'
+      },
+      {
+        $match: {
+          'items.isQuickSale': true,
+          'items.quickSaleCategory': 'services'
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: { $multiply: ['$items.price', '$items.quantity'] } }
+        }
+      }
+    ]);
+    
+    // 合并两种维修收入
+    const dailyRepairsTotal = 
+      (dailyRepairsFromOrders.length > 0 ? dailyRepairsFromOrders[0].total : 0) +
+      (dailyRepairsFromQuickSales.length > 0 ? dailyRepairsFromQuickSales[0].total : 0);
     
     // 4. 本月应缴税额
     const monthlyTax = await MerchantSale.aggregate([
@@ -7815,7 +7858,7 @@ app.get('/api/merchant/stats', applyDataIsolation, async (req, res) => {
       data: {
         myInventory: inventoryCount,
         dailySales: dailySales.length > 0 ? dailySales[0].total : 0,
-        dailyRepairs: dailyRepairs.length > 0 ? dailyRepairs[0].total : 0,
+        dailyRepairs: dailyRepairsTotal,
         taxDue: monthlyTax.length > 0 ? monthlyTax[0].total : 0
       }
     });
@@ -8253,6 +8296,8 @@ app.get('/api/merchant/sales', applyDataIsolation, async (req, res) => {
         taxAmount: item.taxAmount,
         serialNumber: item.serialNumber,
         repairLocation: item.repairLocation,  // 添加维修地点
+        inventoryId: item.inventoryId,  // 添加库存ID（用于匹配退款项目）
+        repairOrderId: item.repairOrderId,  // 添加维修订单ID
         productId: item.productId,  // 添加产品ID
         originalCondition: item.originalCondition,  // 原始成色
         originalCategory: item.originalCategory  // 原始分类
@@ -8393,10 +8438,21 @@ app.post('/api/merchant/sales/:saleId/refund', applyDataIsolation, async (req, r
     }
     
     // 更新销售记录状态
-    sale.status = 'refunded';
+    // 判断是部分退款还是全部退款
+    const totalRefundAmount = (sale.refundAmount || 0) + refundTotal;
+    const isFullRefund = Math.abs(totalRefundAmount - sale.totalAmount) < 0.01; // 允许0.01的误差
+    
+    if (isFullRefund) {
+      sale.status = 'refunded'; // 全部退款
+      console.log(`  📝 全部退款: €${totalRefundAmount.toFixed(2)} / €${sale.totalAmount.toFixed(2)}`);
+    } else {
+      sale.status = 'completed'; // 部分退款，保持completed状态
+      console.log(`  📝 部分退款: €${totalRefundAmount.toFixed(2)} / €${sale.totalAmount.toFixed(2)}`);
+    }
+    
     sale.refundDate = new Date();
-    sale.refundAmount = refundTotal;
-    sale.refundItems = refundItems;
+    sale.refundAmount = totalRefundAmount;
+    sale.refundItems = sale.refundItems ? [...sale.refundItems, ...refundItems] : refundItems;
     
     // 更新销售记录中每个商品的退回成色
     refundItems.forEach(refundItem => {
@@ -8515,6 +8571,7 @@ app.post('/api/merchant/repairs', async (req, res) => {
 app.get('/api/merchant/repairs', applyDataIsolation, async (req, res) => {
   try {
     const RepairOrder = require('./models/RepairOrder');
+    const MerchantSale = require('./models/MerchantSale');
     const { status, startDate, endDate } = req.query;
     
     // 基础过滤条件（来自中间件）
@@ -8536,15 +8593,77 @@ app.get('/api/merchant/repairs', applyDataIsolation, async (req, res) => {
       }
     }
     
-    // 查询维修记录
+    // 1. 查询维修记录
     const repairs = await RepairOrder.find(query)
       .sort({ receivedDate: -1 })
       .limit(100)
       .lean();
     
+    // 2. 查询快速销售中的service类型（从MerchantSale表）
+    const salesQuery = { ...req.dataFilter };
+    
+    if (startDate || endDate) {
+      salesQuery.saleDate = {};
+      if (startDate) {
+        salesQuery.saleDate.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        salesQuery.saleDate.$lte = endDateTime;
+      }
+    }
+    
+    // 查询包含service类型的商户销售记录
+    const serviceSales = await MerchantSale.find(salesQuery)
+      .sort({ saleDate: -1 })
+      .limit(100)
+      .lean();
+    
+    // 从销售记录中提取service类型的items，转换为维修记录格式
+    const serviceRepairs = [];
+    serviceSales.forEach(sale => {
+      if (sale.items && sale.items.length > 0) {
+        sale.items.forEach(item => {
+          // 只处理快速销售的service类型
+          if (item.isQuickSale && item.quickSaleCategory === 'services') {
+            serviceRepairs.push({
+              _id: `${sale._id}-${item._id || item.productName}`,
+              customerPhone: sale.customerPhone || '未知',
+              customerName: '快速销售',
+              deviceName: item.quickSaleDescription || item.productName,
+              deviceIMEI: null,
+              deviceSN: null,
+              problemDescription: item.quickSaleDescription || item.productName,
+              repairLocation: '自己维修',
+              repairCost: item.costPrice || 0,
+              salePrice: item.price * item.quantity,
+              status: 'sold',
+              receivedDate: sale.saleDate,
+              createdAt: sale.createdAt,
+              updatedAt: sale.updatedAt,
+              merchantId: sale.merchantId,
+              isQuickSale: true, // 标记为快速销售
+              saleId: sale._id
+            });
+          }
+        });
+      }
+    });
+    
+    // 合并两种类型的维修记录
+    const allRepairs = [...repairs, ...serviceRepairs];
+    
+    // 按日期排序
+    allRepairs.sort((a, b) => {
+      const dateA = new Date(a.receivedDate || a.createdAt);
+      const dateB = new Date(b.receivedDate || b.createdAt);
+      return dateB - dateA;
+    });
+    
     res.json({ 
       success: true, 
-      data: repairs 
+      data: allRepairs 
     });
   } catch (error) {
     console.error('获取维修记录失败:', error);
