@@ -1214,10 +1214,8 @@
               <label style="display: block; margin-bottom: 5px; font-weight: 600;">税务分类</label>
               <select id="editTaxClassification" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
                 <option value="VAT_23">VAT 23%</option>
-                <option value="VAT_13.5">VAT 13.5%</option>
-                <option value="VAT_9">VAT 9%</option>
-                <option value="VAT_0">VAT 0%</option>
-                <option value="Margin VAT">Margin VAT</option>
+                <option value="SERVICE_VAT_13_5">VAT 13.5% (Service)</option>
+                <option value="MARGIN_VAT_0">Margin VAT</option>
               </select>
             </div>
             
@@ -9527,6 +9525,7 @@
       const taxMap = {
         'VAT_23': 'VAT 23%',
         'VAT 23%': 'VAT 23%',
+        'SERVICE_VAT_13_5': 'VAT 13.5%',
         'VAT_13_5': 'VAT 13.5%',
         'VAT 13.5%': 'VAT 13.5%',
         'VAT_0': 'VAT 0%',

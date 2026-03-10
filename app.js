@@ -2138,17 +2138,25 @@ app.get('/api/admin/purchase-orders/:invoiceId', async (req, res) => {
     // 格式化MerchantInventory产品为发票items格式
     const merchantItems = merchantProducts.map(product => {
       // 正确映射税率
-      let vatRate = 'VAT 0%';
+      let vatRate = 'Margin VAT'; // 默认值改为 Margin VAT
       let taxMultiplier = 1.0;
       
-      if (product.taxClassification === 'VAT_23' || product.taxClassification === 'VAT 23%') {
+      const taxClass = product.taxClassification;
+      
+      if (taxClass === 'VAT_23' || taxClass === 'VAT 23%') {
         vatRate = 'VAT 23%';
         taxMultiplier = 1.23;
-      } else if (product.taxClassification === 'VAT_13_5' || product.taxClassification === 'VAT 13.5%') {
+      } else if (taxClass === 'VAT_13_5' || taxClass === 'SERVICE_VAT_13_5' || taxClass === 'VAT 13.5%') {
         vatRate = 'VAT 13.5%';
         taxMultiplier = 1.135;
-      } else if (product.taxClassification === 'VAT_0' || product.taxClassification === 'VAT 0%') {
+      } else if (taxClass === 'MARGIN_VAT_0' || taxClass === 'MARGIN_VAT' || taxClass === 'Margin VAT') {
+        vatRate = 'Margin VAT';
+        taxMultiplier = 1.0;
+      } else if (taxClass === 'VAT_0' || taxClass === 'VAT 0%') {
         vatRate = 'VAT 0%';
+        taxMultiplier = 1.0;
+      } else if (taxClass && taxClass.toLowerCase().includes('margin')) {
+        vatRate = 'Margin VAT';
         taxMultiplier = 1.0;
       }
       
