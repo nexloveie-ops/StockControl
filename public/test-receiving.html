@@ -232,6 +232,124 @@
       max-height: 80vh;
       overflow-y: auto;
     }
+    
+    /* Tab 导航样式 */
+    .tab-navigation {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid #dee2e6;
+      margin-bottom: 30px;
+      background: #f8f9fa;
+      border-radius: 8px 8px 0 0;
+      overflow: hidden;
+    }
+    
+    .tab-button {
+      flex: 1;
+      padding: 15px 30px;
+      border: none;
+      background: transparent;
+      color: #6c757d;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      border-bottom: 3px solid transparent;
+    }
+    
+    .tab-button:hover {
+      background: rgba(102, 126, 234, 0.1);
+      color: #667eea;
+    }
+    
+    .tab-button.active {
+      background: white;
+      color: #667eea;
+      border-bottom-color: #667eea;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    /* 系统信息管理样式 */
+    .system-info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .info-card {
+      background: white;
+      border: 2px solid #dee2e6;
+      border-radius: 12px;
+      padding: 20px;
+      transition: all 0.3s;
+    }
+    
+    .info-card:hover {
+      border-color: #667eea;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    }
+    
+    .info-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #f8f9fa;
+    }
+    
+    .info-card-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #495057;
+    }
+    
+    .info-card-body {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .info-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    
+    .info-item-actions {
+      margin-left: auto;
+      display: flex;
+      gap: 5px;
+    }
+    
+    .btn-sm {
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #6c757d;
+    }
+    
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+      opacity: 0.5;
+    }
   </style>
 </head>
 
@@ -253,6 +371,15 @@
     </div>
     
     <div class="content">
+      <!-- Tab 导航 -->
+      <div class="tab-navigation">
+        <button class="tab-button active" onclick="switchTab('receiving')">📦 产品录入</button>
+        <button class="tab-button" onclick="switchTab('systemInfo')">⚙️ 系统信息管理</button>
+        <button class="tab-button" onclick="switchTab('productTemplate')">📋 产品模板</button>
+      </div>
+      
+      <!-- 产品录入 Tab -->
+      <div id="receivingTab" class="tab-content active">
       <!-- 发票信息 -->
       <div class="section">
         <div class="section-title">
@@ -319,6 +446,161 @@
       
       <!-- 提示信息 -->
       <div id="alertContainer"></div>
+      </div>
+      <!-- 产品录入 Tab 结束 -->
+      
+      <!-- 系统信息管理 Tab -->
+      <div id="systemInfoTab" class="tab-content">
+        <div class="section">
+          <div class="section-title">
+            ⚙️ 系统信息管理
+            <button class="btn btn-primary" onclick="showAddSystemInfoModal()" style="margin-left: auto;">+ 添加系统信息</button>
+            <button class="btn btn-secondary" onclick="debugSystemInfo()" style="margin-left: 10px;">🔍 调试</button>
+          </div>
+          
+          <div class="system-info-grid" id="systemInfoGrid">
+            <!-- 动态生成 -->
+          </div>
+        </div>
+      </div>
+      <!-- 系统信息管理 Tab 结束 -->
+      
+      <!-- 产品模板 Tab -->
+      <div id="productTemplateTab" class="tab-content">
+        <div class="section">
+          <div class="section-title">
+            📋 产品模板管理
+            <button class="btn btn-primary" onclick="showAddTemplateModal()" style="margin-left: auto;">+ 创建模板</button>
+          </div>
+          
+          <div class="system-info-grid" id="templateGrid">
+            <!-- 动态生成 -->
+          </div>
+        </div>
+      </div>
+      <!-- 产品模板 Tab 结束 -->
+    </div>
+  </div>
+
+  <!-- 添加/编辑产品模板模态框 -->
+  <div id="templateModal" class="modal">
+    <div class="modal-content" style="max-width: 800px;">
+      <h3 style="margin-bottom: 20px;" id="templateModalTitle">创建产品模板</h3>
+      
+      <div class="form-group" style="margin-bottom: 20px;">
+        <label>模板名称 <span class="required">*</span></label>
+        <input type="text" id="templateName" placeholder="例如: iPhone Case with Ring Holder" required style="width: 100%; padding: 10px; border: 2px solid #dee2e6; border-radius: 8px;">
+      </div>
+      
+      <div class="form-group" style="margin-bottom: 20px;">
+        <label>产品分类 <span class="required">*</span></label>
+        <select id="templateCategory" required style="width: 100%; padding: 10px; border: 2px solid #dee2e6; border-radius: 8px;">
+          <option value="">-- 选择分类 --</option>
+        </select>
+      </div>
+      
+      <div class="form-group" style="margin-bottom: 20px;">
+        <label>
+          <input type="checkbox" id="templateTrackInventory" checked> 
+          <span style="font-weight: 600;">跟踪库存</span>
+          <span style="color: #999; font-size: 13px; margin-left: 10px;">(取消勾选则只记录销售，不管理库存)</span>
+        </label>
+      </div>
+      
+      <div style="border-top: 2px solid #dee2e6; padding-top: 20px; margin-top: 20px;">
+        <h4 style="margin-bottom: 15px; color: #495057;">变体维度配置</h4>
+        
+        <div id="variantDimensionsContainer">
+          <!-- 动态生成变体维度选择 -->
+        </div>
+        
+        <button class="btn btn-secondary" onclick="addVariantDimension()" style="margin-top: 10px;">+ 添加变体维度</button>
+      </div>
+      
+      <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+        <button class="btn btn-secondary" onclick="closeTemplateModal()">取消</button>
+        <button class="btn btn-primary" onclick="generateVariantMatrix()">下一步：配置变体</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 变体矩阵配置模态框 -->
+  <div id="variantMatrixModal" class="modal">
+    <div class="modal-content" style="max-width: 1000px; max-height: 90vh;">
+      <h3 style="margin-bottom: 20px;">配置变体价格和库存</h3>
+      
+      <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <div style="font-weight: 600; margin-bottom: 5px;">模板信息</div>
+        <div id="variantMatrixInfo" style="color: #666;"></div>
+      </div>
+      
+      <!-- 批量设置区域 -->
+      <div style="background: #e7f3ff; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 2px solid #667eea;">
+        <h4 style="margin-bottom: 15px; color: #495057;">💡 批量设置（所有变体使用相同的值）</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+          <div>
+            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 13px;">成本价(€)</label>
+            <input type="number" id="batchCost" value="0" min="0" step="0.01" style="width: 100%; padding: 8px; border: 2px solid #dee2e6; border-radius: 6px;">
+          </div>
+          <div>
+            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 13px;">批发价(€)</label>
+            <input type="number" id="batchWholesale" value="0" min="0" step="0.01" style="width: 100%; padding: 8px; border: 2px solid #dee2e6; border-radius: 6px;">
+          </div>
+          <div>
+            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 13px;">零售价(€)</label>
+            <input type="number" id="batchRetail" value="0" min="0" step="0.01" style="width: 100%; padding: 8px; border: 2px solid #dee2e6; border-radius: 6px;">
+          </div>
+          <div id="batchQuantityDiv">
+            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 13px;">库存数量</label>
+            <input type="number" id="batchQuantity" value="0" min="0" style="width: 100%; padding: 8px; border: 2px solid #dee2e6; border-radius: 6px;">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="applyBatchValues()" style="margin-top: 15px; width: 100%;">✅ 应用到所有变体</button>
+      </div>
+      
+      <div style="max-height: 500px; overflow-y: auto; border: 2px solid #dee2e6; border-radius: 8px; padding: 15px; background: white;">
+        <table style="width: 100%; border-collapse: collapse;" id="variantMatrixTable">
+          <thead>
+            <tr style="background: #667eea; color: white;">
+              <th style="padding: 10px; text-align: left;">变体组合</th>
+              <th style="padding: 10px; text-align: center; width: 120px;">成本价(€)</th>
+              <th style="padding: 10px; text-align: center; width: 120px;">批发价(€)</th>
+              <th style="padding: 10px; text-align: center; width: 120px;">零售价(€)</th>
+              <th style="padding: 10px; text-align: center; width: 100px;" id="inventoryHeader">库存数量</th>
+            </tr>
+          </thead>
+          <tbody id="variantMatrixBody">
+            <!-- 动态生成 -->
+          </tbody>
+        </table>
+      </div>
+      
+      <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+        <button class="btn btn-secondary" onclick="closeVariantMatrixModal()">返回</button>
+        <button class="btn btn-success" onclick="saveTemplate()">保存模板</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加/编辑系统信息模态框 -->
+  <div id="systemInfoModal" class="modal">
+    <div class="modal-content">
+      <h3 style="margin-bottom: 20px;" id="systemInfoModalTitle">添加系统信息</h3>
+      
+      <div class="form-group" style="margin-bottom: 20px;">
+        <label>名称 <span class="required">*</span></label>
+        <input type="text" id="systemInfoName" placeholder="例如: iPhone Models, Colors, Storage" required style="width: 100%; padding: 10px; border: 2px solid #dee2e6; border-radius: 8px;">
+      </div>
+      
+      <div class="form-group" style="margin-bottom: 20px;">
+        <label>值列表 <span class="required">*</span> <span style="color: #999; font-weight: normal; font-size: 13px;">(每行一个值)</span></label>
+        <textarea id="systemInfoValues" rows="10" placeholder="例如:&#10;iPhone 17&#10;iPhone 17 Pro&#10;iPhone 17 Pro Max" style="width: 100%; padding: 10px; border: 2px solid #dee2e6; border-radius: 8px; font-family: monospace;" required></textarea>
+      </div>
+      
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button class="btn btn-secondary" onclick="closeSystemInfoModal()">取消</button>
+        <button class="btn btn-success" onclick="saveSystemInfo()">保存</button>
+      </div>
     </div>
   </div>
 
@@ -395,6 +677,37 @@
     let productRows = [];
     let currentImeiRowIndex = null;
     let currentVariantRowIndex = null;
+    let systemInfoList = [];
+    let currentEditingSystemInfo = null;
+    let templateList = [];
+    let currentEditingTemplate = null;
+    let selectedVariantDimensions = [];
+    let variantCombinations = [];
+
+    // Tab 切换
+    function switchTab(tabName) {
+      // 隐藏所有 tab
+      document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      
+      // 显示选中的 tab
+      if (tabName === 'receiving') {
+        document.getElementById('receivingTab').classList.add('active');
+        document.querySelector('.tab-button:nth-child(1)').classList.add('active');
+      } else if (tabName === 'systemInfo') {
+        document.getElementById('systemInfoTab').classList.add('active');
+        document.querySelector('.tab-button:nth-child(2)').classList.add('active');
+        loadSystemInfo();
+      } else if (tabName === 'productTemplate') {
+        document.getElementById('productTemplateTab').classList.add('active');
+        document.querySelector('.tab-button:nth-child(3)').classList.add('active');
+        loadTemplates();
+      }
+    }
 
     // 页面加载时初始化
     document.addEventListener('DOMContentLoaded', async () => {
@@ -1041,6 +1354,709 @@
       setTimeout(() => {
         alert.remove();
       }, 5000);
+    }
+    
+    // ==================== 系统信息管理功能 ====================
+    
+    // 加载系统信息列表
+    async function loadSystemInfo() {
+      console.log('🔍 loadSystemInfo 被调用');
+      console.log('   merchantId:', merchantId);
+      
+      try {
+        const url = `${API_BASE}/user-system-info?userId=${merchantId}`;
+        console.log('   请求 URL:', url);
+        
+        const response = await fetch(url);
+        console.log('   响应状态:', response.status);
+        
+        const result = await response.json();
+        console.log('   响应数据:', result);
+        
+        if (result.success) {
+          systemInfoList = result.data || [];
+          console.log('   ✅ 加载成功，数据条数:', systemInfoList.length);
+          console.log('   systemInfoList:', systemInfoList);
+          renderSystemInfoGrid();
+        } else {
+          console.error('   ❌ 加载失败:', result.error);
+          showAlert('加载系统信息失败', 'warning');
+        }
+      } catch (error) {
+        console.error('❌ 加载系统信息失败:', error);
+        showAlert('加载系统信息失败: ' + error.message, 'warning');
+      }
+    }
+    
+    // 渲染系统信息网格
+    function renderSystemInfoGrid() {
+      console.log('🎨 renderSystemInfoGrid 被调用');
+      console.log('   systemInfoList.length:', systemInfoList.length);
+      
+      const grid = document.getElementById('systemInfoGrid');
+      console.log('   grid 元素:', grid);
+      
+      if (!grid) {
+        console.error('   ❌ 找不到 systemInfoGrid 元素！');
+        return;
+      }
+      
+      if (systemInfoList.length === 0) {
+        console.log('   显示空状态');
+        grid.innerHTML = `
+          <div class="empty-state" style="grid-column: 1 / -1;">
+            <div class="empty-state-icon">📋</div>
+            <div style="font-size: 18px; font-weight: 600; margin-bottom: 10px;">暂无系统信息</div>
+            <div style="font-size: 14px;">点击右上角"添加系统信息"按钮开始创建</div>
+          </div>
+        `;
+        return;
+      }
+      
+      console.log('   开始渲染数据...');
+      
+      grid.innerHTML = '';
+      
+      // 直接渲染每个系统信息为一个卡片
+      systemInfoList.forEach(item => {
+        console.log('   渲染项目:', item.name, '值数量:', item.values.length);
+        
+        const card = document.createElement('div');
+        card.className = 'info-card';
+        card.innerHTML = `
+          <div class="info-card-header">
+            <div class="info-card-title">📋 ${item.name}</div>
+          </div>
+          <div class="info-card-body">
+            <div class="info-item">
+              <span style="color: #999; font-size: 12px;">${item.values.length} 个值</span>
+              <div class="info-item-actions">
+                <button class="btn btn-sm btn-primary" onclick="editSystemInfo('${item._id}')" title="编辑">✏️</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteSystemInfo('${item._id}')" title="删除">🗑️</button>
+              </div>
+            </div>
+            <div style="padding-left: 20px; font-size: 13px; color: #666; margin-top: 10px;">
+              ${item.values.slice(0, 8).join(', ')}${item.values.length > 8 ? '...' : ''}
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+      
+      console.log('   ✅ 渲染完成');
+    }
+    
+    // 显示添加系统信息模态框
+    function showAddSystemInfoModal() {
+      currentEditingSystemInfo = null;
+      document.getElementById('systemInfoModalTitle').textContent = '添加系统信息';
+      document.getElementById('systemInfoName').value = '';
+      document.getElementById('systemInfoValues').value = '';
+      document.getElementById('systemInfoModal').style.display = 'flex';
+    }
+    
+    // 编辑系统信息
+    function editSystemInfo(id) {
+      const info = systemInfoList.find(item => item._id === id);
+      if (!info) return;
+      
+      currentEditingSystemInfo = info;
+      document.getElementById('systemInfoModalTitle').textContent = '编辑系统信息';
+      document.getElementById('systemInfoName').value = info.name;
+      document.getElementById('systemInfoValues').value = info.values.join('\n');
+      document.getElementById('systemInfoModal').style.display = 'flex';
+    }
+    
+    // 关闭系统信息模态框
+    function closeSystemInfoModal() {
+      document.getElementById('systemInfoModal').style.display = 'none';
+      currentEditingSystemInfo = null;
+    }
+    
+    // 保存系统信息
+    async function saveSystemInfo() {
+      const name = document.getElementById('systemInfoName').value.trim();
+      const valuesText = document.getElementById('systemInfoValues').value.trim();
+      
+      if (!name || !valuesText) {
+        showAlert('请填写所有必填字段', 'warning');
+        return;
+      }
+      
+      const values = valuesText.split('\n').map(v => v.trim()).filter(v => v);
+      
+      if (values.length === 0) {
+        showAlert('请至少添加一个值', 'warning');
+        return;
+      }
+      
+      try {
+        const method = currentEditingSystemInfo ? 'PUT' : 'POST';
+        const url = currentEditingSystemInfo 
+          ? `${API_BASE}/user-system-info/${currentEditingSystemInfo._id}`
+          : `${API_BASE}/user-system-info`;
+        
+        const response = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: merchantId,
+            type: 'OTHER', // 默认类型
+            name,
+            values
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showAlert(currentEditingSystemInfo ? '✅ 更新成功' : '✅ 添加成功', 'success');
+          closeSystemInfoModal();
+          loadSystemInfo();
+        } else {
+          showAlert('保存失败: ' + (result.error || '未知错误'), 'warning');
+        }
+      } catch (error) {
+        console.error('保存系统信息失败:', error);
+        showAlert('保存失败: ' + error.message, 'warning');
+      }
+    }
+    
+    // 删除系统信息
+    async function deleteSystemInfo(id) {
+      if (!confirm('确定要删除这个系统信息吗？')) return;
+      
+      try {
+        const response = await fetch(`${API_BASE}/user-system-info/${id}`, {
+          method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showAlert('✅ 删除成功', 'success');
+          loadSystemInfo();
+        } else {
+          showAlert('删除失败: ' + (result.error || '未知错误'), 'warning');
+        }
+      } catch (error) {
+        console.error('删除系统信息失败:', error);
+        showAlert('删除失败: ' + error.message, 'warning');
+      }
+    }
+    
+    // 调试系统信息
+    function debugSystemInfo() {
+      console.log('=== 调试信息 ===');
+      console.log('merchantId:', merchantId);
+      console.log('systemInfoList:', systemInfoList);
+      
+      const grid = document.getElementById('systemInfoGrid');
+      console.log('grid 元素:', grid);
+      console.log('grid.innerHTML 长度:', grid ? grid.innerHTML.length : 'null');
+      console.log('grid.children 数量:', grid ? grid.children.length : 'null');
+      
+      if (grid && grid.children.length > 0) {
+        console.log('第一个子元素:', grid.children[0]);
+        console.log('第一个子元素的 HTML:', grid.children[0].outerHTML.substring(0, 200));
+      }
+      
+      const tab = document.getElementById('systemInfoTab');
+      console.log('systemInfoTab 元素:', tab);
+      console.log('systemInfoTab 是否有 active 类:', tab ? tab.classList.contains('active') : 'null');
+      console.log('systemInfoTab display 样式:', tab ? window.getComputedStyle(tab).display : 'null');
+      
+      alert('调试信息已输出到控制台，请查看 Console 标签');
+    }
+    
+    // ==================== 产品模板管理功能 ====================
+    
+    // 加载产品模板列表
+    async function loadTemplates() {
+      console.log('📋 加载产品模板列表');
+      try {
+        const response = await fetch(`${API_BASE}/product-templates?userId=${merchantId}`);
+        const result = await response.json();
+        
+        if (result.success) {
+          templateList = result.data || [];
+          console.log('   找到', templateList.length, '个模板');
+          renderTemplateGrid();
+        } else {
+          showAlert('加载产品模板失败', 'warning');
+        }
+      } catch (error) {
+        console.error('加载产品模板失败:', error);
+        showAlert('加载产品模板失败: ' + error.message, 'warning');
+      }
+    }
+    
+    // 渲染产品模板网格
+    function renderTemplateGrid() {
+      const grid = document.getElementById('templateGrid');
+      
+      if (templateList.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state" style="grid-column: 1 / -1;">
+            <div class="empty-state-icon">📋</div>
+            <div style="font-size: 18px; font-weight: 600; margin-bottom: 10px;">暂无产品模板</div>
+            <div style="font-size: 14px;">点击右上角"创建模板"按钮开始创建</div>
+          </div>
+        `;
+        return;
+      }
+      
+      grid.innerHTML = '';
+      
+      templateList.forEach(template => {
+        const card = document.createElement('div');
+        card.className = 'info-card';
+        card.innerHTML = `
+          <div class="info-card-header">
+            <div class="info-card-title">📦 ${template.name}</div>
+          </div>
+          <div class="info-card-body">
+            <div class="info-item">
+              <span style="color: #666; font-size: 13px;">
+                ${template.category || '未分类'} | 
+                ${template.trackInventory ? '📊 跟踪库存' : '📝 仅记录销售'} | 
+                ${template.variants ? template.variants.length : 0} 个变体
+              </span>
+              <div class="info-item-actions">
+                <button class="btn btn-sm btn-primary" onclick="editTemplate('${template._id}')" title="编辑">✏️</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteTemplate('${template._id}')" title="删除">🗑️</button>
+              </div>
+            </div>
+            ${template.variantDimensions && template.variantDimensions.length > 0 ? `
+              <div style="padding-left: 20px; font-size: 13px; color: #666; margin-top: 10px;">
+                变体维度: ${template.variantDimensions.map(d => d.name).join(', ')}
+              </div>
+            ` : ''}
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+    
+    // 显示添加模板模态框
+    async function showAddTemplateModal() {
+      currentEditingTemplate = null;
+      
+      // 确保系统信息已加载
+      if (systemInfoList.length === 0) {
+        await loadSystemInfo();
+      }
+      
+      document.getElementById('templateModalTitle').textContent = '创建产品模板';
+      document.getElementById('templateName').value = '';
+      document.getElementById('templateCategory').value = '';
+      document.getElementById('templateTrackInventory').checked = true;
+      document.getElementById('variantDimensionsContainer').innerHTML = '';
+      
+      // 加载分类列表
+      const categorySelect = document.getElementById('templateCategory');
+      categorySelect.innerHTML = '<option value="">-- 选择分类 --</option>';
+      categories.forEach(cat => {
+        const displayName = (cat.description && cat.description.trim()) ? cat.description : cat.type;
+        const option = document.createElement('option');
+        option.value = cat.type;
+        option.textContent = displayName;
+        categorySelect.appendChild(option);
+      });
+      
+      document.getElementById('templateModal').style.display = 'flex';
+    }
+    
+    // 添加变体维度
+    function addVariantDimension() {
+      const container = document.getElementById('variantDimensionsContainer');
+      const index = container.children.length; // 使用实际的子元素数量作为索引
+      
+      const dimensionDiv = document.createElement('div');
+      dimensionDiv.className = 'dimension-item';
+      dimensionDiv.setAttribute('data-index', index);
+      dimensionDiv.style.cssText = 'margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px;';
+      dimensionDiv.innerHTML = `
+        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+          <select id="dimension_${index}" style="flex: 1; padding: 8px; border: 2px solid #dee2e6; border-radius: 6px;">
+            <option value="">-- 选择系统信息 --</option>
+            ${systemInfoList.map(info => `<option value="${info._id}">${info.name}</option>`).join('')}
+          </select>
+          <button class="btn btn-danger btn-sm" onclick="removeDimension(this)" style="padding: 8px 12px;">删除</button>
+        </div>
+      `;
+      container.appendChild(dimensionDiv);
+    }
+    
+    // 移除变体维度
+    function removeDimension(button) {
+      const dimensionDiv = button.closest('.dimension-item');
+      if (dimensionDiv) {
+        dimensionDiv.remove();
+      }
+    }
+    
+    // 生成变体矩阵
+    function generateVariantMatrix() {
+      const name = document.getElementById('templateName').value.trim();
+      const category = document.getElementById('templateCategory').value;
+      const trackInventory = document.getElementById('templateTrackInventory').checked;
+      
+      if (!name || !category) {
+        showAlert('请填写模板名称和分类', 'warning');
+        return;
+      }
+      
+      // 收集选中的变体维度
+      const dimensions = [];
+      const container = document.getElementById('variantDimensionsContainer');
+      
+      for (let i = 0; i < container.children.length; i++) {
+        const select = document.getElementById(`dimension_${i}`);
+        if (select && select.value) {
+          const systemInfo = systemInfoList.find(info => info._id === select.value);
+          if (systemInfo) {
+            dimensions.push({
+              systemInfoId: systemInfo._id,
+              name: systemInfo.name,
+              values: systemInfo.values
+            });
+          }
+        }
+      }
+      
+      if (dimensions.length === 0) {
+        showAlert('请至少添加一个变体维度', 'warning');
+        return;
+      }
+      
+      // 如果是编辑模式，智能合并现有变体和新变体
+      if (currentEditingTemplate) {
+        // 生成所有可能的变体组合（基于最新的系统信息）
+        const allCombinations = generateCombinations(dimensions);
+        
+        // 创建现有变体的映射（用于快速查找）
+        const existingVariantsMap = new Map();
+        if (currentEditingTemplate.variants) {
+          currentEditingTemplate.variants.forEach(variant => {
+            const key = Object.values(variant.values).sort().join('|');
+            existingVariantsMap.set(key, variant);
+          });
+        }
+        
+        // 合并：保留现有变体数据，添加新变体
+        variantCombinations = allCombinations.map(combo => {
+          const key = Object.values(combo.values).sort().join('|');
+          const existing = existingVariantsMap.get(key);
+          
+          if (existing) {
+            // 保留现有变体的价格和库存
+            return {
+              values: combo.values,
+              label: combo.label,
+              costPrice: existing.costPrice,
+              wholesalePrice: existing.wholesalePrice,
+              retailPrice: existing.retailPrice,
+              quantity: existing.quantity
+            };
+          } else {
+            // 新变体，使用默认值
+            return {
+              values: combo.values,
+              label: combo.label,
+              costPrice: 0,
+              wholesalePrice: 0,
+              retailPrice: 0,
+              quantity: 0
+            };
+          }
+        });
+        
+        console.log('编辑模式：合并后共', variantCombinations.length, '个变体');
+      } else {
+        // 新建模式：生成所有变体组合
+        variantCombinations = generateCombinations(dimensions).map(combo => ({
+          ...combo,
+          costPrice: 0,
+          wholesalePrice: 0,
+          retailPrice: 0,
+          quantity: 0
+        }));
+        console.log('新建模式：生成了', variantCombinations.length, '个变体组合');
+      }
+      
+      // 显示变体矩阵模态框
+      document.getElementById('variantMatrixInfo').textContent = 
+        `${name} | ${category} | ${dimensions.map(d => d.name).join(' × ')} | 共 ${variantCombinations.length} 个变体`;
+      
+      // 显示/隐藏库存相关元素
+      document.getElementById('inventoryHeader').style.display = trackInventory ? '' : 'none';
+      document.getElementById('batchQuantityDiv').style.display = trackInventory ? '' : 'none';
+      
+      const tbody = document.getElementById('variantMatrixBody');
+      tbody.innerHTML = '';
+      
+      variantCombinations.forEach((combo, index) => {
+        const costPrice = combo.costPrice || 0;
+        const wholesalePrice = combo.wholesalePrice || 0;
+        const retailPrice = combo.retailPrice || 0;
+        const quantity = combo.quantity || 0;
+        
+        // 标记新增的变体
+        const isNew = !combo.costPrice && !combo.retailPrice && currentEditingTemplate;
+        
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #dee2e6';
+        if (isNew) {
+          tr.style.background = '#fff3cd'; // 黄色背景标记新变体
+        }
+        tr.innerHTML = `
+          <td style="padding: 10px;">
+            ${combo.label}
+            ${isNew ? '<span style="background: #ffc107; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 8px;">新增</span>' : ''}
+          </td>
+          <td style="padding: 10px; text-align: center;">
+            <input type="number" id="cost_${index}" value="${costPrice}" min="0" step="0.01" style="width: 100px; padding: 6px; border: 1px solid #dee2e6; border-radius: 4px; text-align: center;">
+          </td>
+          <td style="padding: 10px; text-align: center;">
+            <input type="number" id="wholesale_${index}" value="${wholesalePrice}" min="0" step="0.01" style="width: 100px; padding: 6px; border: 1px solid #dee2e6; border-radius: 4px; text-align: center;">
+          </td>
+          <td style="padding: 10px; text-align: center;">
+            <input type="number" id="retail_${index}" value="${retailPrice}" min="0" step="0.01" style="width: 100px; padding: 6px; border: 1px solid #dee2e6; border-radius: 4px; text-align: center;">
+          </td>
+          <td style="padding: 10px; text-align: center; ${trackInventory ? '' : 'display: none;'}">
+            <input type="number" id="quantity_${index}" value="${quantity}" min="0" style="width: 80px; padding: 6px; border: 1px solid #dee2e6; border-radius: 4px; text-align: center;">
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      
+      document.getElementById('templateModal').style.display = 'none';
+      document.getElementById('variantMatrixModal').style.display = 'flex';
+    }
+    
+    // 批量应用价格和库存
+    function applyBatchValues() {
+      const batchCost = parseFloat(document.getElementById('batchCost').value) || 0;
+      const batchWholesale = parseFloat(document.getElementById('batchWholesale').value) || 0;
+      const batchRetail = parseFloat(document.getElementById('batchRetail').value) || 0;
+      const batchQuantity = parseInt(document.getElementById('batchQuantity').value) || 0;
+      
+      const trackInventory = document.getElementById('templateTrackInventory').checked;
+      
+      // 应用到所有变体
+      variantCombinations.forEach((combo, index) => {
+        document.getElementById(`cost_${index}`).value = batchCost;
+        document.getElementById(`wholesale_${index}`).value = batchWholesale;
+        document.getElementById(`retail_${index}`).value = batchRetail;
+        
+        if (trackInventory) {
+          document.getElementById(`quantity_${index}`).value = batchQuantity;
+        }
+      });
+      
+      showAlert(`✅ 已应用到所有 ${variantCombinations.length} 个变体`, 'success');
+    }
+    
+    // 生成变体组合
+    function generateCombinations(dimensions) {
+      if (dimensions.length === 0) return [];
+      if (dimensions.length === 1) {
+        return dimensions[0].values.map(v => ({
+          values: { [dimensions[0].name]: v },
+          label: v
+        }));
+      }
+      
+      const result = [];
+      const generate = (index, current, label) => {
+        if (index === dimensions.length) {
+          result.push({ values: { ...current }, label: label.trim() });
+          return;
+        }
+        
+        const dim = dimensions[index];
+        dim.values.forEach(value => {
+          generate(
+            index + 1,
+            { ...current, [dim.name]: value },
+            label + (label ? ' - ' : '') + value
+          );
+        });
+      };
+      
+      generate(0, {}, '');
+      return result;
+    }
+    
+    // 保存模板
+    async function saveTemplate() {
+      const name = document.getElementById('templateName').value.trim();
+      const category = document.getElementById('templateCategory').value;
+      const trackInventory = document.getElementById('templateTrackInventory').checked;
+      
+      // 收集变体数据
+      const variants = [];
+      variantCombinations.forEach((combo, index) => {
+        const costPrice = parseFloat(document.getElementById(`cost_${index}`).value) || 0;
+        const wholesalePrice = parseFloat(document.getElementById(`wholesale_${index}`).value) || 0;
+        const retailPrice = parseFloat(document.getElementById(`retail_${index}`).value) || 0;
+        const quantity = trackInventory ? (parseInt(document.getElementById(`quantity_${index}`).value) || 0) : 0;
+        
+        variants.push({
+          values: combo.values,
+          costPrice,
+          wholesalePrice,
+          retailPrice,
+          quantity
+        });
+      });
+      
+      // 收集变体维度信息
+      const dimensions = [];
+      const container = document.getElementById('variantDimensionsContainer');
+      for (let i = 0; i < container.children.length; i++) {
+        const select = document.getElementById(`dimension_${i}`);
+        if (select && select.value) {
+          const systemInfo = systemInfoList.find(info => info._id === select.value);
+          if (systemInfo) {
+            dimensions.push({
+              systemInfoId: systemInfo._id,
+              name: systemInfo.name
+            });
+          }
+        }
+      }
+      
+      try {
+        const isEditing = currentEditingTemplate !== null;
+        const method = isEditing ? 'PUT' : 'POST';
+        const url = isEditing 
+          ? `${API_BASE}/product-templates/${currentEditingTemplate._id}`
+          : `${API_BASE}/product-templates`;
+        
+        const response = await fetch(url, {
+          method: method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: merchantId,
+            name,
+            category,
+            trackInventory,
+            variantDimensions: dimensions,
+            variants
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showAlert(isEditing ? '✅ 模板更新成功' : '✅ 模板创建成功', 'success');
+          closeVariantMatrixModal();
+          closeTemplateModal();
+          loadTemplates();
+        } else {
+          showAlert('保存失败: ' + (result.error || '未知错误'), 'warning');
+        }
+      } catch (error) {
+        console.error('保存模板失败:', error);
+        showAlert('保存失败: ' + error.message, 'warning');
+      }
+    }
+    
+    // 关闭模板模态框
+    function closeTemplateModal() {
+      document.getElementById('templateModal').style.display = 'none';
+      currentEditingTemplate = null;
+    }
+    
+    // 关闭变体矩阵模态框
+    function closeVariantMatrixModal() {
+      document.getElementById('variantMatrixModal').style.display = 'none';
+    }
+    
+    // 编辑模板
+    async function editTemplate(id) {
+      const template = templateList.find(t => t._id === id);
+      if (!template) {
+        showAlert('模板不存在', 'warning');
+        return;
+      }
+      
+      // 确保系统信息已加载
+      if (systemInfoList.length === 0) {
+        await loadSystemInfo();
+      }
+      
+      currentEditingTemplate = template;
+      
+      // 填充基本信息
+      document.getElementById('templateModalTitle').textContent = '编辑产品模板';
+      document.getElementById('templateName').value = template.name;
+      document.getElementById('templateTrackInventory').checked = template.trackInventory;
+      
+      // 加载分类列表
+      const categorySelect = document.getElementById('templateCategory');
+      categorySelect.innerHTML = '<option value="">-- 选择分类 --</option>';
+      categories.forEach(cat => {
+        const displayName = (cat.description && cat.description.trim()) ? cat.description : cat.type;
+        const option = document.createElement('option');
+        option.value = cat.type;
+        option.textContent = displayName;
+        if (cat.type === template.category) {
+          option.selected = true;
+        }
+        categorySelect.appendChild(option);
+      });
+      
+      // 清空并重建变体维度选择
+      const container = document.getElementById('variantDimensionsContainer');
+      container.innerHTML = '';
+      
+      if (template.variantDimensions && template.variantDimensions.length > 0) {
+        template.variantDimensions.forEach((dim, index) => {
+          // 创建维度选择器
+          const dimensionDiv = document.createElement('div');
+          dimensionDiv.className = 'dimension-item';
+          dimensionDiv.setAttribute('data-index', index);
+          dimensionDiv.style.cssText = 'margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px;';
+          dimensionDiv.innerHTML = `
+            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+              <select id="dimension_${index}" style="flex: 1; padding: 8px; border: 2px solid #dee2e6; border-radius: 6px;">
+                <option value="">-- 选择系统信息 --</option>
+                ${systemInfoList.map(info => `<option value="${info._id}" ${info._id === dim.systemInfoId ? 'selected' : ''}>${info.name}</option>`).join('')}
+              </select>
+              <button class="btn btn-danger btn-sm" onclick="removeDimension(this)" style="padding: 8px 12px;">删除</button>
+            </div>
+          `;
+          container.appendChild(dimensionDiv);
+        });
+      }
+      
+      document.getElementById('templateModal').style.display = 'flex';
+    }
+    
+    // 删除模板
+    async function deleteTemplate(id) {
+      if (!confirm('确定要删除这个产品模板吗？')) return;
+      
+      try {
+        const response = await fetch(`${API_BASE}/product-templates/${id}`, {
+          method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showAlert('✅ 删除成功', 'success');
+          loadTemplates();
+        } else {
+          showAlert('删除失败: ' + (result.error || '未知错误'), 'warning');
+        }
+      } catch (error) {
+        console.error('删除模板失败:', error);
+        showAlert('删除失败: ' + error.message, 'warning');
+      }
     }
   </script>
 </body>

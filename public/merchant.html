@@ -2326,6 +2326,20 @@
     <div id="tax-report" class="tab-content">
       <div class="card">
         <h2>税务报表</h2>
+        
+        <!-- 配置选项 -->
+        <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3b82f6;">
+          <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+            <input type="checkbox" id="enableInputTaxToggle" onchange="toggleInputTaxCalculation()" style="width: 18px; height: 18px; cursor: pointer;">
+            <span style="font-weight: 600; color: #1e40af;">
+              启用进项税计算
+              <span style="font-weight: normal; color: #64748b; font-size: 13px; margin-left: 8px;">
+                (勾选后将在VAT 23%中扣除进项税)
+              </span>
+            </span>
+          </label>
+        </div>
+        
         <div class="form-grid" style="margin-bottom: 20px;">
           <div class="form-group">
             <label>开始日期</label>
@@ -2512,6 +2526,11 @@
   <script>
     const API_BASE = '/api';
     const merchantId = localStorage.getItem('username') || 'merchant_001'; // 从登录session获取
+    
+    // 系统配置
+    const systemConfig = {
+      enableInputTaxCalculation: false // 是否启用进项税计算（默认关闭）
+    };
     
     // 购物车
     let cart = [];
@@ -2753,7 +2772,7 @@
             totalAmount += saleAmount;
             totalTax += saleTax;
             
-            const time = new Date(sale.saleDate).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            const time = new Date(sale.date).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
             const paymentMethod = sale.paymentMethod === 'CASH' ? '💵 现金' : 
                                  sale.paymentMethod === 'CARD' ? '💳 刷卡' : '💰 混合';
             
@@ -3435,6 +3454,10 @@
         const repairsResponse = await fetch(`${API_BASE}/merchant/repairs/ready-for-sale?merchantId=${merchantId}`);
         const repairsResult = await repairsResponse.json();
         
+        // 获取产品模板
+        const templatesResponse = await fetch(`${API_BASE}/product-templates?userId=${merchantId}`);
+        const templatesResult = await templatesResponse.json();
+        
         const categories = {};
         let repairCount = 0;
         
@@ -3442,18 +3465,37 @@
         if (inventoryResult.success && inventoryResult.data.length > 0) {
           inventoryResult.data.forEach(item => {
             if (item.quantity > 0 && item.status === 'active') {
-              // category 是字符串，直接使用
               const categoryName = item.category || '未分类';
               if (!categories[categoryName]) {
                 categories[categoryName] = {
                   name: categoryName,
-                  count: 0,
-                  totalQty: 0
+                  inventoryCount: 0,
+                  inventoryQty: 0,
+                  templateCount: 0,
+                  templateVariants: 0
                 };
               }
-              categories[categoryName].count++;
-              categories[categoryName].totalQty += item.quantity;
+              categories[categoryName].inventoryCount++;
+              categories[categoryName].inventoryQty += item.quantity;
             }
+          });
+        }
+        
+        // 处理产品模板 - 合并到相同分类
+        if (templatesResult.success && templatesResult.data.length > 0) {
+          templatesResult.data.forEach(template => {
+            const categoryName = template.category || '未分类';
+            if (!categories[categoryName]) {
+              categories[categoryName] = {
+                name: categoryName,
+                inventoryCount: 0,
+                inventoryQty: 0,
+                templateCount: 0,
+                templateVariants: 0
+              };
+            }
+            categories[categoryName].templateCount++;
+            categories[categoryName].templateVariants += (template.variants ? template.variants.length : 0);
           });
         }
         
@@ -3481,19 +3523,33 @@
           `;
         }
         
-        // 添加库存产品分类
+        // 添加混合分类（库存产品 + 模板产品）
         if (categoryArray.length > 0) {
-          html += categoryArray.map(cat => `
+          html += categoryArray.map(cat => {
+            const hasInventory = cat.inventoryCount > 0;
+            const hasTemplate = cat.templateCount > 0;
+            
+            let description = '';
+            if (hasInventory && hasTemplate) {
+              description = `${cat.inventoryCount} 种库存 · ${cat.inventoryQty} 件 | ${cat.templateCount} 个模板 · ${cat.templateVariants} 变体`;
+            } else if (hasInventory) {
+              description = `${cat.inventoryCount} 种产品 · ${cat.inventoryQty} 件库存`;
+            } else if (hasTemplate) {
+              description = `${cat.templateCount} 个模板 · ${cat.templateVariants} 个变体`;
+            }
+            
+            return `
             <div onclick="showCategoryProducts('${cat.name}')" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 12px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" 
               onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 12px rgba(0,0,0,0.2)';"
               onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.1)';">
               <div style="font-size: 40px; margin-bottom: 10px;">📦</div>
               <h3 style="font-size: 18px; margin-bottom: 10px;">${cat.name}</h3>
               <div style="font-size: 14px; opacity: 0.9;">
-                ${cat.count} 种产品 · ${cat.totalQty} 件库存
+                ${description}
               </div>
             </div>
-          `).join('');
+          `;
+          }).join('');
         }
         
         html += '</div>';
@@ -3590,6 +3646,242 @@
       updateCartDisplay();
       alert(`✅ ${deviceName} 维修订单已添加到购物车\n销售价格: €${price.toFixed(2)}`);
     }
+    
+    // 将模板变体加入购物车
+    function addTemplateVariantToCart(templateId, variantIndex, templateName, variantLabel, price, taxClassification, trackInventory, quantity) {
+      // 检查库存
+      if (trackInventory && quantity <= 0) {
+        alert('该变体无库存');
+        return;
+      }
+      
+      // 生成唯一的产品标识
+      const productKey = `template_${templateId}_${variantIndex}`;
+      
+      // 检查是否已在购物车中
+      const existingItem = cart.find(item => item.productKey === productKey);
+      
+      if (existingItem) {
+        // 如果跟踪库存，检查是否超过库存
+        if (trackInventory && existingItem.quantity >= quantity) {
+          alert('已达到最大库存数量');
+          return;
+        }
+        existingItem.quantity++;
+      } else {
+        cart.push({
+          productKey: productKey,
+          templateId: templateId,
+          variantIndex: variantIndex,
+          productName: `${templateName} (${variantLabel})`,
+          price: price,
+          quantity: 1,
+          maxQty: trackInventory ? quantity : 999,
+          taxClassification: taxClassification,
+          isTemplate: true,
+          trackInventory: trackInventory
+        });
+      }
+      
+      updateCartDisplay();
+      alert(`✅ ${templateName} (${variantLabel}) 已添加到购物车`);
+    }
+    
+    // 显示模板变体选择模态框
+    function showTemplateVariantSelection(templateId, templateIndex) {
+      const template = window.templateProductsCache[`template_${templateIndex}`];
+      if (!template) {
+        alert('模板数据未找到');
+        return;
+      }
+      
+      // 设置产品名称
+      document.getElementById('variantProductName').textContent = template.name;
+      
+      // 获取变体维度
+      const dimensions = template.variantDimensions || [];
+      
+      if (dimensions.length === 0 || !template.variants || template.variants.length === 0) {
+        alert('该模板没有变体');
+        return;
+      }
+      
+      // 保存当前选择的模板信息
+      window.currentTemplateSelection = {
+        template: template,
+        selectedDimension1: null,
+        selectedDimension2: null
+      };
+      
+      // 设置维度1标签
+      document.getElementById('dimension1Label').textContent = dimensions[0].name;
+      
+      // 获取维度1的所有可选值（过滤掉没有库存的）
+      const dimension1ValuesMap = new Map(); // 存储值和是否有库存
+      template.variants.forEach(variant => {
+        const value = variant.values[dimensions[0].name];
+        if (value) {
+          // 如果不跟踪库存，或者有库存，则添加
+          if (!template.trackInventory || (variant.quantity > 0)) {
+            dimension1ValuesMap.set(value, true);
+          }
+        }
+      });
+      
+      // 渲染维度1选项
+      const dimension1Container = document.getElementById('dimension1Options');
+      dimension1Container.innerHTML = Array.from(dimension1ValuesMap.keys()).map(value => `
+        <button onclick="selectTemplateDimension1('${value}')" 
+          style="padding: 12px; background: white; border: 2px solid #e5e7eb; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s;"
+          onmouseover="this.style.borderColor='#10b981'; this.style.background='#f0fdf4';"
+          onmouseout="if(!this.classList.contains('selected')) { this.style.borderColor='#e5e7eb'; this.style.background='white'; }">
+          ${value}
+        </button>
+      `).join('');
+      
+      // 如果有第二个维度
+      if (dimensions.length > 1) {
+        document.getElementById('dimension2Label').textContent = dimensions[1].name;
+        document.getElementById('dimension2Section').style.display = 'none';
+      } else {
+        document.getElementById('dimension2Section').style.display = 'none';
+      }
+      
+      // 隐藏已选择信息
+      document.getElementById('selectedVariantInfo').style.display = 'none';
+      document.getElementById('addVariantToCartBtn').disabled = true;
+      document.getElementById('addVariantToCartBtn').style.opacity = '0.5';
+      
+      // 显示模态框
+      document.getElementById('variantSelectionModal').style.display = 'flex';
+    }
+    
+    // 选择模板维度1
+    function selectTemplateDimension1(value) {
+      const template = window.currentTemplateSelection.template;
+      window.currentTemplateSelection.selectedDimension1 = value;
+      
+      // 更新按钮样式
+      document.querySelectorAll('#dimension1Options button').forEach(btn => {
+        btn.classList.remove('selected');
+        btn.style.borderColor = '#e5e7eb';
+        btn.style.background = 'white';
+      });
+      event.target.classList.add('selected');
+      event.target.style.borderColor = '#10b981';
+      event.target.style.background = '#dcfce7';
+      
+      const dimensions = template.variantDimensions || [];
+      
+      if (dimensions.length > 1) {
+        // 显示维度2选项
+        document.getElementById('dimension2Section').style.display = 'block';
+        
+        // 获取维度2的可选值（基于维度1的选择，并过滤掉库存为0的）
+        const dimension2ValuesMap = new Map(); // 存储值和对应的库存
+        template.variants.forEach(variant => {
+          if (variant.values[dimensions[0].name] === value) {
+            const value2 = variant.values[dimensions[1].name];
+            if (value2) {
+              // 如果跟踪库存，只添加有库存的选项
+              if (!template.trackInventory || (variant.quantity > 0)) {
+                dimension2ValuesMap.set(value2, variant.quantity || 0);
+              }
+            }
+          }
+        });
+        
+        // 渲染维度2选项
+        const dimension2Container = document.getElementById('dimension2Options');
+        dimension2Container.innerHTML = Array.from(dimension2ValuesMap.keys()).map(value2 => `
+          <button onclick="selectTemplateDimension2('${value2}')" 
+            style="padding: 12px; background: white; border: 2px solid #e5e7eb; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s;"
+            onmouseover="this.style.borderColor='#10b981'; this.style.background='#f0fdf4';"
+            onmouseout="if(!this.classList.contains('selected')) { this.style.borderColor='#e5e7eb'; this.style.background='white'; }">
+            ${value2}
+          </button>
+        `).join('');
+        
+        // 隐藏已选择信息
+        document.getElementById('selectedVariantInfo').style.display = 'none';
+        document.getElementById('addVariantToCartBtn').disabled = true;
+        document.getElementById('addVariantToCartBtn').style.opacity = '0.5';
+      } else {
+        // 只有一个维度，直接显示选中的变体
+        showTemplateSelectedVariant();
+      }
+    }
+    
+    // 选择模板维度2
+    function selectTemplateDimension2(value) {
+      window.currentTemplateSelection.selectedDimension2 = value;
+      
+      // 更新按钮样式
+      document.querySelectorAll('#dimension2Options button').forEach(btn => {
+        btn.classList.remove('selected');
+        btn.style.borderColor = '#e5e7eb';
+        btn.style.background = 'white';
+      });
+      event.target.classList.add('selected');
+      event.target.style.borderColor = '#10b981';
+      event.target.style.background = '#dcfce7';
+      
+      // 显示选中的变体
+      showTemplateSelectedVariant();
+    }
+    
+    // 显示模板选中的变体信息
+    function showTemplateSelectedVariant() {
+      const template = window.currentTemplateSelection.template;
+      const dim1Value = window.currentTemplateSelection.selectedDimension1;
+      const dim2Value = window.currentTemplateSelection.selectedDimension2;
+      const dimensions = template.variantDimensions || [];
+      
+      // 查找匹配的变体
+      let matchedVariant = null;
+      let matchedIndex = -1;
+      
+      template.variants.forEach((variant, index) => {
+        if (dimensions.length === 1) {
+          if (variant.values[dimensions[0].name] === dim1Value) {
+            matchedVariant = variant;
+            matchedIndex = index;
+          }
+        } else if (dimensions.length >= 2) {
+          if (variant.values[dimensions[0].name] === dim1Value && 
+              variant.values[dimensions[1].name] === dim2Value) {
+            matchedVariant = variant;
+            matchedIndex = index;
+          }
+        }
+      });
+      
+      if (matchedVariant) {
+        window.currentTemplateSelection.selectedVariant = matchedVariant;
+        window.currentTemplateSelection.selectedVariantIndex = matchedIndex;
+        
+        const variantLabel = Object.values(matchedVariant.values).join(' - ');
+        const hasStock = !template.trackInventory || (matchedVariant.quantity > 0);
+        
+        document.getElementById('selectedVariantText').textContent = variantLabel;
+        document.getElementById('selectedVariantStock').textContent = 
+          template.trackInventory ? `库存: ${matchedVariant.quantity}` : '不跟踪库存';
+        document.getElementById('selectedVariantPrice').textContent = `€${matchedVariant.retailPrice.toFixed(2)}`;
+        
+        document.getElementById('selectedVariantInfo').style.display = 'block';
+        
+        if (hasStock) {
+          document.getElementById('addVariantToCartBtn').disabled = false;
+          document.getElementById('addVariantToCartBtn').style.opacity = '1';
+        } else {
+          document.getElementById('addVariantToCartBtn').disabled = true;
+          document.getElementById('addVariantToCartBtn').style.opacity = '0.5';
+          document.getElementById('selectedVariantStock').textContent = '无库存';
+          document.getElementById('selectedVariantStock').style.color = '#ef4444';
+        }
+      }
+    }
+    
     
     // 全局变量存储所有产品
     let allInventoryProducts = [];
@@ -3690,19 +3982,23 @@
       
       try {
         // 获取库存数据
-        const response = await fetch(`${API_BASE}/merchant/inventory?merchantId=${merchantId}`);
-        const result = await response.json();
+        const inventoryResponse = await fetch(`${API_BASE}/merchant/inventory?merchantId=${merchantId}`);
+        const inventoryResult = await inventoryResponse.json();
         
-        if (result.success) {
+        // 获取产品模板数据
+        const templatesResponse = await fetch(`${API_BASE}/product-templates?userId=${merchantId}`);
+        const templatesResult = await templatesResponse.json();
+        
+        if (inventoryResult.success) {
           // 保存所有产品到全局变量（用于全局搜索）
           if (allInventoryProducts.length === 0) {
-            allInventoryProducts = result.data.filter(item => 
+            allInventoryProducts = inventoryResult.data.filter(item => 
               item.quantity > 0 && item.status === 'active'
             );
           }
           
-          // 保存当前分类的产品
-          allCategoryProducts = result.data.filter(item => 
+          // 保存当前分类的库存产品
+          allCategoryProducts = inventoryResult.data.filter(item => 
             item.category === category && item.quantity > 0 && item.status === 'active'
           );
           
@@ -3712,17 +4008,136 @@
           // 为每个产品添加销量信息
           allCategoryProducts.forEach(product => {
             product.recentSalesCount = salesData[product.productName] || 0;
-            // 调试：显示产品名称和销量匹配情况
-            if (product.productName.includes('Magnetic') || product.productName.includes('iPhone')) {
-              console.log(`产品: "${product.productName}", 销量: ${product.recentSalesCount}, 销量数据中的键:`, Object.keys(salesData).filter(k => k.includes('Magnetic') || k.includes('iPhone')));
-            }
           });
           
           // 按销量降序排序
           allCategoryProducts.sort((a, b) => b.recentSalesCount - a.recentSalesCount);
           
-          // 显示产品
+          // 显示库存产品
           displayProducts(allCategoryProducts, 'productList');
+          
+          // 如果有模板产品，追加显示（使用相同的卡片格式）
+          if (templatesResult.success && templatesResult.data.length > 0) {
+            const templates = templatesResult.data.filter(t => {
+              if (t.category !== category || !t.isActive) return false;
+              
+              // 如果跟踪库存，检查是否有可用库存
+              if (t.trackInventory) {
+                const totalStock = t.variants ? t.variants.reduce((sum, v) => sum + (v.quantity || 0), 0) : 0;
+                return totalStock > 0;
+              }
+              
+              // 不跟踪库存的模板始终显示
+              return true;
+            });
+            
+            if (templates.length > 0) {
+              // 获取现有内容
+              const existingContent = container.innerHTML;
+              
+              // 为模板产品生成卡片HTML
+              const templateCards = templates.map((template, tIndex) => {
+                const totalVariants = template.variants ? template.variants.length : 0;
+                const totalStock = template.trackInventory 
+                  ? template.variants.reduce((sum, v) => sum + (v.quantity || 0), 0)
+                  : 0;
+                const avgPrice = template.variants && template.variants.length > 0
+                  ? template.variants.reduce((sum, v) => sum + v.retailPrice, 0) / template.variants.length
+                  : 0;
+                
+                // 收集所有变体的维度值
+                const dimensionValues = {};
+                if (template.variantDimensions) {
+                  template.variantDimensions.forEach(dim => {
+                    dimensionValues[dim.name] = new Set();
+                  });
+                }
+                
+                if (template.variants) {
+                  template.variants.forEach(variant => {
+                    Object.entries(variant.values || {}).forEach(([key, value]) => {
+                      if (dimensionValues[key]) {
+                        dimensionValues[key].add(value);
+                      }
+                    });
+                  });
+                }
+                
+                return `
+                  <div style="background: white; border: 2px solid #10b981; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 2px 4px rgba(16, 185, 129, 0.1);"
+                    onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 16px rgba(16, 185, 129, 0.2)';"
+                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(16, 185, 129, 0.1)';">
+                    
+                    <h4 style="font-size: 18px; margin-bottom: 10px; color: #1f2937; font-weight: 700;">
+                      ${template.name}
+                      <span style="background: #dcfce7; color: #059669; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px; font-weight: 600;">模板</span>
+                    </h4>
+                    
+                    <div style="color: #666; font-size: 13px; margin-bottom: 10px;">
+                      <span style="background: #f3f4f6; padding: 3px 10px; border-radius: 12px; font-size: 12px; margin-right: 6px; font-weight: 600;">${template.category}</span>
+                      <span style="color: #6b7280;">${template.trackInventory ? '📊 跟踪库存' : '📝 仅记录'}</span>
+                    </div>
+                    
+                    <div style="color: #666; font-size: 12px; margin-bottom: 12px; background: #f0fdf4; padding: 10px; border-radius: 8px; border-left: 3px solid #10b981; flex-grow: 1;">
+                      <div style="font-weight: 600; color: #059669; margin-bottom: 6px; font-size: 13px;">📦 可选变体</div>
+                      ${Object.entries(dimensionValues).map(([dimName, values]) => `
+                        <div style="margin-bottom: 4px; line-height: 1.5;">
+                          <span style="color: #059669; font-weight: 600;">${dimName}:</span> 
+                          <span style="color: #374151;">${Array.from(values).join(', ')}</span>
+                        </div>
+                      `).join('')}
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-top: 10px; border-top: 1px solid #e5e7eb;">
+                      <div style="display: flex; gap: 8px; align-items: center;">
+                        ${template.trackInventory ? `
+                          <span style="background: #dcfce7; color: #059669; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 700;">
+                            库存: ${totalStock}
+                          </span>
+                        ` : ''}
+                        <span style="background: #dcfce7; color: #059669; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 700;">
+                          ${totalVariants} 变体
+                        </span>
+                      </div>
+                      <span style="color: #10b981; font-size: 22px; font-weight: 800;">
+                        €${avgPrice.toFixed(2)}
+                      </span>
+                    </div>
+                    
+                    <button onclick='showTemplateVariantSelection("${template._id}", ${tIndex})' 
+                      style="width: 100%; padding: 12px; background: #10b981; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; transition: background 0.2s;"
+                      onmouseover="this.style.background='#059669'"
+                      onmouseout="this.style.background='#10b981'">
+                      🎨 选择变体
+                    </button>
+                  </div>
+                `;
+              }).join('');
+              
+              // 将模板卡片插入到现有网格中
+              const gridMatch = existingContent.match(/<div style="display: grid;[^>]*>([\s\S]*)<\/div>/);
+              if (gridMatch) {
+                const gridContent = gridMatch[1];
+                const newGridContent = gridContent + templateCards;
+                container.innerHTML = existingContent.replace(gridMatch[0], 
+                  `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">${newGridContent}</div>`
+                );
+              } else {
+                // 如果没有找到网格，直接追加
+                container.innerHTML = existingContent + `
+                  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; margin-top: 20px;">
+                    ${templateCards}
+                  </div>
+                `;
+              }
+              
+              // 保存模板数据到全局变量，供变体选择使用
+              window.templateProductsCache = {};
+              templates.forEach((template, index) => {
+                window.templateProductsCache[`template_${index}`] = template;
+              });
+            }
+          }
         }
       } catch (error) {
         container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
@@ -3788,7 +4203,7 @@
       const container = document.getElementById(containerId);
       
       if (products.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">没有找到匹配的产品</p>';
+        container.innerHTML = '';
         return;
       }
       
@@ -4259,20 +4674,46 @@
       }
     }
     
-    // 将选中的变体加入购物车
+    // 将选中的变体加入购物车（统一处理库存产品和模板产品）
     function addSelectedVariantToCart() {
-      const item = variantSelectionState.selectedItem;
-      if (!item) return;
-      
-      const productName = `${variantSelectionState.productData.productName} (${variantSelectionState.dimension1Value} - ${variantSelectionState.dimension2Value})`;
-      
-      addToCart(
-        item._id,
-        productName,
-        item.retailPrice,
-        item.quantity,
-        item.taxClassification || 'VAT_23'
-      );
+      // 检查是否是模板产品
+      if (window.currentTemplateSelection && window.currentTemplateSelection.template) {
+        const template = window.currentTemplateSelection.template;
+        const variant = window.currentTemplateSelection.selectedVariant;
+        const variantIndex = window.currentTemplateSelection.selectedVariantIndex;
+        
+        if (!variant) {
+          alert('请选择变体');
+          return;
+        }
+        
+        const variantLabel = Object.values(variant.values).join(' - ');
+        
+        addTemplateVariantToCart(
+          template._id,
+          variantIndex,
+          template.name,
+          variantLabel,
+          variant.retailPrice,
+          template.taxClassification || 'VAT_23',
+          template.trackInventory,
+          variant.quantity || 0
+        );
+      } else {
+        // 库存产品
+        const item = variantSelectionState.selectedItem;
+        if (!item) return;
+        
+        const productName = `${variantSelectionState.productData.productName} (${variantSelectionState.dimension1Value} - ${variantSelectionState.dimension2Value})`;
+        
+        addToCart(
+          item._id,
+          productName,
+          item.retailPrice,
+          item.quantity,
+          item.taxClassification || 'VAT_23'
+        );
+      }
       
       // 关闭模态框
       closeVariantModal();
@@ -4360,10 +4801,10 @@
       
       // 获取分类显示名称
       const categoryNames = {
-        'newDevices': '📱 新设备',
-        'usedDevices': '♻️ 二手设备',
-        'accessories': '🎧 配件',
-        'services': '🔧 服务'
+        'newDevices': '📱 New Device',
+        'usedDevices': '♻️ Used Device',
+        'accessories': '🎧 Accessory',
+        'services': '🔧 Service'
       };
       
       const categoryDisplay = categoryNames[category] || category;
@@ -4570,12 +5011,15 @@
         items: cart.map(item => ({
           inventoryId: item.isQuickSale ? null : (item.inventoryId || null), // 快速销售没有inventoryId
           repairId: item.repairId || null,
+          templateId: item.templateId || null, // 模板ID
+          variantIndex: item.variantIndex !== undefined ? item.variantIndex : null, // 变体索引
           productName: item.productName,
           quantity: item.quantity,
           price: item.price,  // 使用修改后的价格
           taxClassification: item.taxClassification,
           serialNumber: item.serialNumber,
           isQuickSale: item.isQuickSale || false, // 标记是否为快速销售
+          isTemplate: item.isTemplate || false, // 标记是否为模板产品
           quickSaleCategory: item.quickSaleCategory || null,
           quickSaleDescription: item.quickSaleDescription || null
         })),
@@ -4666,7 +5110,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>销售小票</title>
+  <title>Sales Receipt</title>
   <style>
     * {
       margin: 0;
@@ -9632,6 +10076,20 @@
     // 生成税务报表
     let currentTaxReportData = null; // 存储当前报表数据用于PDF导出
     
+    // 切换进项税计算
+    function toggleInputTaxCalculation() {
+      const checkbox = document.getElementById('enableInputTaxToggle');
+      systemConfig.enableInputTaxCalculation = checkbox.checked;
+      
+      // 保存到localStorage
+      localStorage.setItem('enableInputTaxCalculation', checkbox.checked);
+      
+      // 如果已经生成了报表，重新生成
+      if (currentTaxReportData) {
+        generateTaxReport();
+      }
+    }
+    
     async function generateTaxReport() {
       const startDate = document.getElementById('taxStartDate').value;
       const endDate = document.getElementById('taxEndDate').value;
@@ -9695,9 +10153,15 @@
                 <td>VAT 23%</td>
                 <td>€${taxByClassification.VAT_23.sales.toFixed(2)}</td>
                 <td>€${taxByClassification.VAT_23.outputTax.toFixed(2)}</td>
-                <td>€${taxByClassification.VAT_23.cost.toFixed(2)}</td>
-                <td>€${taxByClassification.VAT_23.inputTax.toFixed(2)}</td>
-                <td style="color: #dc3545; font-weight: bold;">€${taxByClassification.VAT_23.due.toFixed(2)}</td>
+                ${systemConfig.enableInputTaxCalculation ? `
+                  <td>€${taxByClassification.VAT_23.cost.toFixed(2)}</td>
+                  <td>€${taxByClassification.VAT_23.inputTax.toFixed(2)}</td>
+                  <td style="color: #dc3545; font-weight: bold;">€${taxByClassification.VAT_23.due.toFixed(2)}</td>
+                ` : `
+                  <td style="color: #999;">-</td>
+                  <td style="color: #999;">-</td>
+                  <td style="color: #dc3545; font-weight: bold;">€${taxByClassification.VAT_23.outputTax.toFixed(2)}</td>
+                `}
               </tr>
             `;
           }
@@ -9750,9 +10214,26 @@
             taxRows = '<tr><td colspan="6" style="text-align: center; color: #999; padding: 20px;">该时间段内无税务数据</td></tr>';
           }
           
+          // 计算总应缴税额（根据配置决定是否扣除进项税）
+          let totalTaxDue;
+          if (systemConfig.enableInputTaxCalculation) {
+            totalTaxDue = summary.totalTaxDue;
+          } else {
+            // 不计算进项税时，使用销项税总额
+            totalTaxDue = taxByClassification.VAT_23.outputTax + 
+                         taxByClassification.SERVICE_VAT_13_5.due + 
+                         taxByClassification.MARGIN_VAT_0.due;
+          }
+          
           container.innerHTML = `
             <div style="background: #f8f9fa; padding: 20px; border-radius: 8px;">
               <h3 style="margin-bottom: 20px;">税务报表 (${startDate} 至 ${endDate})</h3>
+              
+              ${!systemConfig.enableInputTaxCalculation ? `
+                <div style="background: #fff3cd; padding: 12px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
+                  <strong>⚠️ 注意：</strong> 当前未启用进项税计算，应缴税额仅为销项税总额
+                </div>
+              ` : ''}
               
               <h4 style="margin: 20px 0 10px 0;">📅 每日销售汇总</h4>
               ${dailyTable}
@@ -9773,7 +10254,7 @@
                   ${taxRows}
                   <tr style="font-weight: bold; background: #fff3cd;">
                     <td colspan="5" style="text-align: right;">总应缴税额：</td>
-                    <td style="color: #dc3545; font-size: 18px;">€${summary.totalTaxDue.toFixed(2)}</td>
+                    <td style="color: #dc3545; font-size: 18px;">€${totalTaxDue.toFixed(2)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -9781,7 +10262,7 @@
               <div style="margin-top: 20px; padding: 15px; background: white; border-left: 4px solid #6366f1;">
                 <p style="margin: 0; color: #666;">
                   <strong>📋 计算说明：</strong><br>
-                  • <strong>VAT 23%</strong>: 销项税 = 销售额×23/123, 进项税 = 成本×23/123, 应缴 = 销项税 - 进项税<br>
+                  • <strong>VAT 23%</strong>: 销项税 = 销售额×23/123${systemConfig.enableInputTaxCalculation ? ', 进项税 = 成本×23/123, 应缴 = 销项税 - 进项税' : ', 应缴 = 销项税'}<br>
                   • <strong>Service VAT 13.5%</strong>: 应缴税 = 金额×13.5/113.5<br>
                   • <strong>Margin VAT</strong>: 应缴税 = (销售额 - 成本)×23/123<br>
                   • <strong>VAT 0%</strong>: 免税商品，无需缴纳增值税
@@ -13199,6 +13680,13 @@
       // 税务报表日期
       document.getElementById('taxStartDate').valueAsDate = firstDay;
       document.getElementById('taxEndDate').valueAsDate = now;
+      
+      // 恢复进项税计算配置
+      const savedInputTaxConfig = localStorage.getItem('enableInputTaxCalculation');
+      if (savedInputTaxConfig === 'true') {
+        systemConfig.enableInputTaxCalculation = true;
+        document.getElementById('enableInputTaxToggle').checked = true;
+      }
       
       // 销售记录查询日期（默认当天）
       document.getElementById('salesStartDate').valueAsDate = now;

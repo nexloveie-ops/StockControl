@@ -10742,6 +10742,75 @@ app.post('/api/merchant/sales/complete', async (req, res) => {
             taxAmount: taxAmount,
             serialNumber: repairOrder.deviceIMEI || repairOrder.deviceSN || null
           });
+        } else if (item.isTemplate) {
+          // 处理产品模板销售
+          console.log(`📋 模板产品销售: ${item.productName}`);
+          
+          const ProductTemplate = require('./models/ProductTemplate');
+          const template = await ProductTemplate.findById(item.templateId).session(session);
+          
+          if (!template) {
+            throw new Error(`产品模板不存在: ${item.productName}`);
+          }
+          
+          const variant = template.variants[item.variantIndex];
+          if (!variant) {
+            throw new Error(`变体不存在: ${item.productName}`);
+          }
+          
+          // 如果跟踪库存，检查并减少库存
+          if (template.trackInventory) {
+            if (variant.quantity < item.quantity) {
+              throw new Error(`库存不足: ${item.productName} (可用: ${variant.quantity}, 需要: ${item.quantity})`);
+            }
+            variant.quantity -= item.quantity;
+            await template.save({ session });
+          }
+          
+          // 标准化税分类
+          let taxClassification = item.taxClassification || 'VAT_23';
+          if (taxClassification === 'VAT 23%' || taxClassification === 'VAT_23') {
+            taxClassification = 'VAT_23';
+          } else if (taxClassification === 'VAT 13.5%' || taxClassification === 'Service VAT 13.5%' || taxClassification === 'SERVICE_VAT_13_5') {
+            taxClassification = 'SERVICE_VAT_13_5';
+          } else if (taxClassification === 'VAT 0%' || taxClassification === 'Margin VAT' || taxClassification === 'MARGIN_VAT_0') {
+            taxClassification = 'MARGIN_VAT_0';
+          }
+          
+          // 计算税额
+          let taxAmount = 0;
+          const itemTotal = item.price * item.quantity;
+          const costPrice = variant.costPrice || 0;
+          
+          switch (taxClassification) {
+            case 'VAT_23':
+              taxAmount = itemTotal * 23 / 123;
+              break;
+            case 'SERVICE_VAT_13_5':
+              taxAmount = itemTotal * 13.5 / 113.5;
+              break;
+            case 'MARGIN_VAT_0':
+              const margin = itemTotal - (costPrice * item.quantity);
+              taxAmount = margin * 23 / 123;
+              break;
+            default:
+              taxAmount = itemTotal * 23 / 123;
+          }
+          
+          saleItems.push({
+            inventoryId: null,
+            repairOrderId: null,
+            templateId: item.templateId,
+            variantIndex: item.variantIndex,
+            productName: item.productName,
+            quantity: item.quantity,
+            price: item.price,
+            costPrice: costPrice,
+            taxClassification: taxClassification,
+            taxAmount: taxAmount,
+            serialNumber: null,
+            isTemplate: true
+          });
         } else if (item.isQuickSale) {
           // 处理快速销售产品（无需库存）
           console.log(`⚡ 快速销售: ${item.productName}`);
@@ -12274,8 +12343,331 @@ app.post('/api/merchant/inventory/transfer/complete', async (req, res) => {
   }
 });
 
+// ==================== 用户系统信息管理 API ====================
+
+// 获取用户系统信息列表
+app.get('/api/user-system-info', async (req, res) => {
+  try {
+    const UserSystemInfo = require('./models/UserSystemInfo');
+    const { userId, type } = req.query;
+    
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: '需要提供userId'
+      });
+    }
+    
+    console.log(`\n📋 获取用户系统信息: ${userId}${type ? ` (类型: ${type})` : ''}`);
+    
+    const query = { userId, isActive: true };
+    if (type) {
+      query.type = type;
+    }
+    
+    const systemInfo = await UserSystemInfo.find(query).sort({ type: 1, name: 1 });
+    
+    console.log(`   找到 ${systemInfo.length} 条系统信息`);
+    
+    res.json({
+      success: true,
+      data: systemInfo
+    });
+    
+  } catch (error) {
+    console.error('获取用户系统信息失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 创建用户系统信息
+app.post('/api/user-system-info', async (req, res) => {
+  try {
+    const UserSystemInfo = require('./models/UserSystemInfo');
+    const { userId, type, name, values, description } = req.body;
+    
+    if (!userId || !type || !name || !values || values.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少必要参数'
+      });
+    }
+    
+    console.log(`\n📋 创建用户系统信息: ${userId} - ${name} (${type})`);
+    
+    // 检查是否已存在
+    const existing = await UserSystemInfo.findOne({ userId, type, name });
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        error: '该名称的系统信息已存在'
+      });
+    }
+    
+    const systemInfo = new UserSystemInfo({
+      userId,
+      type,
+      name,
+      values,
+      description: description || ''
+    });
+    
+    await systemInfo.save();
+    
+    console.log(`   ✅ 创建成功: ${systemInfo._id}`);
+    
+    res.json({
+      success: true,
+      data: systemInfo
+    });
+    
+  } catch (error) {
+    console.error('创建用户系统信息失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 更新用户系统信息
+app.put('/api/user-system-info/:id', async (req, res) => {
+  try {
+    const UserSystemInfo = require('./models/UserSystemInfo');
+    const { id } = req.params;
+    const { type, name, values, description } = req.body;
+    
+    console.log(`\n📋 更新用户系统信息: ${id}`);
+    
+    const systemInfo = await UserSystemInfo.findById(id);
+    if (!systemInfo) {
+      return res.status(404).json({
+        success: false,
+        error: '系统信息不存在'
+      });
+    }
+    
+    // 更新字段
+    if (type) systemInfo.type = type;
+    if (name) systemInfo.name = name;
+    if (values) systemInfo.values = values;
+    if (description !== undefined) systemInfo.description = description;
+    
+    await systemInfo.save();
+    
+    console.log(`   ✅ 更新成功`);
+    
+    res.json({
+      success: true,
+      data: systemInfo
+    });
+    
+  } catch (error) {
+    console.error('更新用户系统信息失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 删除用户系统信息
+app.delete('/api/user-system-info/:id', async (req, res) => {
+  try {
+    const UserSystemInfo = require('./models/UserSystemInfo');
+    const { id } = req.params;
+    
+    console.log(`\n📋 删除用户系统信息: ${id}`);
+    
+    const systemInfo = await UserSystemInfo.findById(id);
+    if (!systemInfo) {
+      return res.status(404).json({
+        success: false,
+        error: '系统信息不存在'
+      });
+    }
+    
+    // 软删除
+    systemInfo.isActive = false;
+    await systemInfo.save();
+    
+    console.log(`   ✅ 删除成功`);
+    
+    res.json({
+      success: true,
+      message: '删除成功'
+    });
+    
+  } catch (error) {
+    console.error('删除用户系统信息失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ==================== 产品模板管理 API ====================
+
+// 获取产品模板列表
+app.get('/api/product-templates', async (req, res) => {
+  try {
+    const ProductTemplate = require('./models/ProductTemplate');
+    const { userId } = req.query;
+    
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: '需要提供userId'
+      });
+    }
+    
+    console.log(`\n📋 获取产品模板列表: ${userId}`);
+    
+    const templates = await ProductTemplate.find({ userId, isActive: true }).sort({ createdAt: -1 });
+    
+    console.log(`   找到 ${templates.length} 个模板`);
+    
+    res.json({
+      success: true,
+      data: templates
+    });
+    
+  } catch (error) {
+    console.error('获取产品模板失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 创建产品模板
+app.post('/api/product-templates', async (req, res) => {
+  try {
+    const ProductTemplate = require('./models/ProductTemplate');
+    const { userId, name, category, trackInventory, variantDimensions, variants } = req.body;
+    
+    if (!userId || !name || !category || !variantDimensions || !variants) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少必要参数'
+      });
+    }
+    
+    console.log(`\n📋 创建产品模板: ${userId} - ${name}`);
+    console.log(`   分类: ${category}, 跟踪库存: ${trackInventory}, 变体数: ${variants.length}`);
+    
+    const template = new ProductTemplate({
+      userId,
+      name,
+      category,
+      trackInventory: trackInventory !== false,
+      variantDimensions,
+      variants
+    });
+    
+    await template.save();
+    
+    console.log(`   ✅ 创建成功: ${template._id}`);
+    
+    res.json({
+      success: true,
+      data: template
+    });
+    
+  } catch (error) {
+    console.error('创建产品模板失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 更新产品模板
+app.put('/api/product-templates/:id', async (req, res) => {
+  try {
+    const ProductTemplate = require('./models/ProductTemplate');
+    const { id } = req.params;
+    const { name, category, trackInventory, variantDimensions, variants } = req.body;
+    
+    console.log(`\n📋 更新产品模板: ${id}`);
+    
+    const template = await ProductTemplate.findById(id);
+    if (!template) {
+      return res.status(404).json({
+        success: false,
+        error: '模板不存在'
+      });
+    }
+    
+    if (name) template.name = name;
+    if (category) template.category = category;
+    if (trackInventory !== undefined) template.trackInventory = trackInventory;
+    if (variantDimensions) template.variantDimensions = variantDimensions;
+    if (variants) template.variants = variants;
+    
+    await template.save();
+    
+    console.log(`   ✅ 更新成功`);
+    
+    res.json({
+      success: true,
+      data: template
+    });
+    
+  } catch (error) {
+    console.error('更新产品模板失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 删除产品模板
+app.delete('/api/product-templates/:id', async (req, res) => {
+  try {
+    const ProductTemplate = require('./models/ProductTemplate');
+    const { id } = req.params;
+    
+    console.log(`\n📋 删除产品模板: ${id}`);
+    
+    const template = await ProductTemplate.findById(id);
+    if (!template) {
+      return res.status(404).json({
+        success: false,
+        error: '模板不存在'
+      });
+    }
+    
+    // 软删除
+    template.isActive = false;
+    await template.save();
+    
+    console.log(`   ✅ 删除成功`);
+    
+    res.json({
+      success: true,
+      message: '删除成功'
+    });
+    
+  } catch (error) {
+    console.error('删除产品模板失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // 启动服务器
 const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => {
   console.log(`🚀 服务器运行在 http://localhost:${PORT}`);
   console.log(`📊 管理界面: http://localhost:${PORT}/`);

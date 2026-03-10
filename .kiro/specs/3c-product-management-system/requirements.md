@@ -1,273 +1,302 @@
-# 需求文档
+# Requirements Document: 3C Product Management System
 
-## 简介
+## Introduction
 
-本文档规定了3C（计算机、通信、消费电子）产品批发零售管理系统的需求。该系统管理配件和设备的库存，支持具有不同定价层级的多种用户角色，处理税务分类，并管理完整的采购和销售工作流程。
+This document defines the requirements for implementing a three-category product classification system for the 3C (Computer, Communication, Consumer Electronics) product management system. The system introduces three distinct product categories (DEVICE, SIMPLE_ACCESSORY, TEMPLATE) with different inventory tracking strategies, user-specific system information management, and multi-dimensional product variants with optional inventory tracking.
 
-## 术语表
+The new system maintains backward compatibility with existing inventory while providing flexible product management capabilities that minimize user effort and support various business workflows including sales without purchase records for accessories.
 
-- **系统**: 3C产品管理系统
-- **零售客户**: 以零售价购买产品的终端消费者
-- **批发商户**: 具有分级定价的企业客户
-- **仓管员**: 负责库存管理、价格调整和销售发票生成的用户
-- **管理员**: 拥有完整系统访问权限的用户，包括采购和报表功能
-- **配件类产品**: 通过条形码标识、基于数量管理库存的产品
-- **设备类产品**: 具有唯一序列号（SN或IMEI）的独立产品
-- **全新设备**: 全新的设备，带有完整保修
-- **二手设备**: 具有成色等级（A+、A、B、C）的二手设备
-- **采购订单**: 发送给供应商的采购单（PO）
-- **销售发票**: 为客户购买生成的单据
-- **采购发票**: 从供应商收到的包含采购产品的单据
-- **VAT_23**: 标准增值税，税率为23%
-- **Margin_VAT_0**: 某些二手设备的差额增值税，税率为0%
-- **Service_VAT_13_5**: 服务增值税，税率为13.5%（预留给未来的维修服务）
-- **产品状态**: 产品的当前状态（可销售、坏损、报废、已售）
-- **商户等级**: 批发商户的定价级别分类
-- **条形码**: 配件产品的唯一标识符
-- **SN**: 设备识别的序列号
-- **IMEI**: 国际移动设备识别码
-- **成色等级**: 二手设备的质量分类（A+、A、B、C）
+## Glossary
 
-## 需求
+- **System**: The 3C Product Management System
+- **Product_Category**: One of three types: DEVICE, SIMPLE_ACCESSORY, or TEMPLATE
+- **DEVICE**: Products with IMEI or serial numbers requiring individual tracking and full purchase-sale-inventory management
+- **SIMPLE_ACCESSORY**: Products with barcodes requiring batch management and inventory tracking
+- **TEMPLATE**: Product templates supporting multi-dimensional variants with optional inventory tracking
+- **User_System_Info**: User-specific system configuration data including product templates, variant dimensions, and categories
+- **Product_Template**: A template-based product definition with multiple variant dimensions
+- **Variant_Dimension**: A configurable attribute of a product template (e.g., iPhone Models, Colors)
+- **Variant_Combination**: A specific combination of variant dimension values representing a sellable product
+- **Inventory_Tracking**: The capability to track stock quantities for products
+- **MerchantInventory**: Current merchant inventory database table
+- **AdminInventory**: Admin/warehouse inventory database table
+- **MerchantSale**: Sales records database table
+- **Migration**: The process of converting existing inventory data to the new classification system
+- **Round_Trip_Property**: A property where parsing then printing then parsing produces an equivalent object
 
-### 需求1：用户认证与授权
+## Requirements
 
-**用户故事：** 作为系统用户，我希望通过基于角色的访问登录，以便访问与我职责相适应的功能。
+### Requirement 1: Three-Category Product Classification
 
-#### 验收标准
+**User Story:** As a system administrator, I want to classify products into three distinct categories, so that I can manage different product types with appropriate tracking strategies.
 
-1. WHEN 用户提供有效凭证时，THE 系统 SHALL 验证用户身份并根据其角色授予访问权限
-2. WHEN 零售客户登录时，THE 系统 SHALL 提供产品浏览和以零售价购买的访问权限
-3. WHEN 批发商户登录时，THE 系统 SHALL 根据其商户等级显示产品价格
-4. WHEN 仓管员登录时，THE 系统 SHALL 提供库存管理、价格调整和销售发票生成的访问权限
-5. WHEN 管理员登录时，THE 系统 SHALL 提供所有仓管员功能以及采购和报表功能的访问权限
-6. WHEN 用户提供无效凭证时，THE 系统 SHALL 拒绝登录尝试并显示错误消息
+#### Acceptance Criteria
 
-### 需求2：产品信息管理
+1. THE System SHALL support three product categories: DEVICE, SIMPLE_ACCESSORY, and TEMPLATE
+2. WHEN a product is classified as DEVICE, THE System SHALL require IMEI or serial number for individual tracking
+3. WHEN a product is classified as SIMPLE_ACCESSORY, THE System SHALL require barcode for batch management
+4. WHEN a product is classified as TEMPLATE, THE System SHALL support multi-dimensional variants with optional inventory tracking
+5. THE System SHALL store the product category in the database for each product record
+6. THE System SHALL validate that each product has exactly one category assignment
 
-**用户故事：** 作为仓管员，我希望管理全面的产品信息，以便系统中准确跟踪所有产品详情。
+### Requirement 2: DEVICE Category Management
 
-#### 验收标准
+**User Story:** As a merchant, I want to manage devices with individual tracking, so that I can track each device's purchase, sale, and inventory status.
 
-1. THE 系统 SHALL 为每个产品存储进货价、进货税、建议零售价、批发价和分级批发价
-2. THE 系统 SHALL 记录每个产品的采购日期、当前产品状态、仓储位置、供应商信息和关联的采购发票
-3. THE 系统 SHALL 跟踪每个产品的销售状态（已售/未售）
-4. WHEN 产品信息更新时，THE 系统 SHALL 立即持久化更改
-5. THE 系统 SHALL 根据产品的税务分类（VAT_23、Margin_VAT_0或Service_VAT_13_5）计算进货税
+#### Acceptance Criteria
 
-### 需求3：配件类产品管理
+1. WHEN a product is classified as DEVICE, THE System SHALL require either IMEI or serial number
+2. THE System SHALL enforce uniqueness of IMEI and serial numbers within the DEVICE category
+3. WHEN a DEVICE is purchased, THE System SHALL record the purchase transaction with supplier information
+4. WHEN a DEVICE is sold, THE System SHALL update the device status to sold and record the sale transaction
+5. THE System SHALL maintain full purchase-sale-inventory history for each DEVICE
+6. THE System SHALL support condition tracking for DEVICE products (e.g., BRAND_NEW, PRE_OWNED, REFURBISHED)
 
-**用户故事：** 作为仓管员，我希望通过条形码和数量管理配件产品，以便高效跟踪非序列化物品的库存。
+### Requirement 3: SIMPLE_ACCESSORY Category Management
 
-#### 验收标准
+**User Story:** As a merchant, I want to manage accessories with batch tracking, so that I can efficiently handle products that don't require individual identification.
 
-1. THE 系统 SHALL 使用条形码标识配件类产品
-2. WHEN 添加配件类产品时，THE 系统 SHALL 将多个数量与单个条形码关联
-3. THE 系统 SHALL 跟踪每个条形码的库存数量
-4. WHEN 配件类产品售出时，THE 系统 SHALL 将数量减少售出的数量
-5. WHEN 配件类产品数量达到零时，THE 系统 SHALL 将其标记为缺货
+#### Acceptance Criteria
 
-### 需求4：设备类产品管理
+1. WHEN a product is classified as SIMPLE_ACCESSORY, THE System SHALL require a barcode
+2. THE System SHALL track inventory quantity for SIMPLE_ACCESSORY products
+3. WHEN a SIMPLE_ACCESSORY is sold, THE System SHALL decrement the inventory quantity
+4. WHEN a SIMPLE_ACCESSORY is restocked, THE System SHALL increment the inventory quantity
+5. THE System SHALL support batch operations for SIMPLE_ACCESSORY products
+6. THE System SHALL maintain inventory quantity with minimum value of zero
 
-**用户故事：** 作为仓管员，我希望使用唯一标识符管理单个设备，以便在整个生命周期中单独跟踪每个设备。
+### Requirement 4: User-Specific System Information
 
-#### 验收标准
+**User Story:** As a user, I want to define my own product templates and variant dimensions, so that I can customize the system to match my business needs.
 
-1. THE 系统 SHALL 为每个设备类产品创建单独的记录
-2. THE 系统 SHALL 要求每个设备类产品具有SN或IMEI
-3. WHEN 添加全新设备时，THE 系统 SHALL 将其分类为全新设备，税务分类为VAT_23
-4. WHEN 添加二手设备时，THE 系统 SHALL 要求成色等级（A+、A、B或C）
-5. WHEN 添加二手设备时，THE 系统 SHALL 允许选择VAT_23或Margin_VAT_0税务分类
-6. THE 系统 SHALL 确保每个SN或IMEI在系统内唯一
+#### Acceptance Criteria
 
-### 需求5：价格管理
+1. THE System SHALL associate User_System_Info with a specific userId
+2. WHEN a user creates system information, THE System SHALL store it with the user's identifier
+3. THE System SHALL isolate User_System_Info so that users can only view and edit their own data
+4. THE System SHALL support user-defined variant dimensions (e.g., iPhone Models, Colors, Sizes)
+5. WHEN a user edits system information, THE System SHALL update only the user's own data
+6. THE System SHALL support multiple variant dimensions per user with configurable values
 
-**用户故事：** 作为仓管员，我希望调整产品价格，以便定价反映市场状况和业务策略。
+### Requirement 5: Product Template with Multi-Dimensional Variants
 
-#### 验收标准
+**User Story:** As a user, I want to create product templates with multiple variant dimensions, so that I can efficiently manage products with many variations without creating individual records for each combination.
 
-1. WHEN 仓管员更新产品价格时，THE 系统 SHALL 验证新价格为非负数
-2. WHEN 仓管员更新定价时，THE 系统 SHALL 允许修改零售价、批发价和分级批发价
-3. THE 系统 SHALL 维护价格历史记录以供审计
-4. WHEN 价格更新时，THE 系统 SHALL 立即将新价格应用于未来交易
-5. THE 系统 SHALL 保留现有销售发票价格，不受后续价格变更影响
+#### Acceptance Criteria
 
-### 需求6：分级批发定价
+1. WHEN a user creates a Product_Template, THE System SHALL allow linking to user-defined variant dimensions
+2. THE System SHALL support multiple variant dimensions per Product_Template
+3. WHEN a user adds variant dimensions, THE System SHALL allow specifying values for each dimension
+4. THE System SHALL store pricing information (cost price, wholesale price, retail price) for each Variant_Combination
+5. WHEN a user enters variant data, THE System SHALL validate that all required pricing fields are provided
+6. THE System SHALL support optional inventory quantity tracking per Variant_Combination
+7. WHEN a variant has zero inventory and inventory tracking is enabled, THE System SHALL not display it in the frontend
+8. THE System SHALL dynamically combine variant information during sales without pre-generating all combinations
 
-**用户故事：** 作为批发商户，我希望看到适合我等级的价格，以便获得与我业务关系相符的正确批发价格。
+### Requirement 6: Optional Inventory Tracking Toggle
 
-#### 验收标准
+**User Story:** As a user, I want to optionally enable inventory tracking for product templates, so that I can choose whether to track stock levels based on my business needs.
 
-1. THE 系统 SHALL 支持具有不同定价的多个商户等级
-2. WHEN 批发商户查看产品时，THE 系统 SHALL 显示与其商户等级对应的价格
-3. WHEN 批发商户购买产品时，THE 系统 SHALL 应用其等级特定的定价
-4. THE 系统 SHALL 防止批发商户用户查看其他等级的定价
-5. WHEN 管理员创建或修改商户等级时，THE 系统 SHALL 相应更新定价可见性
+#### Acceptance Criteria
 
-### 需求7：销售发票生成
+1. THE Product_Template SHALL include a trackInventory boolean field
+2. WHEN trackInventory is true, THE System SHALL maintain inventory quantities for each Variant_Combination
+3. WHEN trackInventory is false, THE System SHALL record sales without inventory validation
+4. WHEN trackInventory is false, THE System SHALL generate sales reports and purchase suggestions without inventory constraints
+5. WHEN a sale occurs for a template with trackInventory enabled, THE System SHALL decrement the variant inventory quantity
+6. WHEN a sale occurs for a template with trackInventory disabled, THE System SHALL record the sale without inventory updates
 
-**用户故事：** 作为仓管员，我希望为客户购买生成销售发票，以便完成电子邮件或电话订单的销售交易。
+### Requirement 7: Sales Process for Template-Based Products
 
-#### 验收标准
+**User Story:** As a merchant, I want to sell template-based products by dynamically selecting variants, so that I can complete sales efficiently without pre-generating all product combinations.
 
-1. WHEN 仓管员创建销售发票时，THE 系统 SHALL 包含客户信息、产品详情、数量、价格和税务计算
-2. WHEN 生成销售发票时，THE 系统 SHALL 计算包含适用税费的总金额
-3. WHEN 仓管员对销售发票应用折扣时，THE 系统 SHALL 验证折扣在管理员设置的允许范围内
-4. WHEN 销售发票最终确定时，THE 系统 SHALL 将产品销售状态更新为已售
-5. WHEN 销售发票包含配件类产品时，THE 系统 SHALL 相应减少库存数量
+#### Acceptance Criteria
 
-### 需求8：折扣授权
+1. WHEN a merchant initiates a sale for a TEMPLATE product, THE System SHALL display available variant dimensions
+2. THE System SHALL allow the merchant to select values for each variant dimension
+3. WHEN variant selections are made, THE System SHALL retrieve the corresponding pricing information
+4. THE System SHALL capture the selected Variant_Combination details in the sale record
+5. WHEN trackInventory is enabled and inventory is insufficient, THE System SHALL prevent the sale and display an error message
+6. WHEN trackInventory is disabled, THE System SHALL allow the sale regardless of inventory status
+7. THE System SHALL record the complete variant details at the time of sale in MerchantSale
 
-**用户故事：** 作为管理员，我希望为仓管员设置折扣限制，以便在实现客户服务的同时控制定价灵活性。
+### Requirement 8: Purchase Records and VAT Handling
 
-#### 验收标准
+**User Story:** As a merchant, I want to submit purchase invoices directly to tax authorities without entering them into the system, so that I can minimize data entry effort while claiming VAT.
 
-1. WHEN 管理员设置折扣范围时，THE 系统 SHALL 存储最小和最大折扣百分比
-2. WHEN 仓管员应用折扣时，THE 系统 SHALL 验证其在授权范围内
-3. IF 仓管员尝试超出授权范围的折扣，THEN THE 系统 SHALL 拒绝折扣并显示错误消息
-4. THE 系统 SHALL 允许不同仓管员成员有不同的折扣范围
-5. WHEN 管理员修改折扣范围时，THE 系统 SHALL 立即将新限制应用于后续交易
+#### Acceptance Criteria
 
-### 需求9：采购订单创建
+1. WHEN a product is classified as SIMPLE_ACCESSORY or TEMPLATE, THE System SHALL not require purchase record entry
+2. THE System SHALL support sales recording without corresponding purchase records for SIMPLE_ACCESSORY and TEMPLATE products
+3. THE System SHALL generate sales reports for products without purchase records
+4. THE System SHALL provide purchase suggestions based on sales data and inventory levels
+5. WHEN a DEVICE is purchased, THE System SHALL require purchase record entry for full tracking
+6. THE System SHALL maintain VAT calculation capabilities for all product categories
 
-**用户故事：** 作为管理员，我希望为供应商创建采购订单，以便采购库存以满足业务需求。
+### Requirement 9: Backward Compatibility and Migration
 
-#### 验收标准
+**User Story:** As a system administrator, I want to migrate existing inventory to the new classification system, so that I can preserve historical data while adopting the new structure.
 
-1. WHEN 管理员创建采购订单时，THE 系统 SHALL 包含供应商信息、产品规格、数量和预期价格
-2. THE 系统 SHALL 生成唯一的采购订单标识符
-3. WHEN 创建采购订单时，THE 系统 SHALL 将其状态设置为"草稿"
-4. THE 系统 SHALL 允许管理员修改草稿采购订单详情
-5. WHEN 管理员向供应商发送采购订单时，THE 系统 SHALL 将状态更新为"已发送"
+#### Acceptance Criteria
 
-### 需求10：采购订单修改
+1. THE System SHALL maintain compatibility with existing MerchantInventory records
+2. WHEN migration occurs, THE System SHALL classify existing products based on their attributes (serialNumber, barcode, category)
+3. THE System SHALL assign DEVICE category to products with serialNumber or IMEI
+4. THE System SHALL assign SIMPLE_ACCESSORY category to products with barcode and no serialNumber
+5. THE System SHALL preserve all existing product data during migration
+6. THE System SHALL provide a migration report showing classification results
+7. WHEN migration is complete, THE System SHALL validate data integrity using round-trip properties
+8. FOR ALL migrated products, reading then writing then reading SHALL produce equivalent product records
 
-**用户故事：** 作为管理员，我希望根据供应商反馈修改采购订单，以便调整订单以匹配供应商的可用性。
+### Requirement 10: User System Info Data Model
 
-#### 验收标准
+**User Story:** As a developer, I want a well-defined data model for user-specific system information, so that I can implement the feature correctly.
 
-1. WHEN 采购订单状态为"已发送"或"草稿"时，THE 系统 SHALL 允许管理员修改产品数量和规格
-2. WHEN 管理员修改采购订单时，THE 系统 SHALL 维护修订历史
-3. WHEN 管理员最终确定采购订单时，THE 系统 SHALL 将状态更新为"已下单"并防止进一步修改
-4. THE 系统 SHALL 允许管理员在达到"已发货"状态之前取消采购订单
-5. WHEN 采购订单被取消时，THE 系统 SHALL 将其状态更新为"已取消"
+#### Acceptance Criteria
 
-### 需求11：采购订单状态管理
+1. THE System SHALL define a UserSystemInfo model with userId, name, type, and values fields
+2. THE UserSystemInfo model SHALL support types including VARIANT_DIMENSION, CATEGORY, and PRODUCT_MODEL
+3. WHEN a UserSystemInfo record is created, THE System SHALL validate that userId is provided
+4. THE System SHALL enforce uniqueness of (userId, name, type) combinations
+5. THE UserSystemInfo model SHALL store values as an array of strings
+6. THE System SHALL support CRUD operations for UserSystemInfo records
+7. THE System SHALL index UserSystemInfo by userId for efficient queries
 
-**用户故事：** 作为管理员或仓管员，我希望更新采购订单状态，以便跟踪从订单到收货的采购生命周期。
+### Requirement 11: Product Template Data Model
 
-#### 验收标准
+**User Story:** As a developer, I want a well-defined data model for product templates, so that I can implement variant management correctly.
 
-1. WHEN 用户将采购订单更新为"已下单"时，THE 系统 SHALL 记录订单日期
-2. WHEN 用户将采购订单更新为"已发货"时，THE 系统 SHALL 要求并存储跟踪号
-3. WHEN 用户将采购订单更新为"已收货"时，THE 系统 SHALL 记录收货日期
-4. WHEN 用户将采购订单更新为"已确认"时，THE 系统 SHALL 自动将所有产品添加到库存
-5. THE 系统 SHALL 强制执行状态进展：草稿 → 已发送 → 已下单 → 已发货 → 已收货 → 已确认
+#### Acceptance Criteria
 
-### 需求12：自动库存更新
+1. THE System SHALL define a ProductTemplate model with userId, name, category, trackInventory, and variantDimensions fields
+2. THE ProductTemplate model SHALL include a variants array storing Variant_Combination data
+3. WHEN a ProductTemplate is created, THE System SHALL validate that userId and name are provided
+4. THE System SHALL store variant pricing (costPrice, wholesalePrice, retailPrice) for each Variant_Combination
+5. THE System SHALL store optional inventory quantity for each Variant_Combination
+6. THE ProductTemplate model SHALL reference UserSystemInfo for variant dimension definitions
+7. THE System SHALL support CRUD operations for ProductTemplate records
+8. THE System SHALL index ProductTemplate by userId and category for efficient queries
 
-**用户故事：** 作为管理员，我希望在确认收到采购订单时自动更新库存，以便新库存立即可供销售。
+### Requirement 12: Sales Record Enhancement
 
-#### 验收标准
+**User Story:** As a merchant, I want sales records to capture complete variant information, so that I can track what was sold with full detail.
 
-1. WHEN 采购订单状态更改为"已确认"时，THE 系统 SHALL 为订单中的所有产品创建库存记录
-2. WHEN 为配件类产品创建库存记录时，THE 系统 SHALL 将数量添加到现有条形码库存或创建新记录
-3. WHEN 为设备类产品创建库存记录时，THE 系统 SHALL 创建具有唯一SN或IMEI的单独记录
-4. THE 系统 SHALL 将所有新添加库存的产品状态设置为"可销售"
-5. THE 系统 SHALL 将每个库存项目链接到其来源采购发票
+#### Acceptance Criteria
 
-### 需求13：采购发票管理
+1. WHEN a TEMPLATE product is sold, THE MerchantSale record SHALL include variant dimension values
+2. THE System SHALL store the selected Variant_Combination in the sale item
+3. THE System SHALL preserve variant information even if the Product_Template is later modified
+4. THE MerchantSale model SHALL support a variantInfo field containing dimension-value pairs
+5. THE System SHALL display variant information in sales reports and receipts
+6. WHEN a sale is recorded, THE System SHALL validate that all required variant dimensions have values
 
-**用户故事：** 作为管理员，我希望管理来自供应商的采购发票，以便跟踪成本并将产品链接到其采购文档。
+### Requirement 13: Inventory Display and Filtering
 
-#### 验收标准
+**User Story:** As a merchant, I want to view inventory filtered by product category, so that I can manage different product types efficiently.
 
-1. WHEN 管理员创建采购发票时，THE 系统 SHALL 包含供应商信息、跟踪号、产品列表、总金额、税务分类、付款方式、订单日期和交付日期
-2. THE 系统 SHALL 将每个采购发票与其对应的采购订单关联
-3. THE 系统 SHALL 计算包含所有适用税费的总金额
-4. THE 系统 SHALL 允许管理员查看与特定采购发票关联的所有产品
-5. WHEN 创建采购发票时，THE 系统 SHALL 验证所有必填字段已填充
+#### Acceptance Criteria
 
-### 需求14：库存状态管理
+1. THE System SHALL provide inventory filtering by Product_Category
+2. WHEN filtering by DEVICE, THE System SHALL display products with IMEI or serial numbers
+3. WHEN filtering by SIMPLE_ACCESSORY, THE System SHALL display products with barcodes and quantities
+4. WHEN filtering by TEMPLATE, THE System SHALL display product templates with variant summaries
+5. THE System SHALL support search across all product categories
+6. WHEN a variant has zero inventory and trackInventory is enabled, THE System SHALL exclude it from the display
 
-**用户故事：** 作为仓管员，我希望更新产品状态，以便跟踪损坏、报废或其他不可销售的产品。
+### Requirement 14: Reporting and Analytics
 
-#### 验收标准
+**User Story:** As a merchant, I want to generate reports for all product categories, so that I can analyze sales performance and inventory status.
 
-1. WHEN 仓管员更新产品状态时，THE 系统 SHALL 允许从以下选项中选择：可销售、坏损、报废、已售
-2. WHEN 产品状态更改为"坏损"或"报废"时，THE 系统 SHALL 将产品从可用库存计数中排除
-3. WHEN 产品状态更改为"已售"时，THE 系统 SHALL 防止进一步的状态更改
-4. THE 系统 SHALL 维护状态更改历史，包含时间戳和用户信息
-5. WHEN 产品状态从"坏损"更改回"可销售"时，THE 系统 SHALL 将产品包含在可用库存计数中
+#### Acceptance Criteria
 
-### 需求15：仓储位置跟踪
+1. THE System SHALL generate sales reports including all three product categories
+2. THE System SHALL calculate profit margins for DEVICE, SIMPLE_ACCESSORY, and TEMPLATE products
+3. THE System SHALL provide inventory valuation reports by category
+4. THE System SHALL generate purchase suggestions for SIMPLE_ACCESSORY and TEMPLATE products based on sales velocity
+5. WHEN trackInventory is disabled, THE System SHALL include sales data in reports without inventory constraints
+6. THE System SHALL support date range filtering for all reports
 
-**用户故事：** 作为仓管员，我希望跟踪产品仓储位置，以便快速定位物品进行配货。
+### Requirement 15: API Endpoints for Product Management
 
-#### 验收标准
+**User Story:** As a frontend developer, I want RESTful API endpoints for product management, so that I can build user interfaces for the new features.
 
-1. THE 系统 SHALL 为每个产品存储仓储位置信息
-2. WHEN 仓管员更新产品位置时，THE 系统 SHALL 验证该位置在系统中存在
-3. THE 系统 SHALL 允许仓管员按仓储位置搜索产品
-4. THE 系统 SHALL 在销售发票上显示仓储位置以供拣货
-5. WHEN 产品售出时，THE 系统 SHALL 可选地清除其仓储位置
+#### Acceptance Criteria
 
-### 需求16：报表和分析
+1. THE System SHALL provide POST /api/user-system-info endpoint for creating user-specific system information
+2. THE System SHALL provide GET /api/user-system-info endpoint for retrieving user-specific system information
+3. THE System SHALL provide POST /api/product-templates endpoint for creating product templates
+4. THE System SHALL provide GET /api/product-templates endpoint for retrieving product templates with variant data
+5. THE System SHALL provide PUT /api/product-templates/:id endpoint for updating product templates
+6. THE System SHALL provide DELETE /api/product-templates/:id endpoint for deleting product templates
+7. THE System SHALL provide POST /api/sales/template endpoint for recording template-based sales
+8. THE System SHALL validate authentication and authorization for all endpoints
+9. THE System SHALL return appropriate HTTP status codes and error messages
 
-**用户故事：** 作为管理员，我希望查看业务报表，以便就库存、定价和采购做出明智决策。
+### Requirement 16: Data Validation and Error Handling
 
-#### 验收标准
+**User Story:** As a user, I want clear error messages when data validation fails, so that I can correct issues quickly.
 
-1. THE 系统 SHALL 生成按产品类别显示当前库存水平的库存报表
-2. THE 系统 SHALL 生成按时间段、产品类别和客户类型显示收入的销售报表
-3. THE 系统 SHALL 生成显示采购成本、供应商绩效和订单状态的采购报表
-4. THE 系统 SHALL 生成比较采购成本与销售价格的利润率报表
-5. WHEN 管理员请求报表时，THE 系统 SHALL 允许按日期范围、产品类别、供应商和客户类型进行筛选
+#### Acceptance Criteria
 
-### 需求17：税务计算
+1. WHEN required fields are missing, THE System SHALL return a descriptive error message
+2. WHEN a duplicate IMEI or serial number is detected, THE System SHALL prevent creation and return an error
+3. WHEN inventory quantity is insufficient for a sale, THE System SHALL prevent the sale and display available quantity
+4. WHEN variant pricing is invalid or negative, THE System SHALL reject the input and return an error
+5. THE System SHALL validate that trackInventory is a boolean value
+6. WHEN a user attempts to access another user's system information, THE System SHALL return an authorization error
+7. THE System SHALL log validation errors for debugging purposes
 
-**用户故事：** 作为仓管员，我希望系统自动计算税费，以便发票准确且符合税务法规。
+### Requirement 17: Performance and Scalability
 
-#### 验收标准
+**User Story:** As a system administrator, I want the system to perform efficiently with large datasets, so that users experience fast response times.
 
-1. WHEN 产品具有VAT_23分类时，THE 系统 SHALL 按基础价格的23%计算税费
-2. WHEN 产品具有Margin_VAT_0分类时，THE 系统 SHALL 按0%计算税费
-3. WHERE 实施Service_VAT_13_5时，THE 系统 SHALL 按服务价格的13.5%计算税费
-4. WHEN 生成销售发票时，THE 系统 SHALL 汇总所有适用税费并与基础价格分开显示
-5. WHEN 生成采购发票时，THE 系统 SHALL 根据产品税务分类计算并显示进货税
+#### Acceptance Criteria
 
-### 需求18：产品搜索和筛选
+1. THE System SHALL respond to product template queries within 500 milliseconds for datasets up to 10,000 templates
+2. THE System SHALL support pagination for product template listings
+3. THE System SHALL use database indexes on userId, category, and frequently queried fields
+4. WHEN variant combinations exceed 100 per template, THE System SHALL load variants on demand rather than all at once
+5. THE System SHALL cache frequently accessed User_System_Info data
+6. THE System SHALL optimize sales queries to avoid full table scans
 
-**用户故事：** 作为任何系统用户，我希望搜索和筛选产品，以便快速找到我需要的物品。
+### Requirement 18: User Interface Requirements
 
-#### 验收标准
+**User Story:** As a merchant, I want an intuitive user interface for managing product templates, so that I can configure products with minimal training.
 
-1. THE 系统 SHALL 允许用户按名称、条形码、SN或IMEI搜索产品
-2. THE 系统 SHALL 允许用户按类别（配件类产品、全新设备、二手设备）筛选产品
-3. THE 系统 SHALL 允许用户按产品状态筛选产品
-4. THE 系统 SHALL 允许用户按成色等级筛选二手设备
-5. WHEN 应用搜索或筛选时，THE 系统 SHALL 在2秒内返回包含多达100,000个产品的数据库结果
+#### Acceptance Criteria
 
-### 需求19：供应商管理
+1. THE System SHALL provide a form for creating product templates with variant dimensions
+2. THE System SHALL display variant dimensions as selectable dropdowns populated from User_System_Info
+3. WHEN a user adds a variant dimension, THE System SHALL allow adding multiple values
+4. THE System SHALL provide a grid or table interface for entering pricing and inventory for each Variant_Combination
+5. THE System SHALL display a toggle switch for the trackInventory option
+6. THE System SHALL provide visual feedback when saving product templates
+7. THE System SHALL display validation errors inline near the relevant form fields
 
-**用户故事：** 作为管理员，我希望管理供应商信息，以便为采购活动维护准确的记录。
+### Requirement 19: Security and Access Control
 
-#### 验收标准
+**User Story:** As a system administrator, I want to ensure that users can only access their own data, so that data privacy is maintained.
 
-1. THE 系统 SHALL 存储供应商名称、联系信息、付款条款和税务识别
-2. WHEN 管理员创建供应商记录时，THE 系统 SHALL 验证必填字段已填充
-3. THE 系统 SHALL 允许管理员查看与供应商关联的所有采购订单和采购发票记录
-4. THE 系统 SHALL 允许管理员将供应商标记为活跃或不活跃
-5. WHEN 供应商被标记为不活跃时，THE 系统 SHALL 防止为该供应商创建新的采购订单记录
+#### Acceptance Criteria
 
-### 需求20：数据完整性和验证
+1. THE System SHALL authenticate users before allowing access to product management features
+2. THE System SHALL filter User_System_Info queries by the authenticated user's userId
+3. THE System SHALL filter Product_Template queries by the authenticated user's userId
+4. WHEN a user attempts to modify another user's data, THE System SHALL deny the request and return an error
+5. THE System SHALL log unauthorized access attempts
+6. THE System SHALL support role-based access control for admin users to view all data
 
-**用户故事：** 作为系统管理员，我希望系统维护数据完整性，以便业务运营可靠且准确。
+### Requirement 20: Testing and Quality Assurance
 
-#### 验收标准
+**User Story:** As a developer, I want comprehensive tests for the new features, so that I can ensure system reliability.
 
-1. WHEN 任何用户创建或更新记录时，THE 系统 SHALL 验证所有必填字段已填充
-2. WHEN 任何用户输入数值时，THE 系统 SHALL 验证它们在可接受的范围内
-3. THE 系统 SHALL 防止删除被其他记录引用的记录
-4. WHEN 库存数量将变为负数时，THE 系统 SHALL 拒绝交易并显示错误消息
-5. THE 系统 SHALL 维护产品、发票和采购订单之间的引用完整性
+#### Acceptance Criteria
+
+1. THE System SHALL include unit tests for UserSystemInfo model CRUD operations
+2. THE System SHALL include unit tests for ProductTemplate model CRUD operations
+3. THE System SHALL include integration tests for template-based sales workflows
+4. THE System SHALL include tests for migration from existing inventory to new classification
+5. THE System SHALL include round-trip property tests for data serialization and deserialization
+6. FOR ALL product templates, parsing then printing then parsing SHALL produce an equivalent object
+7. THE System SHALL achieve minimum 80% code coverage for new features
+8. THE System SHALL include tests for error handling and validation scenarios

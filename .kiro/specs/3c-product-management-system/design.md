@@ -4,36 +4,154 @@
 
 3C产品管理系统是一个综合性的库存和销售管理解决方案，专为经营计算机、通信和消费电子产品的企业设计。该系统支持批发和零售业务，具有基于角色的访问控制、分级定价、税务管理以及完整的采购到销售工作流程跟踪。
 
-架构采用分层方法，在数据模型、业务逻辑和用户界面之间实现清晰分离。系统处理两种不同的产品类型（配件和设备），采用不同的库存跟踪机制，支持多种税务分类，并提供全面的报表功能。
+系统引入了三类产品分类系统（DEVICE、SIMPLE_ACCESSORY、TEMPLATE），每类产品采用不同的库存跟踪策略。DEVICE产品需要IMEI或序列号进行个体跟踪，SIMPLE_ACCESSORY产品使用条形码进行批量管理，TEMPLATE产品支持多维度变体和可选的库存跟踪。
+
+架构采用分层方法，在数据模型、业务逻辑和用户界面之间实现清晰分离。系统支持用户专属的系统信息管理，允许用户定义自己的产品模板和变体维度。新系统保持与现有MerchantInventory和AdminInventory的向后兼容性，同时提供灵活的产品管理能力，最小化用户工作量，支持配件无需采购记录即可销售等多种业务工作流程。
 
 ## 架构
 
 ### 系统层次
 
-1. **数据层**：管理产品、用户、发票和交易的持久化存储
-2. **业务逻辑层**：实现定价规则、税务计算、库存管理和工作流状态机
-3. **API层**：为所有系统操作提供RESTful端点
-4. **认证与授权层**：处理用户认证和基于角色的访问控制
-5. **表示层**：不同角色的用户界面（基于Web）
+1. **数据层**：管理产品、用户、发票、交易和用户系统信息的持久化存储
+2. **业务逻辑层**：实现定价规则、税务计算、库存管理、工作流状态机和变体组合逻辑
+3. **API层**：为所有系统操作提供RESTful端点，包括用户系统信息和产品模板管理
+4. **认证与授权层**：处理用户认证、基于角色的访问控制和用户数据隔离
+5. **表示层**：不同角色的用户界面（基于Web），支持动态变体选择
 
 ### 关键架构决策
 
-- **分离产品类型**：配件和设备采用不同建模，以反映其不同的库存跟踪需求
+- **三类产品分类**：DEVICE、SIMPLE_ACCESSORY和TEMPLATE采用不同建模，以反映其不同的库存跟踪需求和业务流程
+- **用户数据隔离**：用户系统信息（产品模板、变体维度）按userId隔离，确保数据隐私
+- **动态变体组合**：销售时动态组合变体信息，无需预生成所有组合，减少数据冗余
+- **可选库存跟踪**：产品模板支持trackInventory开关，允许用户根据业务需求选择是否跟踪库存
 - **灵活的税务系统**：税务分类是每个产品的属性，允许混合税务处理
 - **订单状态机**：采购订单遵循严格的状态进展以确保数据完整性
 - **审计跟踪**：所有价格变更、状态更新和关键操作都被记录以符合合规要求
 - **基于角色的访问控制（RBAC）**：权限在API层根据用户角色强制执行
+- **向后兼容性**：保持与现有MerchantInventory和AdminInventory的兼容性，支持平滑迁移
 
 ### 技术考虑
 
-- 数据库：关系型数据库（PostgreSQL/MySQL）以实现ACID合规性和复杂查询
-- 后端：RESTful API架构
-- 认证：基于JWT的认证，带有角色声明
+- 数据库：MongoDB（当前实现）用于灵活的文档存储，支持嵌套变体数据
+- 后端：Node.js + Express RESTful API架构
+- 认证：基于JWT的认证，带有角色声明和userId
 - 前端：支持桌面和平板设备的响应式Web应用程序
+- 数据迁移：支持从现有产品数据到新分类系统的迁移脚本
 
 ## 组件和接口
 
-### 1. 用户管理组件
+### 1. 用户系统信息组件
+
+**职责：**
+- 管理用户专属的系统配置数据
+- 维护产品模板、变体维度和类别定义
+- 确保用户数据隔离
+
+**接口：**
+
+```typescript
+interface UserSystemInfoComponent {
+  createSystemInfo(userId: string, data: SystemInfoData): UserSystemInfo
+  getSystemInfo(userId: string, type?: SystemInfoType): UserSystemInfo[]
+  updateSystemInfo(id: string, userId: string, updates: SystemInfoUpdates): UserSystemInfo
+  deleteSystemInfo(id: string, userId: string): void
+  getVariantDimensions(userId: string): UserSystemInfo[]
+  getCategories(userId: string): UserSystemInfo[]
+}
+
+interface UserSystemInfo {
+  id: string
+  userId: string
+  name: string
+  type: SystemInfoType
+  values: string[]
+  createdAt: timestamp
+  updatedAt: timestamp
+}
+
+enum SystemInfoType {
+  VARIANT_DIMENSION,  // 变体维度（如：iPhone型号、颜色）
+  CATEGORY,           // 产品类别
+  PRODUCT_MODEL       // 产品型号
+}
+
+interface SystemInfoData {
+  name: string
+  type: SystemInfoType
+  values: string[]
+}
+```
+
+### 2. 产品模板组件
+
+**职责：**
+- 管理基于模板的产品定义
+- 处理多维度变体组合
+- 支持可选的库存跟踪
+- 在销售时动态组合变体信息
+
+**接口：**
+
+```typescript
+interface ProductTemplateComponent {
+  createTemplate(userId: string, data: TemplateData): ProductTemplate
+  getTemplates(userId: string, category?: ProductCategory): ProductTemplate[]
+  getTemplateById(id: string, userId: string): ProductTemplate
+  updateTemplate(id: string, userId: string, updates: TemplateUpdates): ProductTemplate
+  deleteTemplate(id: string, userId: string): void
+  addVariant(templateId: string, userId: string, variant: VariantData): ProductTemplate
+  updateVariant(templateId: string, variantId: string, userId: string, updates: VariantUpdates): ProductTemplate
+  getAvailableVariants(templateId: string, userId: string): VariantCombination[]
+}
+
+interface ProductTemplate {
+  id: string
+  userId: string
+  name: string
+  category: ProductCategory
+  trackInventory: boolean
+  variantDimensions: VariantDimensionRef[]
+  variants: VariantCombination[]
+  createdAt: timestamp
+  updatedAt: timestamp
+}
+
+interface VariantDimensionRef {
+  dimensionId: string
+  dimensionName: string
+  required: boolean
+}
+
+interface VariantCombination {
+  id: string
+  dimensionValues: Map<string, string>  // dimensionName -> value
+  costPrice: Money
+  wholesalePrice: Money
+  retailPrice: Money
+  quantity?: number  // 仅当trackInventory为true时
+  barcode?: string
+  sku?: string
+}
+
+interface TemplateData {
+  name: string
+  category: ProductCategory
+  trackInventory: boolean
+  variantDimensions: string[]  // UserSystemInfo IDs
+}
+
+interface VariantData {
+  dimensionValues: Map<string, string>
+  costPrice: Money
+  wholesalePrice: Money
+  retailPrice: Money
+  quantity?: number
+  barcode?: string
+  sku?: string
+}
+```
+
+### 3. 用户管理组件
 
 **职责：**
 - 用户认证和会话管理
@@ -79,11 +197,11 @@ interface DiscountRange {
 }
 ```
 
-### 2. 产品管理组件
+### 4. 产品管理组件
 
 **职责：**
-- 产品创建和更新
-- 配件和设备的库存跟踪
+- 产品创建和更新（支持三类产品）
+- 配件、设备和模板产品的库存跟踪
 - 具有分级定价的价格管理
 - 产品搜索和筛选
 
@@ -97,14 +215,17 @@ interface ProductManagement {
   updatePrice(id: string, pricing: PricingData): Product
   searchProducts(criteria: SearchCriteria): Product[]
   getProductById(id: string): Product
+  getProductsByCategory(category: ProductCategory): Product[]
   updateInventoryQuantity(barcode: string, delta: number): AccessoryProduct
   updateProductStatus(id: string, status: ProductStatus): Product
+  migrateToNewClassification(): MigrationReport
 }
 
 interface Product {
   id: string
   name: string
-  category: ProductCategory
+  productCategory: ProductCategory  // DEVICE, SIMPLE_ACCESSORY, TEMPLATE
+  category: string  // 业务类别（如：手机、配件等）
   purchasePrice: Money
   purchaseTax: Money
   taxClassification: TaxClassification
@@ -121,20 +242,22 @@ interface Product {
 }
 
 interface AccessoryProduct extends Product {
+  productCategory: ProductCategory.SIMPLE_ACCESSORY
   barcode: string
   quantity: number
 }
 
 interface DeviceProduct extends Product {
+  productCategory: ProductCategory.DEVICE
   serialNumber: string  // SN或IMEI
   deviceType: DeviceType
   conditionGrade?: ConditionGrade  // 仅二手设备
 }
 
 enum ProductCategory {
-  ACCESSORY,      // 配件
-  NEW_DEVICE,     // 全新设备
-  USED_DEVICE     // 二手设备
+  DEVICE,            // 设备（需要IMEI/序列号）
+  SIMPLE_ACCESSORY,  // 简单配件（条形码+数量）
+  TEMPLATE           // 模板产品（多维度变体）
 }
 
 enum TaxClassification {
@@ -175,10 +298,19 @@ interface PricingData {
 
 interface SearchCriteria {
   query?: string  // 按名称、条形码、SN、IMEI搜索
-  category?: ProductCategory
+  productCategory?: ProductCategory
+  category?: string
   status?: ProductStatus
   conditionGrade?: ConditionGrade
   supplier?: string
+}
+
+interface MigrationReport {
+  totalProducts: number
+  deviceCount: number
+  accessoryCount: number
+  errors: MigrationError[]
+  timestamp: timestamp
 }
 ```
 
@@ -215,10 +347,11 @@ enum PriceType {
 }
 ```
 
-### 4. 销售发票组件
+### 6. 销售发票组件
 
 **职责：**
 - 为客户购买生成销售发票
+- 支持模板产品的动态变体选择
 - 计算包含税费和折扣的总额
 - 完成销售时更新库存
 - 跟踪发票历史
@@ -229,6 +362,7 @@ enum PriceType {
 interface SalesInvoiceComponent {
   createInvoice(data: InvoiceData): SalesInvoice
   addLineItem(invoiceId: string, item: LineItem): SalesInvoice
+  addTemplateLineItem(invoiceId: string, item: TemplateLineItem): SalesInvoice
   applyDiscount(invoiceId: string, discountPercent: number): SalesInvoice
   finalizeInvoice(invoiceId: string): SalesInvoice
   getInvoiceById(id: string): SalesInvoice
@@ -254,12 +388,28 @@ interface SalesInvoice {
 interface LineItem {
   productId: string
   productName: string
+  productCategory: ProductCategory
   quantity: number
   unitPrice: Money
   taxClassification: TaxClassification
   taxAmount: Money
   lineTotal: Money
   warehouseLocation: string
+  variantInfo?: VariantInfo  // 仅模板产品
+}
+
+interface TemplateLineItem {
+  templateId: string
+  variantId: string
+  quantity: number
+  selectedVariant: Map<string, string>  // dimensionName -> value
+}
+
+interface VariantInfo {
+  templateId: string
+  templateName: string
+  variantId: string
+  dimensionValues: Map<string, string>
 }
 
 interface CustomerInfo {
@@ -539,24 +689,57 @@ interface Supplier {
 - 主键：id (UUID)
 - 唯一：username
 - 索引：role, merchantTier
-- 关系：与SalesInvoice、PurchaseOrder一对多
+- 关系：与SalesInvoice、PurchaseOrder、UserSystemInfo、ProductTemplate一对多
+
+**用户系统信息实体：**
+- 主键：id (UUID)
+- 唯一：(userId, name, type)
+- 索引：userId, type
+- 关系：与User多对一
+- 字段：
+  - userId: string (必需)
+  - name: string (必需)
+  - type: SystemInfoType (必需)
+  - values: string[] (必需)
+  - createdAt: timestamp
+  - updatedAt: timestamp
+
+**产品模板实体：**
+- 主键：id (UUID)
+- 索引：userId, category, name
+- 关系：
+  - 与User多对一
+  - 与UserSystemInfo多对多（通过variantDimensions）
+- 字段：
+  - userId: string (必需)
+  - name: string (必需)
+  - category: string
+  - trackInventory: boolean (默认false)
+  - variantDimensions: VariantDimensionRef[]
+  - variants: VariantCombination[]
+  - createdAt: timestamp
+  - updatedAt: timestamp
 
 **产品实体：**
 - 主键：id (UUID)
 - 唯一：barcode（配件）、serialNumber（设备）
-- 索引：category, status, supplier, barcode, serialNumber
+- 索引：productCategory, category, status, supplier, barcode, serialNumber
 - 关系：
   - 与Supplier多对一
   - 与ProcurementInvoice多对一
   - 与PriceHistoryEntry一对多
+- 新增字段：
+  - productCategory: ProductCategory (DEVICE, SIMPLE_ACCESSORY, TEMPLATE)
 
 **配件产品实体（扩展Product）：**
 - 附加字段：barcode, quantity
 - 约束：quantity >= 0
+- productCategory必须为SIMPLE_ACCESSORY
 
 **设备产品实体（扩展Product）：**
 - 附加字段：serialNumber, deviceType, conditionGrade
 - 约束：serialNumber必须唯一
+- productCategory必须为DEVICE
 
 **销售发票实体：**
 - 主键：id (UUID)
@@ -565,6 +748,9 @@ interface Supplier {
 - 关系：
   - 与User（createdBy）多对一
   - 与LineItem一对多
+- LineItem新增字段：
+  - productCategory: ProductCategory
+  - variantInfo: VariantInfo (可选，仅模板产品)
 
 **采购订单实体：**
 - 主键：id (UUID)
@@ -592,12 +778,14 @@ interface Supplier {
 
 ### 数据库模式考虑
 
-- 使用数据库级约束确保唯一性（barcode、serialNumber、invoiceNumber）
+- 使用数据库级约束确保唯一性（barcode、serialNumber、invoiceNumber、(userId, name, type)）
 - 实施软删除以保留审计跟踪（标记为不活跃而不是删除）
-- 对更新多个表的操作使用事务（例如，确定发票）
+- 对更新多个表的操作使用事务（例如，确定发票、更新库存）
 - 对库存的并发更新实施乐观锁定
 - 将货币值存储为具有适当精度的十进制类型
 - 对所有日期/时间字段使用带时区的时间戳
+- 对嵌套的变体数据使用文档存储（MongoDB）或JSON字段（关系型数据库）
+- 为用户系统信息和产品模板建立适当的索引以支持高效查询
 
 ### 数据验证规则
 
@@ -609,6 +797,38 @@ interface Supplier {
 - 电子邮件地址必须是有效格式
 - 电话号码必须是有效格式
 - 仓储位置必须存在于预定义位置列表中
+- productCategory必须是DEVICE、SIMPLE_ACCESSORY或TEMPLATE之一
+- DEVICE产品必须有serialNumber
+- SIMPLE_ACCESSORY产品必须有barcode
+- TEMPLATE产品必须关联到ProductTemplate
+- 当trackInventory为true时，变体必须有quantity字段
+- 当trackInventory为false时，quantity字段可选
+- variantDimensions必须引用有效的UserSystemInfo记录
+- userId必须在所有用户专属数据中一致
+
+### 迁移策略
+
+**从现有数据迁移到新分类系统：**
+
+1. **分类规则：**
+   - 有serialNumber或IMEI的产品 → DEVICE
+   - 有barcode但无serialNumber的产品 → SIMPLE_ACCESSORY
+   - 保留所有现有字段和关系
+
+2. **数据完整性验证：**
+   - 验证所有产品都被正确分类
+   - 检查唯一性约束（serialNumber、barcode）
+   - 验证引用完整性（supplier、procurementInvoice）
+
+3. **回滚计划：**
+   - 迁移前备份数据库
+   - 保留原始productCategory字段作为备份
+   - 提供回滚脚本以恢复原始状态
+
+4. **验证测试：**
+   - 使用往返属性测试验证迁移：读取 → 迁移 → 读取应产生等效记录
+   - 验证库存数量在迁移前后保持一致
+   - 验证所有关系在迁移后仍然有效
 
 
 ## 正确性属性

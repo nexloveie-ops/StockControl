@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>系统信息测试</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    .info-card {
+      border: 2px solid #ddd;
+      padding: 15px;
+      margin-bottom: 15px;
+      border-radius: 8px;
+    }
+    .btn {
+      padding: 8px 16px;
+      margin: 5px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background: #007bff;
+      color: white;
+    }
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+    }
+    #output {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 4px;
+      white-space: pre-wrap;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>系统信息管理测试</h1>
+    
+    <div>
+      <h3>当前用户ID: <span id="userId"></span></h3>
+      <button class="btn btn-primary" onclick="loadData()">加载数据</button>
+      <button class="btn btn-primary" onclick="testAPI()">测试 API</button>
+    </div>
+    
+    <div id="output"></div>
+    
+    <div id="dataContainer"></div>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+    const merchantId = localStorage.getItem('username') || 'MurrayRanelagh';
+    
+    document.getElementById('userId').textContent = merchantId;
+    
+    function log(message) {
+      const output = document.getElementById('output');
+      output.textContent += message + '\n';
+    }
+    
+    async function testAPI() {
+      log('=== 测试 API ===');
+      log('用户ID: ' + merchantId);
+      
+      try {
+        const url = `${API_BASE}/user-system-info?userId=${merchantId}`;
+        log('请求 URL: ' + url);
+        
+        const response = await fetch(url);
+        log('响应状态: ' + response.status);
+        
+        const result = await response.json();
+        log('响应数据: ' + JSON.stringify(result, null, 2));
+        
+        if (result.success) {
+          log('✅ 成功！找到 ' + result.data.length + ' 条数据');
+        } else {
+          log('❌ 失败: ' + result.error);
+        }
+      } catch (error) {
+        log('❌ 错误: ' + error.message);
+        console.error(error);
+      }
+    }
+    
+    async function loadData() {
+      log('=== 加载数据 ===');
+      const container = document.getElementById('dataContainer');
+      container.innerHTML = '<p>加载中...</p>';
+      
+      try {
+        const response = await fetch(`${API_BASE}/user-system-info?userId=${merchantId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data.length > 0) {
+          container.innerHTML = '<h3>系统信息列表：</h3>';
+          result.data.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'info-card';
+            card.innerHTML = `
+              <h4>${item.name} (${item.type})</h4>
+              <p>值: ${item.values.join(', ')}</p>
+              <button class="btn btn-danger" onclick="deleteItem('${item._id}')">删除</button>
+            `;
+            container.appendChild(card);
+          });
+          log('✅ 显示了 ' + result.data.length + ' 条数据');
+        } else {
+          container.innerHTML = '<p>暂无数据</p>';
+          log('⚠️ 没有数据');
+        }
+      } catch (error) {
+        container.innerHTML = '<p>加载失败: ' + error.message + '</p>';
+        log('❌ 加载失败: ' + error.message);
+      }
+    }
+    
+    async function deleteItem(id) {
+      if (!confirm('确定删除？')) return;
+      
+      try {
+        const response = await fetch(`${API_BASE}/user-system-info/${id}`, {
+          method: 'DELETE'
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+          log('✅ 删除成功');
+          loadData();
+        } else {
+          log('❌ 删除失败: ' + result.error);
+        }
+      } catch (error) {
+        log('❌ 删除失败: ' + error.message);
+      }
+    }
+    
+    // 页面加载时自动测试
+    window.addEventListener('load', () => {
+      testAPI();
+    });
+  </script>
+</body>
+</html>

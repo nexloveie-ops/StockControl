@@ -43,6 +43,15 @@ const merchantSaleSchema = new mongoose.Schema({
       ref: 'RepairOrder',
       default: null
     },
+    templateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ProductTemplate',
+      default: null
+    },
+    variantIndex: {
+      type: Number,
+      default: null
+    },
     productId: {
       type: mongoose.Schema.Types.ObjectId,
       default: null
@@ -109,6 +118,11 @@ const merchantSaleSchema = new mongoose.Schema({
     quickSaleDescription: {
       type: String,
       default: null
+    },
+    // 模板产品标记
+    isTemplate: {
+      type: Boolean,
+      default: false
     }
   }],
   
