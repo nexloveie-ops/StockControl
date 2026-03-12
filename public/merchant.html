@@ -6,8 +6,8 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title data-i18n="merchant.title">批发商户中心 - 3C产品管理系统 v2.7.3</title>
-  <script>console.log('✅ 页面版本: v2.7.3 - 快速销售产品大类移除中文');</script>
+  <title data-i18n="merchant.title">批发商户中心 - 3C产品管理系统 v2.7.4</title>
+  <script>console.log('✅ 页面版本: v2.7.4 - 修复退款状态显示');</script>
   <script src="/i18n.js"></script>
   <script src="/auto-translate.js"></script>
   <script src="/auth-guard.js"></script>
@@ -770,6 +770,21 @@
             <button onclick="selectPaymentMethod('MIXED')" id="payBtn_MIXED" style="flex: 1; padding: 15px; border: 2px solid #ddd; border-radius: 8px; background: white; cursor: pointer; font-weight: 600;">
               💰 混合
             </button>
+          </div>
+          
+          <!-- 现金支付金额输入 -->
+          <div id="cashPaymentInput" style="display: none; background: #f0fdf4; padding: 15px; border-radius: 8px; border: 2px solid #10b981;">
+            <div style="margin-bottom: 10px;">
+              <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #065f46;">客人支付金额 (€)</label>
+              <input type="number" id="cashPaidAmount" min="0" step="0.01" value="0" style="width: 100%; padding: 12px; border: 2px solid #10b981; border-radius: 5px; font-size: 16px; font-weight: 600;" oninput="calculateChange()">
+            </div>
+            <div id="changeDisplay" style="display: none; padding: 10px; background: #dcfce7; border-radius: 5px; border-left: 4px solid #10b981;">
+              <div style="font-size: 14px; color: #065f46; margin-bottom: 5px;">找零金额</div>
+              <div id="changeAmount" style="font-size: 24px; font-weight: bold; color: #10b981;">€0.00</div>
+            </div>
+            <div id="insufficientWarning" style="display: none; padding: 10px; background: #fee2e2; border-radius: 5px; border-left: 4px solid #dc2626; margin-top: 10px;">
+              <div style="font-size: 14px; color: #dc2626; font-weight: 600;">⚠️ 支付金额不足</div>
+            </div>
           </div>
           
           <!-- 混合支付金额输入 -->
@@ -2304,6 +2319,16 @@
             </button>
           </div>
         </div>
+        
+        <!-- 快速销售产品显示开关 -->
+        <div style="background: #fef3c7; padding: 12px 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #f59e0b;">
+          <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+            <input type="checkbox" id="includeQuickSaleToggle" onchange="loadReportsWithDateRange()" style="width: 18px; height: 18px; cursor: pointer;">
+            <span style="font-size: 14px; color: #92400e;">
+              ⚡ 在热销产品中包含快速销售的产品
+            </span>
+          </label>
+        </div>
       </div>
       
       <div class="card">
@@ -3053,56 +3078,83 @@
       document.getElementById('dailyRepairsContent').innerHTML = '<div class="loading">加载中...</div>';
       
       try {
-        const response = await fetch(`${API_BASE}/merchant/repairs?merchantId=${merchantId}`);
-        const result = await response.json();
+        // 直接获取销售记录
+        const salesResponse = await fetch(`${API_BASE}/merchant/sales?merchantId=${merchantId}`);
+        const salesResult = await salesResponse.json();
         
-        if (result.success && result.data) {
+        if (salesResult.success && salesResult.data) {
           const today = new Date();
           today.setHours(0, 0, 0, 0);
           const tomorrow = new Date(today);
           tomorrow.setDate(tomorrow.getDate() + 1);
           
-          // 筛选今日创建的维修订单（包括快速销售的service）
-          const todayRepairs = result.data.filter(repair => {
-            const createdDate = new Date(repair.createdAt);
-            return createdDate >= today && createdDate < tomorrow;
+          // 从销售记录中提取今日的维修和快速销售服务项目
+          const todayRepairs = [];
+          
+          salesResult.data.forEach(sale => {
+            // 检查销售日期 - 使用date字段
+            const saleDate = new Date(sale.date || sale.createdAt);
+            const isToday = saleDate >= today && saleDate < tomorrow;
+            
+            if (!isToday) {
+              return;
+            }
+            
+            // 检查是否已退款
+            const isRefunded = sale.status === 'refunded' || sale.refundDate;
+            if (isRefunded) {
+              return;
+            }
+            
+            // 提取维修服务项目
+            if (sale.items && Array.isArray(sale.items)) {
+              sale.items.forEach(item => {
+                // 只包含：1. 有repairOrderId的维修订单 2. 快速销售的服务（🔧 Service，不包括配件🎧 Accessory）
+                const isRepairService = item.productName && (
+                  item.productName.includes('🔧') || 
+                  item.productName.includes('Service') ||
+                  item.productName.includes('service')
+                );
+                
+                if (item.repairOrderId || isRepairService) {
+                  todayRepairs.push({
+                    saleId: sale._id,
+                    saleDate: saleDate,
+                    customerName: sale.customerName || '未知',
+                    customerPhone: sale.customerPhone || 'N/A',
+                    productName: item.productName,
+                    price: item.price,
+                    quantity: item.quantity || 1,
+                    serialNumber: item.serialNumber || '-',
+                    isQuickSale: item.productName && item.productName.includes('⚡'),
+                    repairOrderId: item.repairOrderId
+                  });
+                }
+              });
+            }
           });
           
           if (todayRepairs.length > 0) {
-            let totalCost = 0;
             let totalSalePrice = 0;
-            const statusCount = {};
             let quickSaleCount = 0;
             let repairOrderCount = 0;
             
-            todayRepairs.forEach(repair => {
-              totalCost += repair.repairCost || 0;
-              totalSalePrice += repair.salePrice || 0;
-              statusCount[repair.status] = (statusCount[repair.status] || 0) + 1;
+            todayRepairs.forEach(item => {
+              totalSalePrice += (item.price || 0) * (item.quantity || 1);
               
-              if (repair.isQuickSale) {
+              if (item.isQuickSale) {
                 quickSaleCount++;
               } else {
                 repairOrderCount++;
               }
             });
             
-            const statusNames = {
-              'pending': '待维修',
-              'sent_out': '已送出',
-              'retrieved': '已取回',
-              'completed': '已完成',
-              'ready_for_sale': '等待销售',
-              'sold': '已销售',
-              'cancelled': '已取消'
-            };
-            
             let html = `
               <div style="margin-bottom: 20px; padding: 15px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
                 <h4 style="margin-bottom: 10px; color: #92400e;">维修汇总</h4>
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
                   <div>
-                    <div style="font-size: 12px; color: #666;">订单数量</div>
+                    <div style="font-size: 12px; color: #666;">项目数量</div>
                     <div style="font-size: 20px; font-weight: bold; color: #f59e0b;">${todayRepairs.length}</div>
                     <div style="font-size: 11px; color: #666; margin-top: 4px;">
                       维修订单: ${repairOrderCount} | 快速销售: ${quickSaleCount}
@@ -3113,16 +3165,6 @@
                     <div style="font-size: 20px; font-weight: bold; color: #10b981;">€${totalSalePrice.toFixed(2)}</div>
                   </div>
                 </div>
-                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #fde68a;">
-                  <div style="font-size: 12px; color: #666; margin-bottom: 8px;">状态分布：</div>
-                  <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-                    ${Object.entries(statusCount).map(([status, count]) => `
-                      <span style="background: white; padding: 4px 12px; border-radius: 20px; font-size: 13px;">
-                        ${statusNames[status]}: <strong>${count}</strong>
-                      </span>
-                    `).join('')}
-                  </div>
-                </div>
               </div>
               
               <table style="width: 100%; border-collapse: collapse;">
@@ -3130,8 +3172,8 @@
                   <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
                     <th style="padding: 12px; text-align: left;">时间</th>
                     <th style="padding: 12px; text-align: left;">客户</th>
-                    <th style="padding: 12px; text-align: left;">设备/服务</th>
-                    <th style="padding: 12px; text-align: left;">问题</th>
+                    <th style="padding: 12px; text-align: left;">项目</th>
+                    <th style="padding: 12px; text-align: left;">序列号/IMEI</th>
                     <th style="padding: 12px; text-align: left;">类型</th>
                     <th style="padding: 12px; text-align: right;">售价</th>
                     <th style="padding: 12px; text-align: center;">状态</th>
@@ -3140,20 +3182,11 @@
                 <tbody>
             `;
             
-            todayRepairs.forEach(repair => {
-              const time = new Date(repair.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-              const statusColors = {
-                'pending': '#f59e0b',
-                'sent_out': '#8b5cf6',
-                'retrieved': '#10b981',
-                'completed': '#06b6d4',
-                'ready_for_sale': '#ec4899',
-                'sold': '#6b7280',
-                'cancelled': '#ef4444'
-              };
+            todayRepairs.forEach(item => {
+              const time = new Date(item.saleDate).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
               
               // 判断是否为快速销售
-              const typeLabel = repair.isQuickSale 
+              const typeLabel = item.isQuickSale 
                 ? '<span style="background: #3b82f6; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px;">⚡ 快速销售</span>'
                 : '<span style="background: #10b981; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px;">🔧 维修订单</span>';
               
@@ -3161,25 +3194,24 @@
                 <tr style="border-bottom: 1px solid #e5e7eb;">
                   <td style="padding: 12px;">${time}</td>
                   <td style="padding: 12px;">
-                    ${repair.customerPhone}<br>
-                    <small style="color: #666;">${repair.customerName || '-'}</small>
+                    ${item.customerName}<br>
+                    <small style="color: #666;">${item.customerPhone}</small>
                   </td>
                   <td style="padding: 12px;">
-                    ${repair.deviceName}<br>
-                    <small style="color: #666;">${repair.deviceIMEI || repair.deviceSN || '-'}</small>
+                    ${item.productName}
                   </td>
-                  <td style="padding: 12px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${(repair.problemDescription || '').replace(/"/g, '&quot;')}">
-                    ${repair.problemDescription}
+                  <td style="padding: 12px;">
+                    ${item.serialNumber}
                   </td>
                   <td style="padding: 12px;">
                     ${typeLabel}
                   </td>
                   <td style="padding: 12px; text-align: right; font-weight: 600; color: #10b981;">
-                    €${(repair.salePrice || 0).toFixed(2)}
+                    €${((item.price || 0) * (item.quantity || 1)).toFixed(2)}
                   </td>
                   <td style="padding: 12px; text-align: center;">
-                    <span style="background: ${statusColors[repair.status]}; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">
-                      ${statusNames[repair.status]}
+                    <span style="background: #6b7280; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">
+                      已销售
                     </span>
                   </td>
                 </tr>
@@ -4946,13 +4978,25 @@
       document.getElementById(`payBtn_${method}`).style.borderColor = '#3b82f6';
       document.getElementById(`payBtn_${method}`).style.background = '#eff6ff';
       
+      // 显示/隐藏现金支付输入
+      if (method === 'CASH') {
+        document.getElementById('cashPaymentInput').style.display = 'block';
+        document.getElementById('mixedPaymentInputs').style.display = 'none';
+        // 设置现金输入为实际收款金额
+        const actualAmountText = document.getElementById('actualAmount').textContent;
+        const actualAmount = parseFloat(actualAmountText.replace('€', '').trim()) || 0;
+        document.getElementById('cashPaidAmount').value = actualAmount.toFixed(2);
+        calculateChange();
+      } 
       // 显示/隐藏混合支付输入
-      if (method === 'MIXED') {
+      else if (method === 'MIXED') {
+        document.getElementById('cashPaymentInput').style.display = 'none';
         document.getElementById('mixedPaymentInputs').style.display = 'block';
         const actualAmount = parseFloat(document.getElementById('actualAmount').value) || 0;
         document.getElementById('cashAmount').value = (actualAmount / 2).toFixed(2);
         document.getElementById('cardAmount').value = (actualAmount / 2).toFixed(2);
       } else {
+        document.getElementById('cashPaymentInput').style.display = 'none';
         document.getElementById('mixedPaymentInputs').style.display = 'none';
       }
     }
@@ -4973,6 +5017,29 @@
       }
     }
     
+    // 计算找零
+    function calculateChange() {
+      const actualAmountText = document.getElementById('actualAmount').textContent;
+      const actualAmount = parseFloat(actualAmountText.replace('€', '').trim()) || 0;
+      const cashPaid = parseFloat(document.getElementById('cashPaidAmount').value) || 0;
+      const change = cashPaid - actualAmount;
+      
+      const changeDisplay = document.getElementById('changeDisplay');
+      const changeAmount = document.getElementById('changeAmount');
+      const insufficientWarning = document.getElementById('insufficientWarning');
+      
+      if (cashPaid < actualAmount) {
+        // 支付金额不足
+        changeDisplay.style.display = 'none';
+        insufficientWarning.style.display = 'block';
+      } else {
+        // 支付金额足够，显示找零
+        insufficientWarning.style.display = 'none';
+        changeDisplay.style.display = 'block';
+        changeAmount.textContent = '€' + change.toFixed(2);
+      }
+    }
+    
     // 完成销售
     async function completeSale() {
       if (!selectedPaymentMethod) {
@@ -4987,6 +5054,15 @@
       if (totalAmount <= 0) {
         alert('总金额必须大于 0');
         return;
+      }
+      
+      // 验证现金支付
+      if (selectedPaymentMethod === 'CASH') {
+        const cashPaid = parseFloat(document.getElementById('cashPaidAmount').value) || 0;
+        if (cashPaid < totalAmount) {
+          alert('❌ 支付金额不足！\n应收: €' + totalAmount.toFixed(2) + '\n实收: €' + cashPaid.toFixed(2));
+          return;
+        }
       }
       
       // 验证混合支付
@@ -5024,6 +5100,13 @@
         totalAmount: totalAmount  // 使用计算后的总金额
       };
       
+      // 添加现金支付金额和找零
+      if (selectedPaymentMethod === 'CASH') {
+        const cashPaid = parseFloat(document.getElementById('cashPaidAmount').value) || 0;
+        saleData.cashPaidAmount = cashPaid;
+        saleData.changeAmount = cashPaid - totalAmount;
+      }
+      
       // 添加混合支付金额
       if (selectedPaymentMethod === 'MIXED') {
         saleData.cashAmount = parseFloat(document.getElementById('cashAmount').value);
@@ -5043,8 +5126,14 @@
         const result = await response.json();
         
         if (result.success) {
-          // 显示成功消息
-          alert(`✅ 销售成功！\n订单号: ${result.data.saleId}\n总金额: €${totalAmount.toFixed(2)}`);
+          // 如果是现金支付，显示找零提示
+          let successMessage = `✅ 销售成功！\n订单号: ${result.data.saleId}\n总金额: €${totalAmount.toFixed(2)}`;
+          
+          if (selectedPaymentMethod === 'CASH' && saleData.changeAmount > 0) {
+            successMessage += `\n\n💵 客人支付: €${saleData.cashPaidAmount.toFixed(2)}\n💰 找零: €${saleData.changeAmount.toFixed(2)}`;
+          }
+          
+          alert(successMessage);
           
           // 询问是否打印小票
           const shouldPrint = confirm('Do you want to print a receipt?\n是否打印小票？');
@@ -5076,28 +5165,31 @@
     // 打印销售小票
     async function printReceipt(saleData, orderData, totalAmount) {
       try {
-        // 获取用户公司信息
-        const userResponse = await fetch(`${API_BASE}/users/profile?username=${merchantId}`);
-        const userResult = await userResponse.json();
-        
+        // 使用用户名作为公司名称
         let companyInfo = {
-          companyName: '3C Product Store',
+          companyName: merchantId, // 直接使用用户名
           address: '',
           phone: '',
           email: '',
           vatNumber: ''
         };
         
-        if (userResult.success && userResult.data.companyInfo) {
-          const ci = userResult.data.companyInfo;
-          companyInfo = {
-            companyName: ci.companyName || companyInfo.companyName,
-            address: ci.address ? 
-              `${ci.address.street || ''} ${ci.address.city || ''} ${ci.address.postalCode || ''}`.trim() : '',
-            phone: ci.contactPhone || '',
-            email: ci.contactEmail || '',
-            vatNumber: ci.vatNumber || ''
-          };
+        // 尝试获取用户的详细信息（可选）
+        try {
+          const userResponse = await fetch(`${API_BASE}/users/profile?username=${merchantId}`);
+          const userResult = await userResponse.json();
+          
+          if (userResult.success && userResult.data.companyInfo) {
+            const ci = userResult.data.companyInfo;
+            // 只更新非空的字段，保持用户名作为公司名称
+            companyInfo.address = ci.address ? 
+              `${ci.address.street || ''} ${ci.address.city || ''} ${ci.address.postalCode || ''}`.trim() : '';
+            companyInfo.phone = ci.contactPhone || '';
+            companyInfo.email = ci.contactEmail || '';
+            companyInfo.vatNumber = ci.vatNumber || '';
+          }
+        } catch (err) {
+          console.log('获取用户信息失败，使用默认值:', err);
         }
         
         // 创建打印内容
@@ -5295,6 +5387,16 @@
         <span>Subtotal:</span>
         <span>€${totalAmount.toFixed(2)}</span>
       </div>
+      ${orderData.paymentMethod === 'CASH' && orderData.cashPaidAmount ? `
+      <div class="total-row">
+        <span>Cash Paid:</span>
+        <span>€${orderData.cashPaidAmount.toFixed(2)}</span>
+      </div>
+      <div class="total-row" style="color: #10b981; font-weight: 600;">
+        <span>Change:</span>
+        <span>€${orderData.changeAmount.toFixed(2)}</span>
+      </div>
+      ` : ''}
       ${orderData.paymentMethod === 'MIXED' ? `
       <div class="total-row">
         <span>Cash:</span>
@@ -5710,6 +5812,18 @@
           await loadProductConditions();
         }
         
+        // 创建已退款项目的映射（用于快速查找）
+        const refundedItemsMap = new Map();
+        if (sale.refundItems && Array.isArray(sale.refundItems)) {
+          sale.refundItems.forEach(refundItem => {
+            // 使用产品名称+序列号作为唯一标识
+            const key = `${refundItem.productName}_${refundItem.serialNumber || 'no-serial'}`;
+            // 记录已退款的数量
+            const existingQty = refundedItemsMap.get(key) || 0;
+            refundedItemsMap.set(key, existingQty + (refundItem.quantity || 1));
+          });
+        }
+        
         // 显示订单详情
         const container = document.getElementById('saleDetailContent');
         
@@ -5741,15 +5855,25 @@
           
           <h3 style="margin-bottom: 15px;">商品明细</h3>
           <div style="max-height: 400px; overflow-y: auto;">
-            ${sale.items.map((item, index) => `
-              <div style="background: white; border: 2px solid #e5e7eb; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+            ${sale.items.map((item, index) => {
+              // 检查该项目是否已退款
+              const itemKey = `${item.productName}_${item.serialNumber || 'no-serial'}`;
+              const refundedQty = refundedItemsMap.get(itemKey) || 0;
+              const isFullyRefunded = refundedQty >= item.quantity;
+              const remainingQty = item.quantity - refundedQty;
+              
+              return `
+              <div style="background: white; border: 2px solid ${isFullyRefunded ? '#dc2626' : '#e5e7eb'}; border-radius: 8px; padding: 15px; margin-bottom: 10px; ${isFullyRefunded ? 'opacity: 0.6;' : ''}">
                 <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
                   <input type="checkbox" 
                     id="refundItem_${index}" 
                     value="${index}"
-                    style="width: 20px; height: 20px; cursor: pointer;">
-                  <label for="refundItem_${index}" style="flex: 1; cursor: pointer; font-weight: 600; font-size: 16px;">
+                    ${isFullyRefunded ? 'disabled' : ''}
+                    style="width: 20px; height: 20px; cursor: ${isFullyRefunded ? 'not-allowed' : 'pointer'};">
+                  <label for="refundItem_${index}" style="flex: 1; cursor: ${isFullyRefunded ? 'not-allowed' : 'pointer'}; font-weight: 600; font-size: 16px;">
                     ${item.productName}
+                    ${isFullyRefunded ? '<span style="color: #dc2626; font-size: 14px; margin-left: 10px;">✓ 已退款</span>' : ''}
+                    ${refundedQty > 0 && !isFullyRefunded ? `<span style="color: #f59e0b; font-size: 14px; margin-left: 10px;">⚠️ 部分已退款 (${refundedQty}/${item.quantity})</span>` : ''}
                   </label>
                 </div>
                 
@@ -5757,6 +5881,7 @@
                   <div>
                     <span style="color: #666; font-size: 13px;">数量:</span>
                     <span style="font-weight: 600;">${item.quantity}</span>
+                    ${refundedQty > 0 ? `<span style="color: #dc2626; font-size: 12px; margin-left: 5px;">(剩余: ${remainingQty})</span>` : ''}
                   </div>
                   <div>
                     <span style="color: #666; font-size: 13px;">单价:</span>
@@ -5780,12 +5905,20 @@
                   ` : ''}
                 </div>
                 
-                <!-- 退款选项（初始隐藏） -->
-                <div id="refundOptions_${index}" style="display: none; margin-top: 15px; margin-left: 30px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
-                  ${getRefundOptions(item, index)}
-                </div>
+                ${isFullyRefunded ? `
+                  <div style="margin-top: 15px; margin-left: 30px; padding: 10px; background: #fee2e2; border-radius: 6px; border-left: 3px solid #dc2626;">
+                    <div style="font-size: 13px; color: #991b1b;">
+                      <strong>❌ 此项目已全部退款，无法再次退款</strong>
+                    </div>
+                  </div>
+                ` : `
+                  <!-- 退款选项（初始隐藏） -->
+                  <div id="refundOptions_${index}" style="display: none; margin-top: 15px; margin-left: 30px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+                    ${getRefundOptions(item, index, remainingQty)}
+                  </div>
+                `}
               </div>
-            `).join('')}
+            `}).join('')}
           </div>
           
           <div style="margin-top: 20px; padding: 15px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
@@ -5793,7 +5926,8 @@
               <strong>退款说明：</strong><br>
               • 设备产品：需要选择退回后的状态和成色<br>
               • 维修服务：请确认是否已在维修地点退款<br>
-              • 其他产品：选择是否补回库存
+              • 其他产品：选择是否补回库存<br>
+              • 已退款的项目无法再次退款
             </div>
           </div>
         `;
@@ -5806,7 +5940,7 @@
         // 为复选框添加事件监听
         sale.items.forEach((item, index) => {
           const checkbox = document.getElementById(`refundItem_${index}`);
-          if (checkbox) {
+          if (checkbox && !checkbox.disabled) {
             checkbox.addEventListener('change', function() {
               const optionsDiv = document.getElementById(`refundOptions_${index}`);
               if (optionsDiv) {
@@ -5826,10 +5960,13 @@
     }
     
     // 根据产品类型生成退款选项
-    function getRefundOptions(item, index) {
+    function getRefundOptions(item, index, remainingQty = null) {
+      // 如果没有提供剩余数量，使用原始数量
+      const maxQty = remainingQty !== null ? remainingQty : item.quantity;
+      
       // 判断产品类型
-      const isDevice = item.serialNumber && !item.repairLocation;
-      const isRepair = item.repairLocation;
+      const isDevice = item.serialNumber && !item.repairLocation && !item.repairOrderId;
+      const isRepair = item.repairLocation || item.repairOrderId || (item.productName && (item.productName.includes('🔧') || item.productName.includes('Service') || item.productName.includes('service')));
       
       if (isDevice) {
         // 设备产品：选择状态和成色（从数据库加载）
@@ -5913,18 +6050,22 @@
         `;
       } else if (isRepair) {
         // 维修服务：确认维修地点退款
+        const repairLocationText = item.repairLocation || '快速销售';
+        
         return `
           <div style="background: #fef3c7; padding: 15px; border-radius: 6px; border-left: 3px solid #f59e0b;">
             <div style="font-weight: 600; color: #92400e; margin-bottom: 10px;">
               ⚠️ 维修服务退款提醒
             </div>
-            <div style="font-size: 13px; color: #78350f; margin-bottom: 10px;">
-              维修地点: <strong>${item.repairLocation}</strong>
-            </div>
+            ${item.repairLocation ? `
+              <div style="font-size: 13px; color: #78350f; margin-bottom: 10px;">
+                维修地点: <strong>${item.repairLocation}</strong>
+              </div>
+            ` : ''}
             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
               <input type="checkbox" id="repairRefundConfirm_${index}" style="width: 16px; height: 16px;">
               <span style="font-size: 13px; color: #92400e;">
-                我确认已在维修地点进行退款处理
+                ${item.repairLocation ? '我确认已在维修地点进行退款处理' : '我确认要退款此维修服务'}
               </span>
             </label>
           </div>
@@ -5980,8 +6121,8 @@
           if (!checkbox || !checkbox.checked) continue;
           
           const item = sale.items[i];
-          const isDevice = item.serialNumber && !item.repairLocation;
-          const isRepair = item.repairLocation;
+          const isDevice = item.serialNumber && !item.repairLocation && !item.repairOrderId;
+          const isRepair = item.repairLocation || item.repairOrderId || (item.productName && (item.productName.includes('🔧') || item.productName.includes('Service') || item.productName.includes('service')));
           
           const refundItem = {
             productName: item.productName,
@@ -5989,7 +6130,8 @@
             price: item.price,
             totalAmount: item.price * item.quantity,
             serialNumber: item.serialNumber,
-            productId: item.productId
+            productId: item.productId,
+            repairOrderId: item.repairOrderId  // 添加维修订单ID
           };
           
           if (isDevice) {
@@ -6011,7 +6153,8 @@
             const confirmed = document.getElementById(`repairRefundConfirm_${i}`).checked;
             
             if (!confirmed) {
-              alert(`请确认已在维修地点 "${item.repairLocation}" 进行退款处理`);
+              const locationText = item.repairLocation || '此维修服务';
+              alert(`请确认${item.repairLocation ? `已在维修地点 "${item.repairLocation}" 进行退款处理` : `要退款${locationText}`}`);
               return;
             }
             
@@ -9963,8 +10106,11 @@
       container.innerHTML = '<div class="loading">加载中...</div>';
       
       try {
-        // 构建API URL，包含日期范围参数
-        let apiUrl = `${API_BASE}/merchant/inventory-report?merchantId=${merchantId}`;
+        // 获取是否包含快速销售的开关状态
+        const includeQuickSale = document.getElementById('includeQuickSaleToggle')?.checked || false;
+        
+        // 构建API URL，包含日期范围参数和快速销售开关
+        let apiUrl = `${API_BASE}/merchant/inventory-report?merchantId=${merchantId}&includeQuickSale=${includeQuickSale}`;
         if (startDate && endDate) {
           apiUrl += `&startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`;
         }
@@ -10202,15 +10348,7 @@
                 <td>VAT 23%</td>
                 <td>€${taxByClassification.VAT_23.sales.toFixed(2)}</td>
                 <td>€${taxByClassification.VAT_23.outputTax.toFixed(2)}</td>
-                ${systemConfig.enableInputTaxCalculation ? `
-                  <td>€${taxByClassification.VAT_23.cost.toFixed(2)}</td>
-                  <td>€${taxByClassification.VAT_23.inputTax.toFixed(2)}</td>
-                  <td style="color: #dc3545; font-weight: bold;">€${taxByClassification.VAT_23.due.toFixed(2)}</td>
-                ` : `
-                  <td style="color: #999;">-</td>
-                  <td style="color: #999;">-</td>
-                  <td style="color: #dc3545; font-weight: bold;">€${taxByClassification.VAT_23.outputTax.toFixed(2)}</td>
-                `}
+                <td style="color: #dc3545; font-weight: bold;">€${(systemConfig.enableInputTaxCalculation ? taxByClassification.VAT_23.due : taxByClassification.VAT_23.outputTax).toFixed(2)}</td>
               </tr>
             `;
           }
@@ -10220,9 +10358,7 @@
               <tr>
                 <td>Service VAT 13.5%</td>
                 <td>€${taxByClassification.SERVICE_VAT_13_5.sales.toFixed(2)}</td>
-                <td>-</td>
-                <td>-</td>
-                <td>-</td>
+                <td>€${taxByClassification.SERVICE_VAT_13_5.due.toFixed(2)}</td>
                 <td style="color: #dc3545; font-weight: bold;">€${taxByClassification.SERVICE_VAT_13_5.due.toFixed(2)}</td>
               </tr>
             `;
@@ -10234,13 +10370,14 @@
                 <td>Margin VAT</td>
                 <td>€${taxByClassification.MARGIN_VAT_0.sales.toFixed(2)}</td>
                 <td>-</td>
-                <td>€${taxByClassification.MARGIN_VAT_0.cost.toFixed(2)}</td>
-                <td>-</td>
                 <td style="color: #dc3545; font-weight: bold;">€${taxByClassification.MARGIN_VAT_0.due.toFixed(2)}</td>
               </tr>
               <tr style="background: #f8f9fa; font-size: 12px; color: #666;">
-                <td colspan="6" style="padding-left: 30px;">
+                <td colspan="4" style="padding-left: 30px;">
                   利润: €${taxByClassification.MARGIN_VAT_0.margin.toFixed(2)} = 销售额 - 成本
+                  <button onclick="showMarginVATDetails()" style="margin-left: 15px; padding: 4px 12px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                    📋 查看明细
+                  </button>
                 </td>
               </tr>
             `;
@@ -10252,15 +10389,13 @@
                 <td>VAT 0%</td>
                 <td>€${taxByClassification.VAT_0.sales.toFixed(2)}</td>
                 <td>-</td>
-                <td>-</td>
-                <td>-</td>
                 <td style="color: #10b981; font-weight: bold;">€0.00</td>
               </tr>
             `;
           }
           
           if (!taxRows) {
-            taxRows = '<tr><td colspan="6" style="text-align: center; color: #999; padding: 20px;">该时间段内无税务数据</td></tr>';
+            taxRows = '<tr><td colspan="4" style="text-align: center; color: #999; padding: 20px;">该时间段内无税务数据</td></tr>';
           }
           
           // 计算总应缴税额（根据配置决定是否扣除进项税）
@@ -10294,15 +10429,13 @@
                     <th>税务分类</th>
                     <th>销售额</th>
                     <th>销项税</th>
-                    <th>成本</th>
-                    <th>进项税</th>
                     <th>应缴税额</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${taxRows}
                   <tr style="font-weight: bold; background: #fff3cd;">
-                    <td colspan="5" style="text-align: right;">总应缴税额：</td>
+                    <td colspan="3" style="text-align: right;">总应缴税额：</td>
                     <td style="color: #dc3545; font-size: 18px;">€${totalTaxDue.toFixed(2)}</td>
                   </tr>
                 </tbody>
@@ -10328,6 +10461,102 @@
       } catch (error) {
         container.innerHTML = `<div class="loading">生成报表失败: ${error.message}</div>`;
       }
+    }
+    
+    // 显示Margin VAT明细
+    function showMarginVATDetails() {
+      if (!currentTaxReportData || !currentTaxReportData.taxByClassification.MARGIN_VAT_0.details) {
+        alert('没有Margin VAT明细数据');
+        return;
+      }
+      
+      const details = currentTaxReportData.taxByClassification.MARGIN_VAT_0.details;
+      
+      if (details.length === 0) {
+        alert('没有Margin VAT销售记录');
+        return;
+      }
+      
+      // 创建模态框
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+      
+      modal.innerHTML = `
+        <div style="background: white; border-radius: 12px; max-width: 95%; width: 1200px; max-height: 90vh; overflow: auto; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 15px;">
+            <h2 style="margin: 0; color: #1f2937;">📋 Margin VAT 销售明细</h2>
+            <button onclick="this.closest('div[style*=fixed]').remove()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #666; line-height: 1;">&times;</button>
+          </div>
+          
+          <div style="margin-bottom: 15px; padding: 12px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
+            <strong>📊 统计汇总：</strong>
+            共 ${details.length} 条记录 | 
+            总销售额: €${details.reduce((sum, d) => sum + d.salePrice, 0).toFixed(2)} | 
+            总成本: €${details.reduce((sum, d) => sum + d.costPrice, 0).toFixed(2)} | 
+            总利润: €${details.reduce((sum, d) => sum + d.profit, 0).toFixed(2)}
+          </div>
+          
+          <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              <thead>
+                <tr style="background: #f8fafc; border-bottom: 2px solid #e5e7eb;">
+                  <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">销售日期</th>
+                  <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">客户信息</th>
+                  <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">产品名称</th>
+                  <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">IMEI/序列号</th>
+                  <th style="padding: 12px 8px; text-align: right; font-weight: 600; color: #374151;">销售价格</th>
+                  <th style="padding: 12px 8px; text-align: right; font-weight: 600; color: #374151;">进货价格</th>
+                  <th style="padding: 12px 8px; text-align: right; font-weight: 600; color: #374151;">利润</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${details.map((detail, index) => `
+                  <tr style="border-bottom: 1px solid #e5e7eb; ${index % 2 === 0 ? 'background: #f9fafb;' : ''}">
+                    <td style="padding: 10px 8px;">${new Date(detail.saleDate).toLocaleDateString('zh-CN')}</td>
+                    <td style="padding: 10px 8px;">
+                      <div style="font-weight: 600;">${detail.customerName}</div>
+                      <div style="font-size: 11px; color: #6b7280;">${detail.customerPhone}</div>
+                    </td>
+                    <td style="padding: 10px 8px;">${detail.productName}</td>
+                    <td style="padding: 10px 8px; font-family: monospace; font-size: 11px; color: #6b7280;">
+                      ${detail.imei !== 'N/A' ? detail.imei : detail.serialNumber}
+                    </td>
+                    <td style="padding: 10px 8px; text-align: right; font-weight: 600; color: #059669;">€${detail.salePrice.toFixed(2)}</td>
+                    <td style="padding: 10px 8px; text-align: right; color: #dc2626;">€${detail.costPrice.toFixed(2)}</td>
+                    <td style="padding: 10px 8px; text-align: right; font-weight: 700; color: #3b82f6;">€${detail.profit.toFixed(2)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+              <tfoot>
+                <tr style="background: #f0f9ff; font-weight: 700; border-top: 2px solid #3b82f6;">
+                  <td colspan="4" style="padding: 12px 8px; text-align: right;">合计：</td>
+                  <td style="padding: 12px 8px; text-align: right; color: #059669;">€${details.reduce((sum, d) => sum + d.salePrice, 0).toFixed(2)}</td>
+                  <td style="padding: 12px 8px; text-align: right; color: #dc2626;">€${details.reduce((sum, d) => sum + d.costPrice, 0).toFixed(2)}</td>
+                  <td style="padding: 12px 8px; text-align: right; color: #3b82f6;">€${details.reduce((sum, d) => sum + d.profit, 0).toFixed(2)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          
+          <div style="margin-top: 20px; padding: 15px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+            <strong>💡 说明：</strong>
+            <ul style="margin: 8px 0 0 0; padding-left: 20px; color: #92400e;">
+              <li>Margin VAT 适用于二手商品销售</li>
+              <li>应缴税额 = 利润 × 23/123</li>
+              <li>利润 = 销售价格 - 进货价格</li>
+            </ul>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      
+      // 点击背景关闭
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          modal.remove();
+        }
+      });
     }
     
     // 导出税务报表PDF
@@ -10550,12 +10779,15 @@
         if (result.success) {
           allRepairsData = result.data; // 保存所有数据
           displayRepairs(allRepairsData);
+          return allRepairsData; // 返回数据
         } else {
           container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">暂无维修记录</p>';
+          return [];
         }
       } catch (error) {
         console.error('加载维修记录失败:', error);
         container.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+        return [];
       }
     }
     
@@ -10661,8 +10893,58 @@
       // 清空搜索框
       document.getElementById('repairSearchInput').value = '';
       
-      // 加载数据
-      loadRepairs(status === 'all' ? null : status);
+      // 根据不同的状态应用不同的过滤逻辑
+      if (status === 'all') {
+        // 全部：显示所有记录
+        loadRepairs(null);
+      } else if (status === 'pending') {
+        // 待维修：自己维修且未完成的记录
+        loadRepairs(null).then(() => {
+          const filtered = allRepairsData.filter(repair => {
+            const isSelfRepair = !repair.repairLocation || repair.repairLocation === '' || repair.repairLocation === '自己维修';
+            const isNotCompleted = repair.status !== 'completed' && repair.status !== 'sold' && repair.status !== 'ready_for_sale';
+            return isSelfRepair && isNotCompleted;
+          });
+          displayRepairs(filtered);
+        });
+      } else if (status === 'sent_out') {
+        // 已送出：维修地点不是自己，且状态是已送出
+        loadRepairs(null).then(() => {
+          const filtered = allRepairsData.filter(repair => {
+            const isOutsourced = repair.repairLocation && repair.repairLocation !== '' && repair.repairLocation !== '自己维修';
+            return isOutsourced && repair.status === 'sent_out';
+          });
+          displayRepairs(filtered);
+        });
+      } else if (status === 'retrieved') {
+        // 已取回：维修地点不是自己，且状态是已取回
+        loadRepairs(null).then(() => {
+          const filtered = allRepairsData.filter(repair => {
+            const isOutsourced = repair.repairLocation && repair.repairLocation !== '' && repair.repairLocation !== '自己维修';
+            return isOutsourced && repair.status === 'retrieved';
+          });
+          displayRepairs(filtered);
+        });
+      } else if (status === 'ready_for_sale') {
+        // 等待销售：所有可以被销售的维修记录（ready_for_sale 或 completed）
+        loadRepairs(null).then(() => {
+          const filtered = allRepairsData.filter(repair => 
+            repair.status === 'ready_for_sale' || repair.status === 'completed'
+          );
+          displayRepairs(filtered);
+        });
+      } else if (status === 'completed') {
+        // 已完成：包括 completed 和 sold 状态
+        loadRepairs(null).then(() => {
+          const filtered = allRepairsData.filter(repair => 
+            repair.status === 'completed' || repair.status === 'sold'
+          );
+          displayRepairs(filtered);
+        });
+      } else {
+        // 其他状态：直接按状态过滤
+        loadRepairs(status);
+      }
     }
     
     // 获取维修状态标签
@@ -10674,6 +10956,7 @@
         'completed': '<span class="badge badge-info">已完成</span>',
         'ready_for_sale': '<span class="badge" style="background: #ec4899; color: white;">等待销售</span>',
         'sold': '<span class="badge" style="background: #6b7280; color: white;">已销售</span>',
+        'refunded': '<span class="badge" style="background: #dc2626; color: white;">已退款</span>',
         'cancelled': '<span class="badge" style="background: #ef4444; color: white;">已取消</span>'
       };
       return badges[status] || status;
@@ -10817,32 +11100,29 @@
     // 打印维修小票（两张）
     async function printRepairReceipts(repairData, formData) {
       try {
-        // 获取公司信息
-        const profileResponse = await fetch(`${API_BASE}/users/profile?username=${merchantId}`);
-        const profileResult = await profileResponse.json();
-        
-        if (!profileResult.success) {
-          console.error('Failed to get company info');
-          return;
-        }
-        
-        // 格式化公司信息
+        // 使用用户名作为公司名称
         let companyInfo = {
-          companyName: '3C Product Store',
+          companyName: merchantId, // 直接使用用户名
           address: '',
           phone: '',
           email: ''
         };
         
-        if (profileResult.data.companyInfo) {
-          const ci = profileResult.data.companyInfo;
-          companyInfo = {
-            companyName: ci.companyName || companyInfo.companyName,
-            address: ci.address ? 
-              `${ci.address.street || ''} ${ci.address.city || ''} ${ci.address.postalCode || ''}`.trim() : '',
-            phone: ci.contactPhone || '',
-            email: ci.contactEmail || ''
-          };
+        // 尝试获取用户的详细信息（可选）
+        try {
+          const profileResponse = await fetch(`${API_BASE}/users/profile?username=${merchantId}`);
+          const profileResult = await profileResponse.json();
+          
+          if (profileResult.success && profileResult.data.companyInfo) {
+            const ci = profileResult.data.companyInfo;
+            // 只更新非空的字段，保持用户名作为公司名称
+            companyInfo.address = ci.address ? 
+              `${ci.address.street || ''} ${ci.address.city || ''} ${ci.address.postalCode || ''}`.trim() : '';
+            companyInfo.phone = ci.contactPhone || '';
+            companyInfo.email = ci.contactEmail || '';
+          }
+        } catch (err) {
+          console.log('获取用户信息失败，使用默认值:', err);
         }
         
         // 格式化订单号（使用_id的后8位）
@@ -10880,32 +11160,29 @@
         
         const repair = result.data;
         
-        // 获取公司信息
-        const profileResponse = await fetch(`${API_BASE}/users/profile?username=${merchantId}`);
-        const profileResult = await profileResponse.json();
-        
-        if (!profileResult.success) {
-          alert('❌ 获取公司信息失败');
-          return;
-        }
-        
-        // 格式化公司信息
+        // 使用用户名作为公司名称
         let companyInfo = {
-          companyName: '3C Product Store',
+          companyName: merchantId, // 直接使用用户名
           address: '',
           phone: '',
           email: ''
         };
         
-        if (profileResult.data.companyInfo) {
-          const ci = profileResult.data.companyInfo;
-          companyInfo = {
-            companyName: ci.companyName || companyInfo.companyName,
-            address: ci.address ? 
-              `${ci.address.street || ''} ${ci.address.city || ''} ${ci.address.postalCode || ''}`.trim() : '',
-            phone: ci.contactPhone || '',
-            email: ci.contactEmail || ''
-          };
+        // 尝试获取用户的详细信息（可选）
+        try {
+          const profileResponse = await fetch(`${API_BASE}/users/profile?username=${merchantId}`);
+          const profileResult = await profileResponse.json();
+          
+          if (profileResult.success && profileResult.data.companyInfo) {
+            const ci = profileResult.data.companyInfo;
+            // 只更新非空的字段，保持用户名作为公司名称
+            companyInfo.address = ci.address ? 
+              `${ci.address.street || ''} ${ci.address.city || ''} ${ci.address.postalCode || ''}`.trim() : '';
+            companyInfo.phone = ci.contactPhone || '';
+            companyInfo.email = ci.contactEmail || '';
+          }
+        } catch (err) {
+          console.log('获取用户信息失败，使用默认值:', err);
         }
         
         // 准备打印数据

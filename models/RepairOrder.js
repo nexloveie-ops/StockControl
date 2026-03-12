@@ -72,7 +72,8 @@ const repairOrderSchema = new mongoose.Schema({
       'completed',    // 已完成（自己维修完成）
       'ready_for_sale', // 等待销售
       'sold',         // 已销售
-      'cancelled'     // 已取消
+      'cancelled',    // 已取消
+      'refunded'      // 已退款
     ],
     default: 'pending'
   },
@@ -95,6 +96,10 @@ const repairOrderSchema = new mongoose.Schema({
     default: null
   },
   soldDate: {
+    type: Date,
+    default: null
+  },
+  refundDate: {
     type: Date,
     default: null
   },

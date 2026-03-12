@@ -30,6 +30,17 @@ const merchantSaleSchema = new mongoose.Schema({
     default: 0,
     min: 0
   },
+  // 现金支付金额和找零
+  cashPaidAmount: {
+    type: Number,
+    default: null,
+    min: 0
+  },
+  changeAmount: {
+    type: Number,
+    default: null,
+    min: 0
+  },
   
   // 销售项目
   items: [{

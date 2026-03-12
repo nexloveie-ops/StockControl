@@ -8414,11 +8414,47 @@ app.post('/api/merchant/sales/:saleId/refund', applyDataIsolation, async (req, r
         
       } else if (refundItem.type === 'repair') {
         // 维修服务退款
-        console.log(`    维修地点: ${refundItem.repairLocation}`);
+        console.log(`    维修地点: ${refundItem.repairLocation || 'N/A'}`);
+        console.log(`    维修订单ID: ${refundItem.repairOrderId || 'N/A'}`);
         console.log(`    已确认: ${refundItem.confirmed}`);
+        console.log(`    退款项目详情:`, JSON.stringify(refundItem, null, 2));
         
-        // 可以在这里添加维修订单状态更新逻辑
-        // 例如：标记维修订单为已退款
+        // 查找对应的维修订单并更新状态
+        let repairOrderId = refundItem.repairOrderId;
+        
+        // 如果没有直接的repairOrderId，尝试从销售记录中查找
+        if (!repairOrderId) {
+          console.log(`    尝试从销售记录中查找repairOrderId...`);
+          const saleItem = sale.items.find(item => 
+            item.productName === refundItem.productName && 
+            item.serialNumber === refundItem.serialNumber
+          );
+          
+          if (saleItem && saleItem.repairOrderId) {
+            repairOrderId = saleItem.repairOrderId;
+            console.log(`    从销售记录中找到repairOrderId: ${repairOrderId}`);
+          }
+        }
+        
+        if (repairOrderId) {
+          console.log(`    查找维修订单: ${repairOrderId}`);
+          const repairOrder = await RepairOrder.findById(repairOrderId);
+          
+          if (repairOrder) {
+            console.log(`    找到维修订单，当前状态: ${repairOrder.status}`);
+            
+            // 更新维修订单状态为已退款
+            repairOrder.status = 'refunded';
+            repairOrder.refundDate = new Date();
+            await repairOrder.save();
+            
+            console.log(`    ✅ 维修订单已更新为退款状态: ${repairOrder._id}`);
+          } else {
+            console.log(`    ⚠️  未找到维修订单: ${repairOrderId}`);
+          }
+        } else {
+          console.log(`    ⚠️  未找到维修订单ID`);
+        }
         
       } else if (refundItem.type === 'product') {
         // 普通产品退款
@@ -8646,7 +8682,7 @@ app.get('/api/merchant/repairs', applyDataIsolation, async (req, res) => {
               repairLocation: '自己维修',
               repairCost: item.costPrice || 0,
               salePrice: item.price * item.quantity,
-              status: 'sold',
+              status: sale.status === 'refunded' ? 'refunded' : 'sold', // 使用销售记录的实际状态
               receivedDate: sale.saleDate,
               createdAt: sale.createdAt,
               updatedAt: sale.updatedAt,
@@ -8939,6 +8975,7 @@ app.get('/api/merchant/inventory-report', async (req, res) => {
     const merchantId = req.query.merchantId;
     const startDate = req.query.startDate;
     const endDate = req.query.endDate;
+    const includeQuickSale = req.query.includeQuickSale === 'true'; // 是否包含快速销售
     
     if (!merchantId) {
       return res.status(400).json({ 
@@ -8947,7 +8984,7 @@ app.get('/api/merchant/inventory-report', async (req, res) => {
       });
     }
     
-    console.log(`\n📊 生成库存报表: ${merchantId}`);
+    console.log(`\n📊 生成库存报表: ${merchantId} (包含快速销售: ${includeQuickSale})`);
     
     // 确定日期范围
     let startOfMonth, endOfMonth;
@@ -8998,7 +9035,21 @@ app.get('/api/merchant/inventory-report', async (req, res) => {
           return;
         }
         
-        const key = `${item.productName}_${item.model || ''}_${item.color || ''}`;
+        // 根据开关决定是否跳过快速销售产品
+        if (!includeQuickSale && item.isQuickSale) {
+          console.log(`   跳过快速销售产品: ${item.productName}`);
+          return;
+        }
+        
+        // 为模板产品和普通产品创建不同的key
+        let key;
+        if (item.isTemplate && item.templateId && item.variantIndex !== undefined) {
+          // 模板产品：使用templateId和variantIndex作为key
+          key = `template_${item.templateId}_${item.variantIndex}`;
+        } else {
+          // 普通产品：使用产品名称、型号、颜色作为key
+          key = `${item.productName}_${item.model || ''}_${item.color || ''}`;
+        }
         
         if (!productSalesMap[key]) {
           productSalesMap[key] = {
@@ -9008,7 +9059,11 @@ app.get('/api/merchant/inventory-report', async (req, res) => {
             totalQuantity: 0,
             totalRevenue: 0,
             avgPrice: 0,
-            salesCount: 0
+            salesCount: 0,
+            // 模板产品相关字段
+            isTemplate: item.isTemplate || false,
+            templateId: item.templateId || null,
+            variantIndex: item.variantIndex !== undefined ? item.variantIndex : null
           };
         }
         
@@ -9026,14 +9081,23 @@ app.get('/api/merchant/inventory-report', async (req, res) => {
     
     console.log(`   统计产品数: ${Object.keys(productSalesMap).length}`);
     
-    // 查询当前库存
+    // 查询当前库存（MerchantInventory）
     const inventory = await MerchantInventory.find({
       merchantId: merchantId,
       status: 'active', // 修改为active状态
       quantity: { $gt: 0 } // 只查询有库存的
     }).lean();
     
-    console.log(`   当前库存记录: ${inventory.length} 条`);
+    console.log(`   MerchantInventory库存记录: ${inventory.length} 条`);
+    
+    // 查询模板产品库存（ProductTemplate）- 包括所有激活的模板
+    const ProductTemplate = require('./models/ProductTemplate');
+    const templates = await ProductTemplate.find({
+      userId: merchantId,
+      isActive: true
+    }).lean();
+    
+    console.log(`   ProductTemplate模板记录: ${templates.length} 条 (跟踪库存: ${templates.filter(t => t.trackInventory).length}, 不跟踪: ${templates.filter(t => !t.trackInventory).length})`);
     
     // 合并销售数据和库存数据
     const reportData = [];
@@ -9041,53 +9105,66 @@ app.get('/api/merchant/inventory-report', async (req, res) => {
     Object.keys(productSalesMap).forEach(key => {
       const salesData = productSalesMap[key];
       
-      // 查找对应的库存
-      // 需要处理产品名称格式不一致的问题
-      // 销售记录: "iPhone Clear Case (iPhone 14 - Black)"
-      // 库存记录: productName="iPhone Clear Case", model="iPhone 14", color="Black"
+      let currentStock = 0;
       
-      let inventoryItems = [];
-      
-      // 尝试精确匹配
-      inventoryItems = inventory.filter(item => 
-        item.productName === salesData.productName &&
-        item.model === salesData.model &&
-        (item.color || '') === salesData.color
-      );
-      
-      // 如果精确匹配失败，尝试模糊匹配
-      if (inventoryItems.length === 0) {
-        // 从销售产品名称中提取基础产品名称
-        let baseProductName = salesData.productName;
-        const parenIndex = baseProductName.indexOf('(');
-        if (parenIndex > 0) {
-          baseProductName = baseProductName.substring(0, parenIndex).trim();
+      // 如果是模板产品，从ProductTemplate中查找库存
+      if (salesData.isTemplate && salesData.templateId && salesData.variantIndex !== undefined) {
+        const template = templates.find(t => t._id.toString() === salesData.templateId.toString());
+        if (template && template.variants && template.variants[salesData.variantIndex]) {
+          currentStock = template.variants[salesData.variantIndex].quantity || 0;
+          console.log(`   模板产品: ${salesData.productName} - 销量: ${salesData.totalQuantity}, 库存: ${currentStock}`);
+        } else {
+          console.log(`   模板产品未找到库存: ${salesData.productName} (templateId: ${salesData.templateId}, variantIndex: ${salesData.variantIndex})`);
+        }
+      } else {
+        // 普通产品，从MerchantInventory中查找库存
+        // 查找对应的库存
+        // 需要处理产品名称格式不一致的问题
+        // 销售记录: "iPhone Clear Case (iPhone 14 - Black)"
+        // 库存记录: productName="iPhone Clear Case", model="iPhone 14", color="Black"
+        
+        let inventoryItems = [];
+        
+        // 尝试精确匹配
+        inventoryItems = inventory.filter(item => 
+          item.productName === salesData.productName &&
+          item.model === salesData.model &&
+          (item.color || '') === salesData.color
+        );
+        
+        // 如果精确匹配失败，尝试模糊匹配
+        if (inventoryItems.length === 0) {
+          // 从销售产品名称中提取基础产品名称
+          let baseProductName = salesData.productName;
+          const parenIndex = baseProductName.indexOf('(');
+          if (parenIndex > 0) {
+            baseProductName = baseProductName.substring(0, parenIndex).trim();
+          }
+          
+          // 从销售产品名称中提取型号和颜色
+          let extractedModel = '';
+          let extractedColor = '';
+          const match = salesData.productName.match(/\(([^-]+)\s*-\s*([^)]+)\)/);
+          if (match) {
+            extractedModel = match[1].trim();
+            extractedColor = match[2].trim();
+          }
+          
+          inventoryItems = inventory.filter(item => {
+            const nameMatch = item.productName === baseProductName;
+            const modelMatch = !extractedModel || item.model === extractedModel;
+            const colorMatch = !extractedColor || (item.color && item.color.toLowerCase() === extractedColor.toLowerCase());
+            return nameMatch && modelMatch && colorMatch;
+          });
+          
+          if (inventoryItems.length > 0) {
+            console.log(`   模糊匹配成功: "${salesData.productName}" -> "${baseProductName}" (${extractedModel} - ${extractedColor})`);
+          }
         }
         
-        // 从销售产品名称中提取型号和颜色
-        let extractedModel = '';
-        let extractedColor = '';
-        const match = salesData.productName.match(/\(([^-]+)\s*-\s*([^)]+)\)/);
-        if (match) {
-          extractedModel = match[1].trim();
-          extractedColor = match[2].trim();
-        }
-        
-        inventoryItems = inventory.filter(item => {
-          const nameMatch = item.productName === baseProductName;
-          const modelMatch = !extractedModel || item.model === extractedModel;
-          const colorMatch = !extractedColor || (item.color && item.color.toLowerCase() === extractedColor.toLowerCase());
-          return nameMatch && modelMatch && colorMatch;
-        });
-        
-        if (inventoryItems.length > 0) {
-          console.log(`   模糊匹配成功: "${salesData.productName}" -> "${baseProductName}" (${extractedModel} - ${extractedColor})`);
-        }
+        currentStock = inventoryItems.reduce((sum, item) => sum + item.quantity, 0);
+        console.log(`   普通产品: ${salesData.productName} - 销量: ${salesData.totalQuantity}, 库存: ${currentStock}`);
       }
-      
-      const currentStock = inventoryItems.reduce((sum, item) => sum + item.quantity, 0);
-      
-      console.log(`   产品: ${salesData.productName} - 销量: ${salesData.totalQuantity}, 库存: ${currentStock}`);
       
       // 计算月销售量（本月实际销售量）
       const monthlySales = salesData.totalQuantity;
@@ -9103,8 +9180,17 @@ app.get('/api/merchant/inventory-report', async (req, res) => {
         estimatedDays = 999; // 有库存但本月无销售
       }
       
-      // 建议订货量 = 1个月的销售量
-      const suggestedOrderQty = monthlySales;
+      // 建议订货量逻辑：
+      // - 如果预计销售时间 > 60天，不需要订货（显示为 0）
+      // - 否则，建议订货量 = 1个月的销售量
+      let suggestedOrderQty = 0;
+      if (estimatedDays <= 60 && estimatedDays > 0) {
+        suggestedOrderQty = monthlySales;
+      } else if (estimatedDays === 0) {
+        // 已缺货，建议订货
+        suggestedOrderQty = monthlySales;
+      }
+      // estimatedDays > 60 或 estimatedDays === 999 时，suggestedOrderQty = 0
       
       reportData.push({
         productName: salesData.productName,
@@ -9215,11 +9301,17 @@ app.get('/api/merchant/purchase-report', async (req, res) => {
         const itemTotal = (item.transferPrice || item.costPrice || 0) * item.quantity;
         totalAmount += itemTotal;
         
+        // 使用成本价计算税额（成本价是不含税的）
+        const costPrice = item.transferPrice || item.costPrice || 0;
+        const taxBase = costPrice * item.quantity;
+        
         // 只有VAT_23和VAT_13_5才计算税额，Margin VAT不计算
         if (item.taxClassification === 'VAT_23' || item.taxClassification === 'VAT 23%') {
-          taxAmount += itemTotal - (itemTotal / 1.23);
+          // 税额 = 不含税价格 × 0.23
+          taxAmount += taxBase * 0.23;
         } else if (item.taxClassification === 'VAT_13_5' || item.taxClassification === 'VAT 13.5%') {
-          taxAmount += itemTotal - (itemTotal / 1.135);
+          // 税额 = 不含税价格 × 0.135
+          taxAmount += taxBase * 0.135;
         }
         // MARGIN_VAT_0 和 VAT_0 不计算税额（税额为0）
       });
@@ -9372,11 +9464,18 @@ app.get('/api/merchant/purchase-report', async (req, res) => {
         const itemTotal = (item.costPrice || 0) * (item.quantity || 1);
         totalAmount += itemTotal;
         
+        // 使用成本价计算税额（成本价是不含税的）
+        const costPrice = item.costPrice || 0;
+        const quantity = item.quantity || 1;
+        const taxBase = costPrice * quantity;
+        
         // 只有VAT_23和VAT_13_5才计算税额，Margin VAT不计算
         if (item.taxClassification === 'VAT_23' || item.taxClassification === 'VAT 23%') {
-          taxAmount += itemTotal - (itemTotal / 1.23);
+          // 税额 = 不含税价格 × 0.23
+          taxAmount += taxBase * 0.23;
         } else if (item.taxClassification === 'VAT_13_5' || item.taxClassification === 'VAT 13.5%') {
-          taxAmount += itemTotal - (itemTotal / 1.135);
+          // 税额 = 不含税价格 × 0.135
+          taxAmount += taxBase * 0.135;
         }
         // MARGIN_VAT_0 和 VAT_0 不计算税额（税额为0）
       });
@@ -10067,24 +10166,24 @@ app.get('/api/merchant/tax-report', async (req, res) => {
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
     
-    // 查询销售记录（排除已退款的订单，不区分大小写）
+    // 查询销售记录（排除已退款和已取消的订单）
     const sales = await MerchantSale.find({
       merchantId: merchantId,
       saleDate: { $gte: start, $lte: end },
-      status: { $nin: ['REFUNDED', 'refunded'] } // 排除已退款的订单（大小写都排除）
+      status: 'completed' // 只包含已完成的订单，排除 refunded 和 cancelled
     }).sort({ saleDate: 1 });
     
-    // 查询维修订单
+    // 查询维修订单（只统计已销售的维修订单，排除已取消的）
     const repairs = await RepairOrder.find({
       merchantId: merchantId,
-      createdAt: { $gte: start, $lte: end },
-      status: { $in: ['COMPLETED', 'DELIVERED'] }
-    }).sort({ createdAt: 1 });
+      soldAt: { $gte: start, $lte: end }, // 使用销售日期而不是创建日期
+      status: 'sold' // 只包含已销售的维修订单
+    }).sort({ soldAt: 1 });
     
     // 初始化税务分类统计
     const taxByClassification = {
       VAT_23: { sales: 0, cost: 0, outputTax: 0, inputTax: 0, due: 0 },
-      MARGIN_VAT_0: { sales: 0, cost: 0, margin: 0, due: 0 },
+      MARGIN_VAT_0: { sales: 0, cost: 0, margin: 0, due: 0, details: [] }, // 添加details数组
       SERVICE_VAT_13_5: { sales: 0, due: 0 },
       VAT_0: { sales: 0, due: 0 }
     };
@@ -10145,6 +10244,19 @@ app.get('/api/merchant/tax-report', async (req, res) => {
             taxByClassification.MARGIN_VAT_0.margin += margin;
             // 应缴税 = 利润 × 23/123
             taxByClassification.MARGIN_VAT_0.due += margin * 23 / 123;
+            
+            // 收集详细信息
+            taxByClassification.MARGIN_VAT_0.details.push({
+              saleDate: sale.saleDate,
+              customerName: sale.customerName || 'N/A',
+              customerPhone: sale.customerPhone || 'N/A',
+              productName: item.productName || 'N/A',
+              serialNumber: item.serialNumber || 'N/A',
+              imei: item.imei || 'N/A',
+              salePrice: totalPrice,
+              costPrice: totalCost,
+              profit: margin
+            });
           } else if (taxClass === 'SERVICE_VAT_13_5') {
             // Service VAT 13.5%
             taxByClassification.SERVICE_VAT_13_5.sales += totalPrice;
@@ -10160,7 +10272,7 @@ app.get('/api/merchant/tax-report', async (req, res) => {
     
     // 处理维修订单（Service VAT 13.5%）
     repairs.forEach(repair => {
-      const dateKey = repair.createdAt.toISOString().split('T')[0];
+      const dateKey = repair.soldAt ? repair.soldAt.toISOString().split('T')[0] : repair.createdAt.toISOString().split('T')[0];
       
       if (!dailySalesMap[dateKey]) {
         dailySalesMap[dateKey] = {
@@ -10171,13 +10283,13 @@ app.get('/api/merchant/tax-report', async (req, res) => {
         };
       }
       
-      const repairTotal = repair.totalAmount || 0;
+      const repairTotal = repair.salePrice || repair.totalAmount || 0;
       dailySalesMap[dateKey].totalSales += repairTotal;
       
       // 维修订单支付方式
-      if (repair.paymentMethod === 'CASH') {
+      if (repair.paymentMethod === 'CASH' || repair.paymentMethod === 'cash') {
         dailySalesMap[dateKey].cashIncome += repairTotal;
-      } else if (repair.paymentMethod === 'CARD') {
+      } else if (repair.paymentMethod === 'CARD' || repair.paymentMethod === 'card') {
         dailySalesMap[dateKey].cardIncome += repairTotal;
       }
       
@@ -10681,7 +10793,9 @@ app.post('/api/merchant/sales/complete', async (req, res) => {
       subtotal,
       discount,
       cashAmount,
-      cardAmount
+      cardAmount,
+      cashPaidAmount,
+      changeAmount
     } = req.body;
     
     if (!merchantId || !paymentMethod || !items || items.length === 0) {
@@ -10951,6 +11065,8 @@ app.post('/api/merchant/sales/complete', async (req, res) => {
         paymentMethod,
         cashAmount: paymentMethod === 'MIXED' ? cashAmount : (paymentMethod === 'CASH' ? totalAmount : 0),
         cardAmount: paymentMethod === 'MIXED' ? cardAmount : (paymentMethod === 'CARD' ? totalAmount : 0),
+        cashPaidAmount: paymentMethod === 'CASH' ? cashPaidAmount : null,
+        changeAmount: paymentMethod === 'CASH' ? changeAmount : null,
         items: saleItems,
         subtotal: subtotal || null,  // 原始小计
         discount: discount || 0,      // 折扣金额

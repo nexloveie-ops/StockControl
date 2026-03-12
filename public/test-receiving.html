@@ -470,7 +470,10 @@
         <div class="section">
           <div class="section-title">
             📋 产品模板管理
-            <button class="btn btn-primary" onclick="showAddTemplateModal()" style="margin-left: auto;">+ 创建模板</button>
+            <input type="text" id="templateSearchInput" placeholder="🔍 搜索模板名称或分类..." 
+              oninput="filterTemplates()" 
+              style="margin-left: auto; padding: 10px 15px; border: 2px solid #dee2e6; border-radius: 8px; width: 300px; font-size: 14px;">
+            <button class="btn btn-primary" onclick="showAddTemplateModal()" style="margin-left: 10px;">+ 创建模板</button>
           </div>
           
           <div class="system-info-grid" id="templateGrid">
@@ -1592,15 +1595,21 @@
     }
     
     // 渲染产品模板网格
-    function renderTemplateGrid() {
+    function renderTemplateGrid(filteredList = null) {
       const grid = document.getElementById('templateGrid');
+      const displayList = filteredList !== null ? filteredList : templateList;
       
-      if (templateList.length === 0) {
+      if (displayList.length === 0) {
+        const isFiltering = filteredList !== null && templateList.length > 0;
         grid.innerHTML = `
           <div class="empty-state" style="grid-column: 1 / -1;">
             <div class="empty-state-icon">📋</div>
-            <div style="font-size: 18px; font-weight: 600; margin-bottom: 10px;">暂无产品模板</div>
-            <div style="font-size: 14px;">点击右上角"创建模板"按钮开始创建</div>
+            <div style="font-size: 18px; font-weight: 600; margin-bottom: 10px;">
+              ${isFiltering ? '未找到匹配的模板' : '暂无产品模板'}
+            </div>
+            <div style="font-size: 14px;">
+              ${isFiltering ? '尝试使用其他关键词搜索' : '点击右上角"创建模板"按钮开始创建'}
+            </div>
           </div>
         `;
         return;
@@ -1608,7 +1617,7 @@
       
       grid.innerHTML = '';
       
-      templateList.forEach(template => {
+      displayList.forEach(template => {
         const card = document.createElement('div');
         card.className = 'info-card';
         card.innerHTML = `
@@ -1636,6 +1645,34 @@
         `;
         grid.appendChild(card);
       });
+    }
+    
+    // 过滤产品模板
+    function filterTemplates() {
+      const searchInput = document.getElementById('templateSearchInput');
+      const searchTerm = searchInput.value.trim().toLowerCase();
+      
+      if (!searchTerm) {
+        renderTemplateGrid();
+        return;
+      }
+      
+      const filtered = templateList.filter(template => {
+        const name = (template.name || '').toLowerCase();
+        const category = (template.category || '').toLowerCase();
+        
+        // 查找分类的显示名称
+        const categoryObj = categories.find(c => c.type === template.category);
+        const categoryDisplay = categoryObj && categoryObj.description 
+          ? categoryObj.description.toLowerCase() 
+          : category;
+        
+        return name.includes(searchTerm) || 
+               category.includes(searchTerm) || 
+               categoryDisplay.includes(searchTerm);
+      });
+      
+      renderTemplateGrid(filtered);
     }
     
     // 显示添加模板模态框
