@@ -8288,6 +8288,7 @@ app.get('/api/merchant/sales', applyDataIsolation, async (req, res) => {
       _id: sale._id,
       date: sale.saleDate,
       customerPhone: sale.customerPhone,
+      note: sale.notes || null,
       paymentMethod: sale.paymentMethod,
       cashAmount: sale.cashAmount,
       cardAmount: sale.cardAmount,
@@ -10787,6 +10788,7 @@ app.post('/api/merchant/sales/complete', async (req, res) => {
     const {
       merchantId,
       customerPhone,
+      note,
       paymentMethod,
       items,
       totalAmount,
@@ -11062,6 +11064,7 @@ app.post('/api/merchant/sales/complete', async (req, res) => {
       const sale = new MerchantSale({
         merchantId,
         customerPhone: customerPhone || null,
+        notes: note || '',
         paymentMethod,
         cashAmount: paymentMethod === 'MIXED' ? cashAmount : (paymentMethod === 'CASH' ? totalAmount : 0),
         cardAmount: paymentMethod === 'MIXED' ? cardAmount : (paymentMethod === 'CARD' ? totalAmount : 0),

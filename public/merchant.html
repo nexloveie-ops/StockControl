@@ -752,9 +752,13 @@
         </div>
         
         <!-- 客户信息 -->
-        <div style="margin-bottom: 20px;">
+        <div style="margin-bottom: 15px;">
           <label style="display: block; font-weight: 600; margin-bottom: 8px;">客户电话（选填）</label>
           <input type="text" id="customerPhone" placeholder="输入客户电话..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+        </div>
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; font-weight: 600; margin-bottom: 8px;">备注（选填）</label>
+          <textarea id="saleNote" placeholder="输入备注..." rows="2" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; resize: vertical; font-family: inherit; font-size: 14px;"></textarea>
         </div>
         
         <!-- 支付方式 -->
@@ -4964,6 +4968,7 @@
     // 关闭结账模态框
     function closeCheckoutModal() {
       document.getElementById('checkoutModal').style.display = 'none';
+      document.getElementById('saleNote').value = '';
     }
     
     // 选择支付方式
@@ -5076,11 +5081,13 @@
       }
       
       const customerPhone = document.getElementById('customerPhone').value;
+      const saleNote = document.getElementById('saleNote').value.trim();
       
       // 准备销售数据
       const saleData = {
         merchantId,
         customerPhone: customerPhone || null,
+        note: saleNote || null,
         paymentMethod: selectedPaymentMethod,
         items: cart.map(item => ({
           inventoryId: item.isQuickSale ? null : (item.inventoryId || null), // 快速销售没有inventoryId
@@ -5360,6 +5367,12 @@
       <div class="info-row">
         <span>Customer:</span>
         <span>${orderData.customerPhone}</span>
+      </div>
+      ` : ''}
+      ${orderData.note ? `
+      <div class="info-row" style="margin-top: 5px;">
+        <span>Note:</span>
+        <span style="text-align: right; max-width: 60%;">${orderData.note}</span>
       </div>
       ` : ''}
     </div>
@@ -5742,6 +5755,7 @@
         
         const orderData = {
           customerPhone: sale.customerPhone,
+          note: sale.note || null,
           paymentMethod: sale.paymentMethod,
           cashAmount: sale.cashAmount,
           cardAmount: sale.cardAmount,
@@ -5852,6 +5866,12 @@
               </div>
             </div>
           </div>
+          ${sale.note ? `
+          <div style="background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 12px; margin-bottom: 20px;">
+            <div style="font-size: 12px; color: #92400e; margin-bottom: 4px; font-weight: 600;">备注</div>
+            <div style="color: #78350f;">${sale.note}</div>
+          </div>
+          ` : ''}
           
           <h3 style="margin-bottom: 15px;">商品明细</h3>
           <div style="max-height: 400px; overflow-y: auto;">
@@ -6689,7 +6709,6 @@
               <th>产品名称</th>
               <th>品牌/型号</th>
               <th>库存数量</th>
-              <th>成本价范围</th>
               <th>零售价</th>
               <th>税务分类</th>
               <th>位置</th>
@@ -6731,7 +6750,6 @@
                   ${item.records.length > 1 ? `<br><small style="color: #666;">(${item.records.length}条记录)</small>` : ''}
                   ${item.totalQuantity === 0 ? '<br><small style="color: #856404;">已售完</small>' : ''}
                 </td>
-                <td>${costDisplay}</td>
                 <td>€${item.retailPrice.toFixed(2)}</td>
                 <td>${getTaxBadge(item.taxClassification)}</td>
                 <td style="font-size: 12px;">${locationDisplay}</td>
