@@ -767,8 +767,8 @@
           <div>
             <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 14px;">订单状态</label>
             <select id="warehouseOrderStatusFilter" onchange="loadWarehouseOrders()" style="padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; min-width: 150px;">
-              <option value="">全部状态</option>
-              <option value="pending" selected>待确认</option>
+              <option value="" selected>全部状态</option>
+              <option value="pending">待确认</option>
               <option value="confirmed">已确认</option>
               <option value="shipped">已发货</option>
               <option value="completed">已完成</option>
@@ -3353,6 +3353,7 @@
                       <th style="padding: 10px; text-align: left; border-bottom: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;">Model</th>
                       <th style="padding: 10px; text-align: left; border-bottom: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;">Condition</th>
                       <th style="padding: 10px; text-align: right; border-bottom: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;">Quantity</th>
+                      <th style="padding: 10px; text-align: right; border-bottom: 1px solid #e5e7eb; font-size: 12px; color: #10b981;">Sold</th>
                       <th style="padding: 10px; text-align: right; border-bottom: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;">Cost Price</th>
                       <th style="padding: 10px; text-align: right; border-bottom: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;">Total Value</th>
                     </tr>
@@ -3369,6 +3370,7 @@
                           </span>
                         </td>
                         <td style="padding: 10px; text-align: right; font-weight: 500;">${product.quantity}</td>
+                        <td style="padding: 10px; text-align: right; font-weight: 600; color: #10b981;">${product.soldQty > 0 ? product.soldQty : '-'}</td>
                         <td style="padding: 10px; text-align: right; font-weight: 500;">€${product.costPrice.toFixed(2)}</td>
                         <td style="padding: 10px; text-align: right; font-weight: 600; color: #3b82f6;">€${product.totalValue.toFixed(2)}</td>
                       </tr>
@@ -3378,6 +3380,7 @@
                     <tr style="background: #f8fafc; font-weight: bold;">
                       <td colspan="4" style="padding: 12px; text-align: right;">Category Total:</td>
                       <td style="padding: 12px; text-align: right;">${cat.totalQuantity}</td>
+                      <td style="padding: 12px; text-align: right;">-</td>
                       <td style="padding: 12px; text-align: right;">-</td>
                       <td style="padding: 12px; text-align: right; color: #3b82f6;">€${cat.totalValue.toFixed(2)}</td>
                     </tr>
@@ -7051,8 +7054,8 @@
                         <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Condition</th>
                         <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Code</th>
                         <th style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">Quantity</th>
-                        <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">Unit Price<br>(Incl. VAT)</th>
-                        <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">Total Price<br>(Incl. VAT)</th>
+                        <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">Unit Price<br>(Excl. VAT)</th>
+                        <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">Total Price<br>(Excl. VAT)</th>
                         <th style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">VAT Rate</th>
                         <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">VAT Amount</th>
                       </tr>
@@ -8570,8 +8573,8 @@
                 <th>Condition</th>
                 <th>Code</th>
                 <th class="text-right">Quantity</th>
-                <th class="text-right">Unit Price (Incl. VAT)</th>
-                <th class="text-right">Total Price (Incl. VAT)</th>
+                <th class="text-right">Unit Price (Excl. VAT)</th>
+                <th class="text-right">Total Price (Excl. VAT)</th>
                 <th>VAT Rate</th>
               </tr>
             </thead>
@@ -9329,8 +9332,8 @@
         doc.rect(leftMargin, yPos - 4, 170, 7, 'F');
         doc.text('Product', leftMargin + 2, yPos);
         doc.text('Qty', 120, yPos, { align: 'center' });
-        doc.text('Price', 145, yPos, { align: 'right' });
-        doc.text('Total', rightMargin - 2, yPos, { align: 'right' });
+        doc.text('Unit Price (Excl. VAT)', 148, yPos, { align: 'right' });
+        doc.text('Total (Excl. VAT)', rightMargin - 2, yPos, { align: 'right' });
         yPos += 7;
         
         doc.setFont(undefined, 'normal');

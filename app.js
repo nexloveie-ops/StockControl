@@ -3296,12 +3296,40 @@ app.get('/api/warehouse/orders/:id/pdf', async (req, res) => {
                                 companyInfo && 
                                 merchant.companyInfo.companyName !== companyInfo.companyName;
     
+    // 翻译中文文本为英文（用于PDF生成）
+    const translateToEnglish = async (texts) => {
+      const hasChinese = texts.some(t => t && /[\u4e00-\u9fff]/.test(t));
+      if (!hasChinese) return texts;
+      try {
+        const response = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [{
+            role: 'user',
+            content: `Translate the following product names/texts from Chinese to English. Return ONLY a JSON array of translated strings in the same order, no markdown, no code block. Keep non-Chinese text unchanged.\n\n${JSON.stringify(texts)}`
+          }],
+          temperature: 0
+        });
+        let raw = response.choices[0].message.content.trim();
+        // 去掉可能的 markdown 代码块
+        raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+        const result = JSON.parse(raw);
+        return Array.isArray(result) ? result : texts;
+      } catch (e) {
+        console.error('翻译失败:', e.message);
+        return texts;
+      }
+    };
+
+    // 收集所有需要翻译的产品名称
+    const productNames = order.items.map(item => item.productName || '');
+    const translatedNames = await translateToEnglish(productNames);
+    order.items = order.items.map((item, i) => ({
+      ...item,
+      productName: translatedNames[i] || item.productName
+    }));
+
     // 创建 PDF 文档
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
-    
-    // 设置响应头
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=invoice-${order.orderNumber}.pdf`);
     
     // 将 PDF 输出到响应
     doc.pipe(res);
@@ -6918,9 +6946,10 @@ app.get('/api/admin/reports/financial', checkDbConnection, async (req, res) => {
     const ProductNew = require('./models/ProductNew');
     const AdminInventory = require('./models/AdminInventory');
     const ProductCategory = require('./models/ProductCategory');
+    const MerchantSale = require('./models/MerchantSale');
     
-    // 并行查询 ProductNew 和 AdminInventory
-    const [productNewItems, adminInventoryItems] = await Promise.all([
+    // 并行查询 ProductNew、AdminInventory 和时间段内的销售记录
+    const [productNewItems, adminInventoryItems, salesInPeriod, warehouseOrdersInPeriod] = await Promise.all([
       ProductNew.find({
         isActive: true,
         stockQuantity: { $gt: 0 }
@@ -6929,14 +6958,43 @@ app.get('/api/admin/reports/financial', checkDbConnection, async (req, res) => {
         isActive: true,
         status: 'AVAILABLE',
         quantity: { $gt: 0 }
-      })
+      }),
+      MerchantSale.find({
+        saleDate: { $gte: start, $lte: end },
+        status: { $ne: 'refunded' }
+      }).lean(),
+      WarehouseOrder.find({
+        status: 'completed',
+        completedAt: { $gte: start, $lte: end }
+      }).lean()
     ]);
+
+    // 统计时间段内每个产品的销售数量（MerchantSale）
+    const soldQtyMap = {};
+    salesInPeriod.forEach(sale => {
+      (sale.items || []).forEach(item => {
+        const name = (item.productName || item.name || '').toLowerCase();
+        if (!name) return;
+        soldQtyMap[name] = (soldQtyMap[name] || 0) + (item.quantity || 1);
+      });
+    });
+
+    // 统计 WarehouseOrder 中的销售数量（批发）
+    warehouseOrdersInPeriod.forEach(order => {
+      (order.items || []).forEach(item => {
+        const name = (item.productName || item.name || '').toLowerCase();
+        if (!name) return;
+        soldQtyMap[name] = (soldQtyMap[name] || 0) + (item.quantity || 1);
+      });
+    });
     
     // 按分类分组资产
     const assetsByCategory = {};
     let totalAssetValue = 0;
     
-    // 处理 ProductNew 产品
+    // 处理 ProductNew 产品，同时记录名称用于去重
+    const productNewNames = new Set(productNewItems.map(p => p.name.toLowerCase()));
+
     productNewItems.forEach(product => {
       const categoryName = product.category?.type || 'Uncategorized';
       
@@ -6959,7 +7017,8 @@ app.get('/api/admin/reports/financial', checkDbConnection, async (req, res) => {
         model: product.model,
         condition: product.condition,
         quantity: product.stockQuantity,
-        costPrice: product.costPrice, // 进货价（含税）
+        soldQty: soldQtyMap[product.name.toLowerCase()] || 0,
+        costPrice: product.costPrice,
         totalValue: productValue
       });
       
@@ -6968,8 +7027,12 @@ app.get('/api/admin/reports/financial', checkDbConnection, async (req, res) => {
       totalAssetValue += productValue;
     });
     
-    // 处理 AdminInventory 产品
+    // 处理 AdminInventory 产品（跳过已在 ProductNew 中的产品）
+    let adminInventoryCount = 0;
     adminInventoryItems.forEach(product => {
+      // 去重：如果产品名称已在 ProductNew 中，跳过
+      if (productNewNames.has(product.productName.toLowerCase())) return;
+
       const categoryName = product.category || 'Uncategorized';
       
       if (!assetsByCategory[categoryName]) {
@@ -6991,19 +7054,21 @@ app.get('/api/admin/reports/financial', checkDbConnection, async (req, res) => {
         model: product.model,
         condition: product.condition,
         quantity: product.quantity,
-        costPrice: product.costPrice, // 进货价（不含税）
+        soldQty: soldQtyMap[product.productName.toLowerCase()] || 0,
+        costPrice: product.costPrice,
         totalValue: productValue
       });
       
       assetsByCategory[categoryName].totalQuantity += product.quantity;
       assetsByCategory[categoryName].totalValue += productValue;
       totalAssetValue += productValue;
+      adminInventoryCount++;
     });
     
     // 转换为数组并排序
     const assets = Object.values(assetsByCategory).sort((a, b) => b.totalValue - a.totalValue);
     
-    const totalProducts = productNewItems.length + adminInventoryItems.length;
+    const totalProducts = productNewItems.length + adminInventoryCount;
     
     res.json({
       success: true,
